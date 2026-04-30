@@ -1,24 +1,28 @@
-import { Outlet } from "react-router-dom"
+import { Outlet, useLocation } from "react-router-dom"
 
+import HeaderCommon from "@/components/common/HeaderCommon"
 import SidebarCommon from "@/components/common/SidebarCommon"
-import { Typography } from "@/components/common/Typography"
-import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar"
+import { SidebarProvider } from "@/components/ui/sidebar"
+
+const PAGE_TITLES: Record<string, string> = {
+  "/dashboard": "Dashboard",
+  "/profile": "Profile",
+  "/vehicle": "Vehicle",
+  "/events": "Events",
+  "/registration": "Registrations",
+}
 
 export default function SidebarLayout() {
+  const location = useLocation()
+  const title = PAGE_TITLES[location.pathname] ?? "Jeep Rally"
+
   return (
-    <div className="h-full w-full overflow-hidden">
-      <SidebarProvider>
+    <div className="h-svh w-full overflow-hidden">
+      <SidebarProvider className="h-full min-h-0 overflow-hidden">
         <SidebarCommon />
-        <main className="w-full overflow-hidden">
-          <div className="flex items-center justify-between gap-2 px-4 py-3">
-            <div className="flex items-center gap-2">
-              <SidebarTrigger />
-              <Typography as="h1" variant="label" className="text-base font-semibold">
-                Jeep Rally
-              </Typography>
-            </div>
-          </div>
-          <div className="px-6 pb-6">
+        <main className="h-full min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-[#FDFDFE]">
+          <HeaderCommon title={title} />
+          <div className="px-8 pb-8">
             <Outlet />
           </div>
         </main>

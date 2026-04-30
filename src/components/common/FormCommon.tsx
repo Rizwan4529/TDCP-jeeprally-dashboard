@@ -106,7 +106,9 @@ type CheckboxProps<TFieldValues extends FieldValues> =
 type ImagePickerProps<TFieldValues extends FieldValues> =
   SharedFieldProps<TFieldValues> & {
     accept?: string
+    helperText?: ReactNode
     previewClassName?: string
+    variant?: "preview" | "compact"
   }
 
 type ImagePickerControlProps = Omit<
@@ -118,7 +120,9 @@ type ImagePickerControlProps = Omit<
   disabled?: boolean
   accept: string
   className?: string
+  helperText?: ReactNode
   previewClassName?: string
+  variant?: "preview" | "compact"
 }
 
 function FieldLabel({ children }: { children: ReactNode }) {
@@ -403,7 +407,9 @@ function ImagePickerControl({
   disabled,
   accept,
   className,
+  helperText,
   previewClassName,
+  variant = "preview",
   ...rootProps
 }: ImagePickerControlProps) {
   const inputRef = React.useRef<HTMLInputElement>(null)
@@ -435,6 +441,49 @@ function ImagePickerControl({
     if (inputRef.current) {
       inputRef.current.value = ""
     }
+  }
+
+  if (variant === "compact") {
+    const fileName =
+      typeof File !== "undefined" && value instanceof File ? value.name : ""
+
+    return (
+      <div {...rootProps} className={cn("grid gap-2", className)}>
+        <div className="flex h-10 items-center rounded-md border border-[#D6D9E0] bg-white shadow-[0_1px_2px_rgba(15,23,42,0.05)]">
+          <button
+            type="button"
+            disabled={disabled}
+            onClick={() => inputRef.current?.click()}
+            className="min-w-0 flex-1 truncate px-4 text-left text-sm text-[#6B7890] outline-none disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {fileName || "choose file"}
+          </button>
+          <Button
+            type="button"
+            onClick={() => inputRef.current?.click()}
+            disabled={disabled}
+            className="mr-2 h-7 rounded-md bg-gradient-to-b from-[#747474] to-[#303030] px-4 text-xs text-white shadow-sm hover:from-[#747474] hover:to-[#303030]"
+          >
+            <Typography as="span" variant="caption" color="inherit">
+              Upload
+            </Typography>
+          </Button>
+        </div>
+        {helperText ? (
+          <Typography as="span" variant="caption" color="muted">
+            {helperText}
+          </Typography>
+        ) : null}
+        <BaseInput
+          ref={inputRef}
+          type="file"
+          accept={accept}
+          className="hidden"
+          disabled={disabled}
+          onChange={handleSelect}
+        />
+      </div>
+    )
   }
 
   return (
@@ -521,7 +570,9 @@ function ImagePicker<TFieldValues extends FieldValues>({
   disabled,
   showMessage = true,
   accept = "image/*",
+  helperText,
   previewClassName,
+  variant = "preview",
 }: ImagePickerProps<TFieldValues>) {
   return (
     <FormField
@@ -541,7 +592,9 @@ function ImagePicker<TFieldValues extends FieldValues>({
               disabled={disabled}
               accept={accept}
               className={className}
+              helperText={helperText}
               previewClassName={previewClassName}
+              variant={variant}
             />
           </FormControl>
           {description ? <FieldDescription>{description}</FieldDescription> : null}

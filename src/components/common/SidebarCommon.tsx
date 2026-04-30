@@ -52,7 +52,11 @@ export default function SidebarCommon() {
                   className="h-12 w-12 object-contain"
                 />
                 {state !== "collapsed" ? (
-                  <Typography as="span" variant="h6" className="leading-none">
+                  <Typography
+                    as="span"
+                    variant="h6"
+                    className="leading-none text-[#00571C]"
+                  >
                     Jeep Rally
                   </Typography>
                 ) : null}
