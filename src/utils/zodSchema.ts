@@ -77,3 +77,164 @@ export const stockPrepaidRegistrationSchema = z
 export type StockPrepaidRegistrationValues = z.infer<
   typeof stockPrepaidRegistrationSchema
 >
+
+export const dirtBikeRegistrationSchema = z.object({
+  categoryClass: requiredString("Select a class"),
+  categoryType: requiredString(),
+
+  driverName: requiredString(),
+  driverGender: requiredString(),
+  driverAge: optionalString,
+  driverAddress: optionalString,
+  driverCellNo: requiredString(),
+  driverLicenseNo: requiredString(),
+  driverExpiryDate: optionalString,
+  driverCnicNo: requiredString(),
+  driverEmail: z.string().trim().min(1, "This field is required").email(
+    "Enter a valid email address"
+  ),
+  driverImage: requiredFile(),
+  driverCnic: requiredFile(),
+  driverLicense: requiredFile(),
+
+  bikeRegistrationNo: optionalString,
+  bikeMake: requiredString(),
+  bikeEngineCapacity: requiredString(),
+  desiredRallyNumber: requiredString(),
+
+  emergencyContact: requiredString(),
+  teamName: optionalString,
+  bikeName: optionalString,
+  participationCount: requiredString(),
+  acceptedTerms: z.boolean().refine((value) => value, {
+    message: "You must agree to the terms and conditions",
+  }),
+})
+
+export type DirtBikeRegistrationValues = z.infer<
+  typeof dirtBikeRegistrationSchema
+>
+
+export const quadBikeRegistrationSchema = z.object({
+  categoryType: requiredString(),
+
+  driverName: requiredString(),
+  driverGender: requiredString(),
+  driverAge: optionalString,
+  driverAddress: optionalString,
+  driverCellNo: requiredString(),
+  driverLicenseNo: requiredString(),
+  driverExpiryDate: optionalString,
+  driverCnicNo: requiredString(),
+  driverEmail: z.string().trim().min(1, "This field is required").email(
+    "Enter a valid email address"
+  ),
+  driverImage: requiredFile(),
+  driverCnic: requiredFile(),
+  driverLicense: requiredFile(),
+
+  bikeRegistrationNo: optionalString,
+  bikeMake: requiredString(),
+  bikeEngineCapacity: requiredString(),
+  desiredRallyNumber: requiredString(),
+
+  emergencyContact: requiredString(),
+  teamName: optionalString,
+  carName: optionalString,
+  participationCount: requiredString(),
+  acceptedTerms: z.boolean().refine((value) => value, {
+    message: "You must agree to the terms and conditions",
+  }),
+})
+
+export type QuadBikeRegistrationValues = z.infer<
+  typeof quadBikeRegistrationSchema
+>
+
+export const truckRaceRegistrationSchema = z.object({
+  categoryType: requiredString(),
+
+  driverName: requiredString(),
+  driverGender: requiredString(),
+  driverAge: optionalString,
+  driverAddress: optionalString,
+  driverCellNo: requiredString(),
+  driverEmail: z.string().trim().min(1, "This field is required").email(
+    "Enter a valid email address"
+  ),
+  driverLicenseNo: requiredString(),
+  driverExpiryDate: optionalString,
+  driverCnicNo: requiredString(),
+  driverImage: requiredFile(),
+  driverCnic: requiredFile(),
+  driverLicense: requiredFile(),
+
+  coDriverParticipatingAs: requiredString("Select one option"),
+  coDriverName: requiredString(),
+  coDriverSex: optionalString,
+  coDriverAge: optionalString,
+  coDriverCnicNo: requiredString(),
+  coDriverCellNo: requiredString(),
+  coDriverLicenseNo: requiredString(),
+  coDriverEmail: z.string().trim().min(1, "This field is required").email(
+    "Enter a valid email address"
+  ),
+  coDriverImage: requiredFile(),
+  coDriverCnic: requiredFile(),
+  coDriverLicense: requiredFile(),
+
+  mechanicName: requiredString(),
+  mechanicSex: optionalString,
+  mechanicAge: optionalString,
+  mechanicCnicNo: requiredString(),
+  mechanicCellNo: requiredString(),
+
+  vehicleRegistrationNo: optionalString,
+  vehicleMake: requiredString(),
+  vehicleEngineCapacity: requiredString(),
+  fuelType: requiredString("Select one fuel type"),
+  turboCharged: requiredString("Select one option"),
+  desiredRallyNumber: requiredString(),
+
+  emergencyContact: requiredString(),
+  teamName: optionalString,
+  truckName: optionalString,
+  participationCount: requiredString(),
+  acceptedTerms: z.boolean().refine((value) => value, {
+    message: "You must agree to the terms and conditions",
+  }),
+})
+
+export type TruckRaceRegistrationValues = z.infer<
+  typeof truckRaceRegistrationSchema
+>
+
+export const sixBySixRegistrationSchema = truckRaceRegistrationSchema
+
+export type SixBySixRegistrationValues = z.infer<
+  typeof sixBySixRegistrationSchema
+>
+
+export const loginSchema = z.object({
+  login: requiredString("Enter your email, phone, or username"),
+  password: requiredString("Enter your password"),
+})
+
+export type LoginValues = z.infer<typeof loginSchema>
+
+export const signupSchema = z
+  .object({
+    fullName: requiredString("Enter your full name"),
+    email: z.string().trim().email("Enter a valid email address"),
+    password: z.string().min(6, "Password must be at least 6 characters"),
+    confirmPassword: requiredString("Confirm your password"),
+    acceptedTerms: z.boolean().refine((value) => value, {
+      message: "You must agree to the terms and conditions",
+    }),
+  })
+  .refine((value) => value.password === value.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  })
+
+export type SignupValues = z.infer<typeof signupSchema>

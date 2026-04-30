@@ -7,7 +7,14 @@ import {
   type SubmitHandler,
   type UseFormReturn,
 } from "react-hook-form"
-import { ImageIcon, UploadIcon, XIcon } from "lucide-react"
+import {
+  CalendarIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  ImageIcon,
+  UploadIcon,
+  XIcon,
+} from "lucide-react"
 
 import { Typography } from "@/components/common/Typography"
 import { Button } from "@/components/ui/button"
@@ -22,6 +29,11 @@ import {
 } from "@/components/ui/form"
 import { Input as BaseInput } from "@/components/ui/input"
 import { Checkbox as BaseCheckbox } from "@/components/ui/checkbox"
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover"
 import { RadioGroup as BaseRadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
 import {
   Select as BaseSelect,
@@ -103,6 +115,11 @@ type CheckboxProps<TFieldValues extends FieldValues> =
     checkboxClassName?: string
   }
 
+type DatePickerProps<TFieldValues extends FieldValues> =
+  SharedFieldProps<TFieldValues> & {
+    displayFormat?: "mdy" | "dmy"
+  }
+
 type ImagePickerProps<TFieldValues extends FieldValues> =
   SharedFieldProps<TFieldValues> & {
     accept?: string
@@ -140,6 +157,223 @@ function FieldDescription({ children }: { children: ReactNode }) {
         {children}
       </Typography>
     </FormDescription>
+  )
+}
+
+const weekDays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+
+function toIsoDate(date: Date) {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const day = String(date.getDate()).padStart(2, "0")
+
+  return `${year}-${month}-${day}`
+}
+
+function parseDateValue(value: unknown) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return value
+  }
+
+  if (typeof value !== "string" || !value) {
+    return undefined
+  }
+
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  if (isoMatch) {
+    const [, year, month, day] = isoMatch
+    return new Date(Number(year), Number(month) - 1, Number(day))
+  }
+
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? undefined : date
+}
+
+function formatDateValue(value: unknown, displayFormat: "mdy" | "dmy") {
+  const date = parseDateValue(value)
+
+  if (!date) {
+    return ""
+  }
+
+  const day = String(date.getDate()).padStart(2, "0")
+  const month = String(date.getMonth() + 1).padStart(2, "0")
+  const year = date.getFullYear()
+
+  return displayFormat === "dmy"
+    ? `${day}/${month}/${year}`
+    : `${month}/${day}/${year}`
+}
+
+function isSameDate(left: Date, right: Date) {
+  return (
+    left.getFullYear() === right.getFullYear() &&
+    left.getMonth() === right.getMonth() &&
+    left.getDate() === right.getDate()
+  )
+}
+
+function getCalendarCells(monthDate: Date) {
+  const year = monthDate.getFullYear()
+  const month = monthDate.getMonth()
+  const firstDay = new Date(year, month, 1)
+  const daysInMonth = new Date(year, month + 1, 0).getDate()
+  const cells: Array<Date | null> = []
+
+  for (let index = 0; index < firstDay.getDay(); index += 1) {
+    cells.push(null)
+  }
+
+  for (let day = 1; day <= daysInMonth; day += 1) {
+    cells.push(new Date(year, month, day))
+  }
+
+  while (cells.length % 7 !== 0) {
+    cells.push(null)
+  }
+
+  return cells
+}
+
+function DatePickerControl({
+  value,
+  onChange,
+  placeholder = "mm/dd/yyyy",
+  disabled,
+  className,
+  displayFormat = "mdy",
+}: {
+  value: unknown
+  onChange: (value: string) => void
+  placeholder?: string
+  disabled?: boolean
+  className?: string
+  displayFormat?: "mdy" | "dmy"
+}) {
+  const selectedDate = parseDateValue(value)
+  const [open, setOpen] = React.useState(false)
+  const [visibleMonth, setVisibleMonth] = React.useState(
+    selectedDate ?? new Date()
+  )
+  const formattedValue = formatDateValue(value, displayFormat)
+  const calendarCells = getCalendarCells(visibleMonth)
+  const monthLabel = new Intl.DateTimeFormat("en-US", {
+    month: "long",
+    year: "numeric",
+  }).format(visibleMonth)
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (nextOpen) {
+      setVisibleMonth(selectedDate ?? new Date())
+    }
+
+    setOpen(nextOpen)
+  }
+
+  const moveMonth = (amount: number) => {
+    setVisibleMonth(
+      (current) => new Date(current.getFullYear(), current.getMonth() + amount, 1)
+    )
+  }
+
+  return (
+    <Popover open={open} onOpenChange={handleOpenChange}>
+      <PopoverTrigger asChild>
+        <FormControl>
+          <button
+            type="button"
+            disabled={disabled}
+            className={cn(
+              "flex h-11 w-full items-center justify-between rounded-md border border-[#D7DAE1] bg-white px-4 text-left text-[15px] text-[#25314D] shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-colors outline-none hover:border-primary/45 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
+              !formattedValue && "text-[#8B96AD]",
+              className
+            )}
+          >
+            <span>{formattedValue || placeholder}</span>
+            <CalendarIcon className="size-4 shrink-0 text-[#6B7890]" />
+          </button>
+        </FormControl>
+      </PopoverTrigger>
+      <PopoverContent className="w-[290px]">
+        <div className="flex items-center justify-between">
+          <button
+            type="button"
+            onClick={() => moveMonth(-1)}
+            className="flex size-8 cursor-pointer items-center justify-center rounded-md text-[#25314D] hover:bg-[#F0F1F7]"
+          >
+            <ChevronLeftIcon className="size-4" />
+          </button>
+          <Typography as="span" variant="label" className="text-[#25314D]">
+            {monthLabel}
+          </Typography>
+          <button
+            type="button"
+            onClick={() => moveMonth(1)}
+            className="flex size-8 cursor-pointer items-center justify-center rounded-md text-[#25314D] hover:bg-[#F0F1F7]"
+          >
+            <ChevronRightIcon className="size-4" />
+          </button>
+        </div>
+
+        <div className="mt-3 grid grid-cols-7 gap-1">
+          {weekDays.map((day) => (
+            <Typography
+              key={day}
+              as="span"
+              variant="caption"
+              className="flex h-7 items-center justify-center text-[#6B7890]"
+            >
+              {day}
+            </Typography>
+          ))}
+          {calendarCells.map((day, index) => {
+            const selected = day && selectedDate && isSameDate(day, selectedDate)
+
+            return day ? (
+              <button
+                key={toIsoDate(day)}
+                type="button"
+                onClick={() => {
+                  onChange(toIsoDate(day))
+                  setOpen(false)
+                }}
+                className={cn(
+                  "flex size-9 cursor-pointer items-center justify-center rounded-md text-sm text-[#25314D] hover:bg-[#F0F1F7]",
+                  selected && "bg-primary text-white hover:bg-primary"
+                )}
+              >
+                {day.getDate()}
+              </button>
+            ) : (
+              <span key={`empty-${index}`} className="size-9" />
+            )
+          })}
+        </div>
+
+        <div className="mt-3 flex items-center justify-between border-t border-[#E8E8E8] pt-3">
+          <button
+            type="button"
+            className="cursor-pointer text-sm font-medium text-[#6B7890] hover:text-[#25314D]"
+            onClick={() => {
+              onChange("")
+              setOpen(false)
+            }}
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            className="cursor-pointer text-sm font-medium text-primary hover:text-primary/80"
+            onClick={() => {
+              onChange(toIsoDate(new Date()))
+              setOpen(false)
+            }}
+          >
+            Today
+          </button>
+        </div>
+      </PopoverContent>
+    </Popover>
   )
 }
 
@@ -288,6 +522,45 @@ function Select<TFieldValues extends FieldValues>({
               </SelectGroup>
             </SelectContent>
           </BaseSelect>
+          {description ? <FieldDescription>{description}</FieldDescription> : null}
+          {showMessage ? <FormMessage /> : null}
+        </FormItem>
+      )}
+    />
+  )
+}
+
+function DatePicker<TFieldValues extends FieldValues>({
+  control,
+  name,
+  label,
+  description,
+  placeholder,
+  className,
+  itemClassName,
+  disabled,
+  showMessage = true,
+  displayFormat = "mdy",
+}: DatePickerProps<TFieldValues>) {
+  return (
+    <FormField
+      control={control}
+      name={name}
+      render={({ field }) => (
+        <FormItem className={itemClassName}>
+          {label ? (
+            <FormLabel>
+              <FieldLabel>{label}</FieldLabel>
+            </FormLabel>
+          ) : null}
+          <DatePickerControl
+            value={field.value}
+            onChange={field.onChange}
+            placeholder={placeholder}
+            disabled={disabled}
+            className={className}
+            displayFormat={displayFormat}
+          />
           {description ? <FieldDescription>{description}</FieldDescription> : null}
           {showMessage ? <FormMessage /> : null}
         </FormItem>
@@ -607,6 +880,7 @@ function ImagePicker<TFieldValues extends FieldValues>({
 
 export {
   Checkbox,
+  DatePicker,
   FormCommon,
   ImagePicker,
   Input,

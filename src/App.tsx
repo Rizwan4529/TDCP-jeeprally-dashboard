@@ -3,14 +3,19 @@ import { Navigate, Route, Routes } from "react-router-dom"
 import SidebarLayout from "@/components/layout/SidebarLayout"
 import DashboardPage from "@/pages/Dashboard"
 import EventsPage from "@/pages/Events"
+import LoginPage from "@/pages/Login"
 import NotFoundPage from "@/pages/NotFound"
 import ProfilePage from "@/pages/Profile"
 import RegistrationPage from "@/pages/Registration"
+import SignupPage from "@/pages/Signup"
 import VehiclePage from "@/pages/Vehicle"
 
 const App = () => {
   return (
     <Routes>
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/signup" element={<SignupPage />} />
+
       <Route element={<SidebarLayout />}>
         <Route index element={<Navigate to="/dashboard" replace />} />
         <Route path="/dashboard" element={<DashboardPage />} />
