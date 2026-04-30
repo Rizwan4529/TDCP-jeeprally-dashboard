@@ -22,7 +22,7 @@ export default function SidebarLayout() {
         <SidebarCommon />
         <main className="h-full min-w-0 flex-1 overflow-y-auto overflow-x-hidden bg-[#FDFDFE]">
           <HeaderCommon title={title} />
-          <div className="px-8 pb-8">
+          <div className="px-4 pb-6 sm:px-6 lg:px-8 lg:pb-8">
             <Outlet />
           </div>
         </main>

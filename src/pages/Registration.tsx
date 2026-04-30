@@ -31,7 +31,7 @@ const REGISTRATION_TABS: RegistrationTab[] = [
 ];
 
 const fieldClassName =
-  "h-11 rounded-md border-[#D7DAE1] bg-white px-4 text-[15px] text-[#25314D] shadow-[0_1px_2px_rgba(15,23,42,0.05)] placeholder:text-[#8B96AD]";
+  "h-11 w-full rounded-md border-[#D7DAE1] bg-white px-4 text-[15px] text-[#25314D] shadow-[0_1px_2px_rgba(15,23,42,0.05)] placeholder:text-[#8B96AD]";
 
 const selectOptions = [
   { label: "Select", value: "select" },
@@ -106,22 +106,24 @@ function RegistrationSection({
   children: React.ReactNode;
 }) {
   return (
-    <section className="space-y-4">
+    <section className="space-y-3 sm:space-y-4">
       <Typography
         as="h3"
         variant="body-lg"
-        className="text-[20px] leading-none text-[#4A4A4A]"
+        className="text-[18px] leading-none text-[#4A4A4A] sm:text-[20px]"
       >
         {title}
       </Typography>
-      <div className="rounded-md bg-[#F9FAFD] p-8">{children}</div>
+      <div className="rounded-md bg-[#F9FAFD] p-4 sm:p-6 lg:p-8">
+        {children}
+      </div>
     </section>
   );
 }
 
 function FieldGrid({ children }: { children: React.ReactNode }) {
   return (
-    <div className="grid grid-cols-1 gap-x-9 gap-y-7 lg:grid-cols-3">
+    <div className="grid grid-cols-1 gap-x-6 gap-y-5 lg:grid-cols-3 lg:gap-x-9 lg:gap-y-7">
       {children}
     </div>
   );
@@ -163,22 +165,22 @@ function StockPrepaidForm() {
   };
 
   return (
-    <FormCommon form={form} onSubmit={onSubmit} className="space-y-8">
+    <FormCommon form={form} onSubmit={onSubmit} className="space-y-5 sm:space-y-8">
       <div className="rounded-md border border-[#E8E8E8] bg-white shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
-        <div className="border-b border-[#E8E8E8] px-8 py-6">
+        <div className="border-b border-[#E8E8E8] px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
           <Typography
             as="h2"
             variant="h5"
-            className="text-[20px] font-semibold uppercase leading-none text-[#4A4A4A]"
+            className="text-[18px] font-semibold uppercase leading-none text-[#4A4A4A] sm:text-[20px]"
           >
             Registration
           </Typography>
         </div>
 
-        <div className="space-y-8 p-8">
+        <div className="space-y-6 p-4 sm:p-6 lg:space-y-8 lg:p-8">
           <RegistrationSection title="Category">
-            <div className="space-y-7">
-              <div className="grid grid-cols-2 gap-7 lg:grid-cols-4">
+            <div className="space-y-5 lg:space-y-7">
+              <div className="grid grid-cols-1 gap-4 min-[380px]:grid-cols-2 sm:grid-cols-4 lg:gap-7">
                 <Checkbox
                   control={form.control}
                   name="categoryPreparedOne"
@@ -213,7 +215,7 @@ function StockPrepaidForm() {
                 />
               </div>
 
-              <div className="grid grid-cols-1 gap-8 lg:grid-cols-[300px_1fr]">
+              <div className="grid grid-cols-1 gap-5 lg:grid-cols-[300px_1fr] lg:gap-8">
                 <Select
                   control={form.control}
                   name="categoryFullName"
@@ -223,10 +225,10 @@ function StockPrepaidForm() {
                   className={fieldClassName}
                   showMessage={false}
                 />
-                <div className="flex items-end pb-3">
+                <div className="flex items-end lg:pb-3">
                   <Typography
                     variant="body-sm"
-                    className="max-w-[640px] text-[15px] leading-[1.45] text-[#25314D]"
+                    className="max-w-[640px] text-[14px] leading-[1.45] text-[#25314D] sm:text-[15px]"
                   >
                     Type(any other Sticker other than
                     team/club/association/manufactures will be considered
@@ -322,12 +324,12 @@ function StockPrepaidForm() {
           </RegistrationSection>
 
           <RegistrationSection title="Co-Driver /Navigator Information">
-            <div className="space-y-7">
+            <div className="space-y-5 lg:space-y-7">
               <div className="space-y-2">
                 <Typography variant="label" className="text-[#25314D]">
                   <RequiredLabel>Participating as</RequiredLabel>
                 </Typography>
-                <div className="grid grid-cols-1 gap-7 sm:grid-cols-2 lg:max-w-[520px]">
+                <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:max-w-[520px] lg:gap-7">
                   <Checkbox
                     control={form.control}
                     name="participatingCoDriver"
@@ -409,7 +411,7 @@ function StockPrepaidForm() {
           </RegistrationSection>
 
           <RegistrationSection title="Vehicle details">
-            <div className="space-y-8">
+            <div className="space-y-6 lg:space-y-8">
               <FieldGrid>
                 <Input
                   control={form.control}
@@ -438,7 +440,7 @@ function StockPrepaidForm() {
                 <Typography variant="label" className="text-[#25314D]">
                   <RequiredLabel>Please indicate with</RequiredLabel>
                 </Typography>
-                <div className="grid max-w-[500px] grid-cols-2 gap-8">
+                <div className="grid max-w-[500px] grid-cols-1 gap-4 min-[380px]:grid-cols-2 sm:gap-8">
                   <Checkbox
                     control={form.control}
                     name="fuelDiesel"
@@ -461,7 +463,7 @@ function StockPrepaidForm() {
                 <Typography variant="label" className="text-[#25314D]">
                   <RequiredLabel>Turbo Charged</RequiredLabel>
                 </Typography>
-                <div className="grid max-w-[500px] grid-cols-2 gap-8">
+                <div className="grid max-w-[500px] grid-cols-1 gap-4 min-[380px]:grid-cols-2 sm:gap-8">
                   <Checkbox
                     control={form.control}
                     name="turboChargedYes"
@@ -480,7 +482,7 @@ function StockPrepaidForm() {
                 </div>
               </div>
 
-              <div className="max-w-[300px]">
+              <div className="max-w-none sm:max-w-[300px]">
                 <Input
                   control={form.control}
                   name="desiredRallyNumber"
@@ -545,10 +547,10 @@ function StockPrepaidForm() {
           </RegistrationSection>
 
           <RegistrationSection title="Undertaking">
-            <div className="space-y-8">
+            <div className="space-y-6 sm:space-y-8">
               <Typography
                 variant="body"
-                className="max-w-[1100px] text-[15px] leading-[1.45] text-[#686868]"
+                className="max-w-[1100px] text-[14px] leading-[1.45] text-[#686868] sm:text-[15px]"
               >
                 ADD copy of Drivers License and ID Card (MANDATORY)
                 <br />
@@ -578,23 +580,23 @@ function StockPrepaidForm() {
         </div>
       </div>
 
-      <div className="flex items-center justify-end gap-4 pb-2">
-          <Button
-            type="button"
-            variant="primary-outline"
-            className="h-[46px] min-w-[150px] rounded-md px-8 text-[17px] font-medium"
-            onClick={() => form.reset(defaultValues)}
-          >
-            <Typography as="span" variant="body" color="inherit">
-              Cancel
-            </Typography>
-          </Button>
-          <Button
-            type="submit"
-            className="h-[46px] min-w-[210px] rounded-md px-8 text-[17px] font-medium"
-          >
-            <Typography as="span" variant="body" color="inherit">
-              Proceed To Payment
+      <div className="flex flex-col-reverse items-stretch justify-end gap-3 pb-2 sm:flex-row sm:items-center sm:gap-4">
+        <Button
+          type="button"
+          variant="primary-outline"
+          className="h-[46px] w-full rounded-md px-8 text-[16px] font-medium sm:w-auto sm:min-w-[150px] sm:text-[17px]"
+          onClick={() => form.reset(defaultValues)}
+        >
+          <Typography as="span" variant="body" color="inherit">
+            Cancel
+          </Typography>
+        </Button>
+        <Button
+          type="submit"
+          className="h-[46px] w-full rounded-md px-6 text-[16px] font-medium sm:w-auto sm:min-w-[210px] sm:px-8 sm:text-[17px]"
+        >
+          <Typography as="span" variant="body" color="inherit">
+            Proceed To Payment
           </Typography>
         </Button>
       </div>
@@ -606,8 +608,8 @@ export default function RegistrationPage() {
   const [activeTab, setActiveTab] = useState("stock-prepaid");
 
   return (
-    <div className="space-y-8">
-      <div className="grid grid-cols-2 gap-7 xl:grid-cols-5">
+    <div className="space-y-5 sm:space-y-8">
+      <div className="grid grid-cols-2 gap-3 sm:gap-5 lg:grid-cols-3 xl:grid-cols-5">
         {REGISTRATION_TABS.map((tab) => {
           const isActive = tab.value === activeTab;
 
@@ -617,13 +619,18 @@ export default function RegistrationPage() {
               type="button"
               onClick={() => setActiveTab(tab.value)}
               className={cn(
-                "h-[50px] rounded-md px-6 text-[18px] leading-none transition-colors",
+                "flex h-12 min-w-0 items-center justify-center rounded-md px-2 transition-colors sm:h-[50px] sm:px-4 lg:px-6",
                 isActive
                   ? "bg-[#43AA72] text-white shadow-sm"
                   : "bg-[#F0F1F7] text-[#777777] hover:bg-[#E8EAF2]",
               )}
             >
-              <Typography as="span" variant="body-lg" color="inherit">
+              <Typography
+                as="span"
+                variant="body-lg"
+                color="inherit"
+                className="block max-w-full truncate text-[14px] leading-none sm:text-[16px] lg:text-[18px]"
+              >
                 {tab.label}
               </Typography>
             </button>
@@ -634,7 +641,7 @@ export default function RegistrationPage() {
       {activeTab === "stock-prepaid" ? (
         <StockPrepaidForm />
       ) : (
-        <div className="rounded-md border border-[#E8E8E8] bg-white p-10 text-center shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
+        <div className="rounded-md border border-[#E8E8E8] bg-white p-6 text-center shadow-[0_8px_22px_rgba(15,23,42,0.04)] sm:p-10">
           <Typography variant="body-lg" color="muted">
             This form will be made soon.
           </Typography>

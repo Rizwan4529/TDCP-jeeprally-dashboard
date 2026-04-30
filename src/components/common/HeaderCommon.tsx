@@ -9,17 +9,17 @@ type HeaderCommonProps = {
 
 export default function HeaderCommon({ title }: HeaderCommonProps) {
   return (
-    <header className="flex min-h-24 items-center justify-between gap-4 px-8 py-5">
+    <header className="flex min-h-24 flex-col items-start justify-between gap-4 px-4 py-5 sm:px-6 md:flex-row md:items-center lg:px-8">
       <Typography
         as="h1"
         variant="h3"
-        className="text-[36px] leading-none font-semibold text-[#1F1838]"
+        className="text-[28px] leading-none font-semibold text-[#1F1838] sm:text-[32px] lg:text-[36px]"
       >
         {title}
       </Typography>
 
-      <div className="flex h-[60px] items-center gap-5 rounded-2xl bg-white px-4 shadow-[0_12px_30px_rgba(15,23,42,0.06)]">
-        <label className="flex h-10 w-[220px] items-center gap-3 rounded-lg bg-[#F3F5FC] px-4 text-[#2C3F8F]">
+      <div className="flex h-[56px] w-full max-w-full items-center gap-3 rounded-2xl bg-white px-3 shadow-[0_12px_30px_rgba(15,23,42,0.06)] sm:h-[60px] sm:gap-5 sm:px-4 md:w-auto">
+        <label className="flex h-10 min-w-0 flex-1 items-center gap-3 rounded-lg bg-[#F3F5FC] px-3 text-[#2C3F8F] sm:w-[220px] sm:flex-none sm:px-4">
           <SearchIcon className="size-4" />
           <input
             type="search"
@@ -27,10 +27,10 @@ export default function HeaderCommon({ title }: HeaderCommonProps) {
             className="h-full min-w-0 flex-1 bg-transparent text-sm text-[#2A3554] outline-none placeholder:text-[#8A95B5]"
           />
         </label>
-        <BellIcon className="size-5 text-[#9AA6C8]" />
-        <MoonIcon className="size-5 fill-[#9AA6C8] text-[#9AA6C8]" />
-        <InfoIcon className="size-5 text-[#9AA6C8]" />
-        <Avatar className="size-11 border-2 border-[#253C92]">
+        <BellIcon className="size-5 shrink-0 text-[#9AA6C8]" />
+        <MoonIcon className="size-5 shrink-0 fill-[#9AA6C8] text-[#9AA6C8]" />
+        <InfoIcon className="size-5 shrink-0 text-[#9AA6C8]" />
+        <Avatar className="size-10 shrink-0 border-2 border-[#253C92] sm:size-11">
           <AvatarFallback className="bg-[#CED8FF] text-sm font-semibold text-[#253C92]">
             JR
           </AvatarFallback>
