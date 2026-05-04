@@ -67,4 +67,5 @@ function Button({
   )
 }
 
+/* eslint-disable react-refresh/only-export-components -- consumers import buttonVariants */
 export { Button, buttonVariants }

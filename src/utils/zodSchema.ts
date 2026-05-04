@@ -228,6 +228,29 @@ export const signupSchema = z
     email: z.string().trim().email("Enter a valid email address"),
     password: z.string().min(6, "Password must be at least 6 characters"),
     confirmPassword: requiredString("Confirm your password"),
+    contactNumber: z
+      .string()
+      .trim()
+      .regex(/^03\d{9}$/, "Enter a valid mobile number (e.g. 03001234567)"),
+    cnic: z
+      .string()
+      .trim()
+      .regex(/^\d{13}$/, "CNIC must be exactly 13 digits"),
+    dateOfBirth: z
+      .string()
+      .trim()
+      .min(1, "Date of birth is required")
+      .regex(/^\d{4}-\d{2}-\d{2}$/, "Select a valid date")
+      .refine((dateStr) => {
+        const parsed = new Date(`${dateStr}T00:00:00`)
+        return !Number.isNaN(parsed.getTime())
+      }, "Invalid date")
+      .refine((dateStr) => {
+        const parsed = new Date(`${dateStr}T00:00:00`)
+        const endOfToday = new Date()
+        endOfToday.setHours(23, 59, 59, 999)
+        return parsed <= endOfToday
+      }, "Date of birth cannot be in the future"),
     acceptedTerms: z.boolean().refine((value) => value, {
       message: "You must agree to the terms and conditions",
     }),
