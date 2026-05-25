@@ -9,6 +9,7 @@ import {
 } from "react-hook-form"
 import {
   CalendarIcon,
+  CameraIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
   ImageIcon,
@@ -118,6 +119,8 @@ type CheckboxProps<TFieldValues extends FieldValues> =
 type DatePickerProps<TFieldValues extends FieldValues> =
   SharedFieldProps<TFieldValues> & {
     displayFormat?: "mdy" | "dmy"
+    /** Adds this many years beyond the current year to the year dropdown (e.g. license expiry). */
+    calendarYearsFuture?: number
   }
 
 type ImagePickerProps<TFieldValues extends FieldValues> =
@@ -125,7 +128,7 @@ type ImagePickerProps<TFieldValues extends FieldValues> =
     accept?: string
     helperText?: ReactNode
     previewClassName?: string
-    variant?: "preview" | "compact"
+    variant?: "preview" | "compact" | "avatar"
   }
 
 type ImagePickerControlProps = Omit<
@@ -139,7 +142,7 @@ type ImagePickerControlProps = Omit<
   className?: string
   helperText?: ReactNode
   previewClassName?: string
-  variant?: "preview" | "compact"
+  variant?: "preview" | "compact" | "avatar"
 }
 
 function FieldLabel({ children }: { children: ReactNode }) {
@@ -161,6 +164,33 @@ function FieldDescription({ children }: { children: ReactNode }) {
 }
 
 const weekDays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+
+const MONTH_LABELS = Array.from({ length: 12 }, (_, index) =>
+  new Intl.DateTimeFormat("en-US", { month: "long" }).format(
+    new Date(2000, index, 1),
+  ),
+)
+
+function getYearOptionsForCalendar(
+  visibleYear: number,
+  extraFutureYears = 0,
+) {
+  const currentYear = new Date().getFullYear()
+  const maxYear = Math.max(
+    currentYear + extraFutureYears,
+    visibleYear,
+    currentYear,
+  )
+  const minYear = Math.min(currentYear - 120, visibleYear)
+  const years: number[] = []
+  for (let y = maxYear; y >= minYear; y -= 1) {
+    years.push(y)
+  }
+  return years
+}
+
+const calendarSelectClassName =
+  "h-9 shrink-0 rounded-md border border-[#D7DAE1] bg-white px-2 text-sm text-[#25314D] shadow-[0_1px_2px_rgba(15,23,42,0.05)] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
 
 function toIsoDate(date: Date) {
   const year = date.getFullYear()
@@ -242,6 +272,7 @@ function DatePickerControl({
   disabled,
   className,
   displayFormat = "mdy",
+  calendarYearsFuture = 0,
 }: {
   value: unknown
   onChange: (value: string) => void
@@ -249,6 +280,7 @@ function DatePickerControl({
   disabled?: boolean
   className?: string
   displayFormat?: "mdy" | "dmy"
+  calendarYearsFuture?: number
 }) {
   const selectedDate = parseDateValue(value)
   const [open, setOpen] = React.useState(false)
@@ -257,10 +289,14 @@ function DatePickerControl({
   )
   const formattedValue = formatDateValue(value, displayFormat)
   const calendarCells = getCalendarCells(visibleMonth)
-  const monthLabel = new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    year: "numeric",
-  }).format(visibleMonth)
+  const yearOptions = React.useMemo(
+    () =>
+      getYearOptionsForCalendar(
+        visibleMonth.getFullYear(),
+        calendarYearsFuture,
+      ),
+    [visibleMonth, calendarYearsFuture],
+  )
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
@@ -294,22 +330,56 @@ function DatePickerControl({
           </button>
         </FormControl>
       </PopoverTrigger>
-      <PopoverContent className="w-[290px]">
-        <div className="flex items-center justify-between">
+      <PopoverContent className="w-[min(100vw-2rem,340px)] min-w-[290px] p-3">
+        <div className="flex items-center gap-1.5">
           <button
             type="button"
             onClick={() => moveMonth(-1)}
-            className="flex size-8 cursor-pointer items-center justify-center rounded-md text-[#25314D] hover:bg-[#F0F1F7]"
+            className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-[#25314D] hover:bg-[#F0F1F7]"
+            aria-label="Previous month"
           >
             <ChevronLeftIcon className="size-4" />
           </button>
-          <Typography as="span" variant="label" className="text-[#25314D]">
-            {monthLabel}
-          </Typography>
+          <select
+            aria-label="Month"
+            className={cn(calendarSelectClassName, "min-w-0 flex-1")}
+            value={visibleMonth.getMonth()}
+            onChange={(event) => {
+              const monthIndex = Number(event.target.value)
+              setVisibleMonth(
+                new Date(visibleMonth.getFullYear(), monthIndex, 1),
+              )
+            }}
+          >
+            {MONTH_LABELS.map((label, index) => (
+              <option key={label} value={index}>
+                {label}
+              </option>
+            ))}
+          </select>
+          <select
+            aria-label="Year"
+            className={cn(
+              calendarSelectClassName,
+              calendarYearsFuture > 0 ? "min-w-[5.25rem] shrink-0" : "w-[4.75rem]",
+            )}
+            value={visibleMonth.getFullYear()}
+            onChange={(event) => {
+              const year = Number(event.target.value)
+              setVisibleMonth(new Date(year, visibleMonth.getMonth(), 1))
+            }}
+          >
+            {yearOptions.map((year) => (
+              <option key={year} value={year}>
+                {year}
+              </option>
+            ))}
+          </select>
           <button
             type="button"
             onClick={() => moveMonth(1)}
-            className="flex size-8 cursor-pointer items-center justify-center rounded-md text-[#25314D] hover:bg-[#F0F1F7]"
+            className="flex size-8 shrink-0 cursor-pointer items-center justify-center rounded-md text-[#25314D] hover:bg-[#F0F1F7]"
+            aria-label="Next month"
           >
             <ChevronRightIcon className="size-4" />
           </button>
@@ -499,7 +569,11 @@ function Select<TFieldValues extends FieldValues>({
             </FormLabel>
           ) : null}
           <BaseSelect
-            value={field.value == null ? "" : String(field.value)}
+            value={
+              field.value == null || field.value === ""
+                ? undefined
+                : String(field.value)
+            }
             onValueChange={field.onChange}
             disabled={disabled}
           >
@@ -541,6 +615,7 @@ function DatePicker<TFieldValues extends FieldValues>({
   disabled,
   showMessage = true,
   displayFormat = "mdy",
+  calendarYearsFuture = 0,
 }: DatePickerProps<TFieldValues>) {
   return (
     <FormField
@@ -560,6 +635,7 @@ function DatePicker<TFieldValues extends FieldValues>({
             disabled={disabled}
             className={className}
             displayFormat={displayFormat}
+            calendarYearsFuture={calendarYearsFuture}
           />
           {description ? <FieldDescription>{description}</FieldDescription> : null}
           {showMessage ? <FormMessage /> : null}
@@ -714,6 +790,63 @@ function ImagePickerControl({
     if (inputRef.current) {
       inputRef.current.value = ""
     }
+  }
+
+  if (variant === "avatar") {
+    return (
+      <div {...rootProps} className={cn("flex flex-col items-start gap-2", className)}>
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => inputRef.current?.click()}
+          className={cn(
+            "group relative flex size-[7.25rem] shrink-0 items-center justify-center rounded-full border-2 border-[#E8E8E8] bg-[#F9FAFD] shadow-sm outline-none transition-[border-color,box-shadow] hover:border-[#3FA565] focus-visible:ring-2 focus-visible:ring-[#3FA565]/35 disabled:cursor-not-allowed disabled:opacity-60",
+            previewClassName,
+          )}
+          aria-label="Choose vehicle photo"
+        >
+          <span className="absolute inset-0 z-0 overflow-hidden rounded-full bg-[#F9FAFD]">
+            {previewUrl ? (
+              <img src={previewUrl} alt="" className="size-full object-cover" />
+            ) : (
+              <span className="flex size-full items-center justify-center">
+                <ImageIcon className="size-10 text-[#B4BFD4]" />
+              </span>
+            )}
+          </span>
+          <span className="pointer-events-none absolute bottom-0 right-0 z-20 flex size-9 translate-x-px translate-y-px items-center justify-center rounded-full border-2 border-white bg-[#3FA565] text-white shadow-md ring-1 ring-black/5">
+            <CameraIcon className="size-3.5" />
+          </span>
+        </button>
+        {previewUrl ? (
+          <Button
+            type="button"
+            variant="ghost"
+            className="h-8 gap-1 px-2 text-xs text-[#6B7890] hover:text-[#1F1838]"
+            onClick={handleRemove}
+            disabled={disabled}
+          >
+            <XIcon className="size-3.5" />
+            <Typography as="span" variant="caption" color="inherit">
+              Remove photo
+            </Typography>
+          </Button>
+        ) : null}
+        {helperText ? (
+          <Typography as="span" variant="caption" color="muted">
+            {helperText}
+          </Typography>
+        ) : null}
+        <BaseInput
+          ref={inputRef}
+          type="file"
+          accept={accept}
+          className="hidden"
+          disabled={disabled}
+          onChange={handleSelect}
+        />
+      </div>
+    )
   }
 
   if (variant === "compact") {

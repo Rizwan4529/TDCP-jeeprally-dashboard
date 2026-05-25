@@ -222,35 +222,73 @@ export const loginSchema = z.object({
 
 export type LoginValues = z.infer<typeof loginSchema>
 
+const signupDateOfBirthSchema = z
+  .string()
+  .trim()
+  .min(1, "Date of birth is required")
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Select a valid date")
+  .refine((dateStr) => {
+    const parsed = new Date(`${dateStr}T00:00:00`)
+    return !Number.isNaN(parsed.getTime())
+  }, "Invalid date")
+  .refine((dateStr) => {
+    const parsed = new Date(`${dateStr}T00:00:00`)
+    const endOfToday = new Date()
+    endOfToday.setHours(23, 59, 59, 999)
+    return parsed <= endOfToday
+  }, "Date of birth cannot be in the future")
+
+const signupLicenseExpirySchema = z
+  .string()
+  .trim()
+  .min(1, "License expiry is required")
+  .regex(/^\d{4}-\d{2}-\d{2}$/, "Select a valid date")
+  .refine((dateStr) => {
+    const parsed = new Date(`${dateStr}T00:00:00`)
+    return !Number.isNaN(parsed.getTime())
+  }, "Invalid date")
+  .refine((dateStr) => {
+    const parsed = new Date(`${dateStr}T00:00:00`)
+    const startOfToday = new Date()
+    startOfToday.setHours(0, 0, 0, 0)
+    return parsed >= startOfToday
+  }, "License expiry must be today or a future date")
+
+const pkMobileSchema = z
+  .string()
+  .trim()
+  .regex(/^03\d{9}$/, "Enter a valid mobile number (e.g. 03001234567)")
+
+const cnicDigitsSchema = z
+  .string()
+  .trim()
+  .regex(/^\d{13}$/, "CNIC must be exactly 13 digits")
+
+const optionalProfileImage = z
+  .union([z.instanceof(File), z.null()])
+  .optional()
+
 export const signupSchema = z
   .object({
     fullName: requiredString("Enter your full name"),
     email: z.string().trim().email("Enter a valid email address"),
     password: z.string().min(6, "Password must be at least 6 characters"),
     confirmPassword: requiredString("Confirm your password"),
-    contactNumber: z
+    gender: requiredString("Select gender"),
+    age: z
       .string()
       .trim()
-      .regex(/^03\d{9}$/, "Enter a valid mobile number (e.g. 03001234567)"),
-    cnic: z
-      .string()
-      .trim()
-      .regex(/^\d{13}$/, "CNIC must be exactly 13 digits"),
-    dateOfBirth: z
-      .string()
-      .trim()
-      .min(1, "Date of birth is required")
-      .regex(/^\d{4}-\d{2}-\d{2}$/, "Select a valid date")
-      .refine((dateStr) => {
-        const parsed = new Date(`${dateStr}T00:00:00`)
-        return !Number.isNaN(parsed.getTime())
-      }, "Invalid date")
-      .refine((dateStr) => {
-        const parsed = new Date(`${dateStr}T00:00:00`)
-        const endOfToday = new Date()
-        endOfToday.setHours(23, 59, 59, 999)
-        return parsed <= endOfToday
-      }, "Date of birth cannot be in the future"),
+      .regex(/^\d{1,3}$/, "Enter a valid age"),
+    address: requiredString("Enter your address"),
+    contactNumber: pkMobileSchema,
+    licenseNumber: requiredString("Enter license number"),
+    licenseExpiry: signupLicenseExpirySchema,
+    cnic: cnicDigitsSchema,
+    dateOfBirth: signupDateOfBirthSchema,
+    occupation: requiredString("Enter occupation"),
+    profileImage: requiredFile("Profile photo is required"),
+    cnicImage: requiredFile("CNIC image is required"),
+    licenseImage: requiredFile("License image is required"),
     acceptedTerms: z.boolean().refine((value) => value, {
       message: "You must agree to the terms and conditions",
     }),
@@ -261,3 +299,24 @@ export const signupSchema = z
   })
 
 export type SignupValues = z.infer<typeof signupSchema>
+
+export const profileUpdateSchema = z.object({
+  name: requiredString("Enter your full name"),
+  gender: requiredString("Select gender"),
+  age: z
+    .string()
+    .trim()
+    .regex(/^\d{1,3}$/, "Enter a valid age"),
+  address: requiredString("Enter your address"),
+  contact_number: pkMobileSchema,
+  license_number: requiredString("Enter license number"),
+  license_expiry: signupLicenseExpirySchema,
+  cnic: cnicDigitsSchema,
+  date_of_birth: signupDateOfBirthSchema,
+  occupation: requiredString("Enter occupation"),
+  profile_image: optionalProfileImage,
+  cnic_image: optionalProfileImage,
+  license_image: optionalProfileImage,
+})
+
+export type ProfileUpdateValues = z.infer<typeof profileUpdateSchema>
