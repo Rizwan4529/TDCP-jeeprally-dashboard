@@ -1,13 +1,9 @@
-import type { Category } from "@/utils/constants";
-
-/** POST /registrations — team.category must match `category`; navigator rules apply per category. */
+/** POST /registrations — send the category document `_id` from GET /categories. */
 export type CreateRegistrationPayload = {
   team_id: string;
   event_id: string;
-  category: Category;
+  category_id: string;
   vehicle_id: string;
-  /** Omit for dirt_bike / quad_bike (must not be sent). Required for other categories. */
-  navigator_id?: string;
   challenge_id?: string;
 };
 

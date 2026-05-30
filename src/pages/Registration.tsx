@@ -12,12 +12,26 @@ import {
   Input,
   Select,
 } from "@/components/common/FormCommon";
+import {
+  DashboardPanelEmptyState,
+  PanelBlockSkeleton,
+  RegistrationCategoryGridSkeleton,
+} from "@/components/common/LoadingStates";
 import { Typography } from "@/components/common/Typography";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { PlusIcon, Trash2Icon } from "lucide-react";
+import {
+  AlertCircleIcon,
+  CameraIcon,
+  LayoutGridIcon,
+  UserIcon,
+} from "lucide-react";
+import { EditDeleteIconActions } from "@/components/common/EditDeleteIconActions";
+import { ActiveRallySummary } from "@/components/registration/ActiveRallySummary";
+import { CategoryConsentContent } from "@/components/registration/CategoryConsentContent";
 import { useMyTeamsQuery } from "@/hooks/api/use-teams";
 import { useCategoriesQuery } from "@/hooks/api/use-categories";
+import { useSessionUser } from "@/hooks/api/use-session-user";
 import {
   useCreateVehicleMutation,
   useDeleteVehicleMutation,
@@ -27,27 +41,46 @@ import {
 } from "@/hooks/api/use-vehicles";
 import { getRallyChallenges } from "@/api/services/rally";
 import { createRegistration } from "@/api/services/registrations";
-import type { RallyEvent } from "@/api/types/rally";
 import type { CreateRegistrationPayload } from "@/api/types/registrations";
 import type { TeamCategory } from "@/api/types/teams";
 import type { Vehicle } from "@/api/types/vehicles";
 import { fetchAuthToken, toPublicFileUrl } from "@/utils/helpers";
-import { useRallyEventsQuery } from "@/hooks/api/use-rally-events";
+import { getRallyEventId } from "@/utils/rally-event";
+import { useActiveRallyQuery } from "@/hooks/api/use-active-rally";
 import {
+  buildCategorySelectOptions,
   buildCreateVehiclePayload,
   buildUpdateVehiclePayload,
   emptyVehicleFormValues,
-  vehicleCategorySelectOptions,
+  resolveCategoryTitle,
   vehicleFormSchema,
   vehicleToFormValues,
   type VehicleFormValues,
 } from "@/utils/vehicle-form";
-import { CATEGORIES, CATEGORY, CATEGORY_LABELS, ROUTES, type Category } from "@/utils/constants";
+import {
+  CATEGORY,
+  CATEGORY_LABELS,
+  ROUTES,
+  type Category,
+} from "@/utils/constants";
+import {
+  categoryRegistrationHint,
+  getCompetitorProfileGaps,
+  getTeamMemberIds,
+  isCompetitorProfileComplete,
+  validateTeamForRegistration,
+} from "@/utils/registration-eligibility";
 import { buildCategoryMap, needsNavigator } from "@/utils/team-roster-rules";
 
 type Step = 1 | 2 | 3 | 4;
 
-type CategoryOption = { key: string; value: TeamCategory; hint: string };
+type CategoryOption = {
+  key: string;
+  value: TeamCategory;
+  hint: string;
+  imageUrl?: string | null;
+  rosterHint?: string;
+};
 
 const CATEGORY_HINTS: Record<TeamCategory, string> = {
   [CATEGORY.STOCK_PREPAID]: "Standard class, pre-approved setup.",
@@ -56,12 +89,6 @@ const CATEGORY_HINTS: Record<TeamCategory, string> = {
   [CATEGORY.JEEP]: "Jeep entries.",
   [CATEGORY.TRUCK_RACE]: "Truck entries.",
 };
-
-const CATEGORY_OPTIONS: CategoryOption[] = CATEGORIES.map((value) => ({
-  key: CATEGORY_LABELS[value],
-  value,
-  hint: CATEGORY_HINTS[value],
-}));
 
 const fieldClassName =
   "h-11 w-full rounded-md border-[#D7DAE1] bg-white px-4 text-[15px] text-[#25314D] shadow-[0_1px_2px_rgba(15,23,42,0.05)] placeholder:text-[#8B96AD]";
@@ -118,13 +145,19 @@ export default function RegistrationPage() {
     "list",
   );
   const [editingVehicleId, setEditingVehicleId] = useState<string | null>(null);
-  const [consentEventId, setConsentEventId] = useState("");
   const [selectedRegistrationTeamId, setSelectedRegistrationTeamId] =
     useState("");
   const [selectedRegistrationVehicleId, setSelectedRegistrationVehicleId] =
     useState("");
+  const [profileGateVisible, setProfileGateVisible] = useState(false);
 
   const token = useMemo(() => fetchAuthToken(), []);
+  const { data: sessionUser } = useSessionUser();
+  const profileGaps = useMemo(
+    () => (sessionUser ? getCompetitorProfileGaps(sessionUser) : []),
+    [sessionUser],
+  );
+  const profileComplete = isCompetitorProfileComplete(sessionUser ?? null);
   const categoriesQuery = useCategoriesQuery(Boolean(token));
   const categoryByKey = useMemo(
     () => buildCategoryMap(categoriesQuery.data?.data ?? []),
@@ -132,60 +165,79 @@ export default function RegistrationPage() {
   );
   const categoryRecord = category ? categoryByKey.get(category) : undefined;
   const requiresNavigator = needsNavigator(categoryRecord);
+  const categoryConsentHtml = categoryRecord?.consent?.trim() ?? "";
 
   const categoryOptions = useMemo((): CategoryOption[] => {
     const fromApi = categoriesQuery.data?.data;
-    if (fromApi?.length) {
-      return fromApi.map((c) => ({
-        key: c.title,
-        value: c.key as TeamCategory,
-        hint: c.description?.trim() || CATEGORY_HINTS[c.key as TeamCategory] || "",
-      }));
-    }
-    return CATEGORY_OPTIONS;
+    if (!fromApi?.length) return [];
+    return fromApi.map((c) => ({
+      key: c.title,
+      value: c.key as TeamCategory,
+      hint:
+        c.description?.trim() || CATEGORY_HINTS[c.key as TeamCategory] || "",
+      imageUrl: toPublicFileUrl(c.image ?? null),
+      rosterHint: categoryRegistrationHint(c),
+    }));
   }, [categoriesQuery.data?.data]);
+
+  const vehicleCategoryOptions = useMemo(
+    () => buildCategorySelectOptions(categoriesQuery.data?.data),
+    [categoriesQuery.data?.data],
+  );
+
+  const categoriesLoading = categoriesQuery.isLoading;
+  const categoriesReady =
+    !categoriesLoading &&
+    !categoriesQuery.isError &&
+    categoryOptions.length > 0;
 
   const canQueryTeam = Boolean(token) && step >= 2;
   const canQueryVehicle = Boolean(token) && step >= 3;
 
   const myTeamQuery = useMyTeamsQuery(canQueryTeam);
-  const teams = Array.isArray(myTeamQuery.data?.data) ? myTeamQuery.data.data : [];
+  const teams = Array.isArray(myTeamQuery.data?.data)
+    ? myTeamQuery.data.data
+    : [];
 
   const isVehicleStep = step === 3;
 
   const defaultVehicleFormValues = useMemo((): VehicleFormValues => {
     return {
       ...emptyVehicleFormValues,
-      category: (category ?? CATEGORY.JEEP) as VehicleFormValues["category"],
+      category: category ?? "",
     };
   }, [category]);
 
-  const consentStepActive = step === 4;
-  const upcomingRallyQuery = useRallyEventsQuery(
-    { type: "upcoming" },
-    { enabled: Boolean(token) && consentStepActive },
-  );
-  const activeRallyQuery = useRallyEventsQuery(
-    { status: "active" },
-    { enabled: Boolean(token) && consentStepActive },
-  );
+  const activeRallyQuery = useActiveRallyQuery(Boolean(token));
+  const activeRally = activeRallyQuery.data?.data ?? null;
+  const activeRallyEventId = getRallyEventId(activeRally);
 
   const teamsForCategory = useMemo(() => {
     if (!category) return [];
     return teams.filter((t) => t.category === category);
   }, [teams, category]);
 
-  const selectableRallyEvents = useMemo(() => {
-    const map = new Map<string, RallyEvent>();
-    for (const e of [
-      ...(upcomingRallyQuery.data?.data ?? []),
-      ...(activeRallyQuery.data?.data ?? []),
-    ]) {
-      if (e.status === "completed") continue;
-      map.set(e._id, e);
-    }
-    return [...map.values()];
-  }, [upcomingRallyQuery.data?.data, activeRallyQuery.data?.data]);
+  const selectedTeam = useMemo(
+    () => teams.find((t) => t._id === selectedRegistrationTeamId) ?? null,
+    [teams, selectedRegistrationTeamId],
+  );
+
+  const selectedTeamValidation = useMemo(() => {
+    if (!selectedTeam || !categoryRecord) return null;
+    return validateTeamForRegistration(
+      categoryRecord,
+      getTeamMemberIds(selectedTeam),
+      selectedTeam.navigator_id?._id,
+    );
+  }, [selectedTeam, categoryRecord]);
+
+  const canContinueStep2 = Boolean(
+    selectedRegistrationTeamId && selectedTeamValidation?.ok === true,
+  );
+
+  const handleSelectRegistrationTeam = (teamId: string) => {
+    setSelectedRegistrationTeamId(teamId);
+  };
 
   const myVehicleQuery = useMyVehicleQuery(canQueryVehicle);
   const vehicles = Array.isArray(myVehicleQuery.data?.data)
@@ -203,7 +255,7 @@ export default function RegistrationPage() {
 
   const editingVehicle =
     vehicleMode === "edit" && editingVehicleId
-      ? vehicles.find((v) => v._id === editingVehicleId) ?? null
+      ? (vehicles.find((v) => v._id === editingVehicleId) ?? null)
       : null;
 
   const vehicleForm = useForm<VehicleFormValues>({
@@ -212,10 +264,7 @@ export default function RegistrationPage() {
     values:
       vehicleMode === "edit" && editingVehicle
         ? vehicleToFormValues(editingVehicle)
-        : vehicleMode === "new" ||
-            (vehicles.length === 0 && vehicleMode === "list")
-          ? defaultVehicleFormValues
-          : undefined,
+        : undefined,
   });
 
   const createVehicleMutation = useCreateVehicleMutation();
@@ -269,10 +318,12 @@ export default function RegistrationPage() {
   };
 
   const registrationSummary = useMemo(() => {
-    const team = teams.find((t) => t._id === selectedRegistrationTeamId) ?? null;
+    const team =
+      teams.find((t) => t._id === selectedRegistrationTeamId) ?? null;
     const vehicle =
       vehicles.find((v) => v._id === selectedRegistrationVehicleId) ?? null;
-    return { team, vehicle };
+    const navigatorName = team?.navigator_id?.name ?? null;
+    return { team, vehicle, navigatorName };
   }, [teams, vehicles, selectedRegistrationTeamId, selectedRegistrationVehicleId]);
 
   useEffect(() => {
@@ -281,6 +332,12 @@ export default function RegistrationPage() {
       setSelectedRegistrationVehicleId("");
     }
   }, [category]);
+
+  useEffect(() => {
+    if (step === 1) {
+      setProfileGateVisible(false);
+    }
+  }, [step, category]);
 
   useEffect(() => {
     if (!selectedRegistrationTeamId) return;
@@ -292,38 +349,49 @@ export default function RegistrationPage() {
   useEffect(() => {
     if (!selectedRegistrationVehicleId || !category) return;
     if (
-      !vehiclesForRegistration.some((v) => v._id === selectedRegistrationVehicleId)
+      !vehiclesForRegistration.some(
+        (v) => v._id === selectedRegistrationVehicleId,
+      )
     ) {
       setSelectedRegistrationVehicleId("");
     }
   }, [vehiclesForRegistration, selectedRegistrationVehicleId, category]);
-
-  useEffect(() => {
-    if (step !== 4) return;
-    setConsentEventId((prev) => {
-      if (prev && selectableRallyEvents.some((e) => e._id === prev)) return prev;
-      return selectableRallyEvents[0]?._id ?? "";
-    });
-  }, [step, selectableRallyEvents]);
 
   const consentForm = useForm<ConsentFormValues>({
     resolver: zodResolver(consentSchema),
     defaultValues: { acceptedTerms: false },
   });
 
-  const [isSubmittingRegistration, setIsSubmittingRegistration] = useState(false);
+  useEffect(() => {
+    consentForm.setValue("acceptedTerms", false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- reset acceptance when category changes
+  }, [category]);
+
+  const [isSubmittingRegistration, setIsSubmittingRegistration] =
+    useState(false);
 
   const onSubmitConsent: SubmitHandler<ConsentFormValues> = async () => {
-    if (!category) return;
+    if (!category || !categoryRecord?._id) {
+      toast.error("Select a category to continue.");
+      return;
+    }
 
-    if (!consentEventId || !selectedRegistrationTeamId || !selectedRegistrationVehicleId) {
+    if (
+      !activeRallyEventId ||
+      !selectedRegistrationTeamId ||
+      !selectedRegistrationVehicleId
+    ) {
       toast.error(
-        "Choose a rally event on this step and complete team and vehicle in the steps above.",
+        activeRallyQuery.isError
+          ? "Active rally could not be loaded."
+          : "Complete team and vehicle in the steps above.",
       );
       return;
     }
 
-    const selectedTeam = teams.find((t) => t._id === selectedRegistrationTeamId);
+    const selectedTeam = teams.find(
+      (t) => t._id === selectedRegistrationTeamId,
+    );
     if (!selectedTeam || selectedTeam.category !== category) {
       toast.error("Selected team must match your registration category.");
       return;
@@ -337,11 +405,14 @@ export default function RegistrationPage() {
       return;
     }
 
-    const teamNavigatorId = selectedTeam.navigator_id?._id;
-    if (requiresNavigator && !teamNavigatorId) {
-      toast.error(
-        "Your team must have a navigator assigned. Update the team on the Teams page.",
-      );
+    const memberIds = getTeamMemberIds(selectedTeam);
+    const rosterValidation = validateTeamForRegistration(
+      categoryRecord,
+      memberIds,
+      selectedTeam.navigator_id?._id,
+    );
+    if (!rosterValidation.ok) {
+      toast.error(rosterValidation.message);
       return;
     }
 
@@ -349,9 +420,11 @@ export default function RegistrationPage() {
     try {
       let challengeId: string | undefined;
       try {
-        const challenges = await getRallyChallenges(consentEventId);
+        const challenges = await getRallyChallenges(activeRallyEventId);
         const list = challenges?.data ?? [];
-        const match = list.find((c) => c.category === category);
+        const match =
+          list.find((c) => c.category === categoryRecord._id) ??
+          list.find((c) => c.category === category);
         if (match?._id) challengeId = match._id;
       } catch {
         // challenge_id is optional
@@ -359,20 +432,19 @@ export default function RegistrationPage() {
 
       const payload: CreateRegistrationPayload = {
         team_id: selectedRegistrationTeamId,
-        event_id: consentEventId,
-        category,
+        event_id: activeRallyEventId,
+        category_id: categoryRecord._id,
         vehicle_id: selectedRegistrationVehicleId,
       };
-      if (requiresNavigator && teamNavigatorId) {
-        payload.navigator_id = teamNavigatorId;
-      }
       if (challengeId) payload.challenge_id = challengeId;
 
       await createRegistration(payload);
       toast.success("Registration submitted.");
     } catch (err) {
       const msg =
-        err instanceof Error ? err.message : "Registration could not be submitted.";
+        err instanceof Error
+          ? err.message
+          : "Registration could not be submitted.";
       toast.error(msg);
     } finally {
       setIsSubmittingRegistration(false);
@@ -393,9 +465,17 @@ export default function RegistrationPage() {
             </Typography>
 
             <div className="flex flex-wrap items-center gap-2">
-              <StepPill isActive={step === 1} isDone={step > 1} label="Category" />
+              <StepPill
+                isActive={step === 1}
+                isDone={step > 1}
+                label="Category"
+              />
               <StepPill isActive={step === 2} isDone={step > 2} label="Team" />
-              <StepPill isActive={isVehicleStep} isDone={step > 3} label="Vehicle" />
+              <StepPill
+                isActive={isVehicleStep}
+                isDone={step > 3}
+                label="Vehicle"
+              />
               <StepPill isActive={step === 4} isDone={false} label="Consent" />
             </div>
           </div>
@@ -417,66 +497,157 @@ export default function RegistrationPage() {
                 </Typography>
               </div>
 
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                {categoryOptions.map((c) => {
-                  const isActive = c.value === category;
-                  return (
-                    <button
-                      key={c.value}
-                      type="button"
-                      onClick={() => setCategory(c.value)}
-                      className={cn(
-                        "group rounded-md border p-4 text-left transition-colors",
-                        isActive
-                          ? "border-[#43AA72] bg-[#EAF6EF]"
-                          : "border-[#E8E8E8] bg-white hover:bg-[#F9FAFD]",
-                      )}
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-1">
-                          <Typography
-                            as="div"
-                            variant="body-lg"
+              <ActiveRallySummary
+                event={activeRally}
+                isLoading={activeRallyQuery.isLoading}
+                isError={activeRallyQuery.isError}
+                errorMessage={activeRallyQuery.error?.message}
+                variant="card"
+              />
+
+              {categoriesLoading ? (
+                <RegistrationCategoryGridSkeleton count={6} />
+              ) : categoriesQuery.isError ? (
+                <DashboardPanelEmptyState
+                  icon={AlertCircleIcon}
+                  title="Could not load categories"
+                  description={
+                    categoriesQuery.error?.message ??
+                    "Registration categories could not be loaded. Refresh the page or try again later."
+                  }
+                  variant="error"
+                />
+              ) : categoryOptions.length === 0 ? (
+                <DashboardPanelEmptyState
+                  icon={LayoutGridIcon}
+                  title="No categories available"
+                  description="There are no registration categories to choose from right now. Please check back later or contact support."
+                />
+              ) : (
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
+                  {categoryOptions.map((c) => {
+                    const isActive = c.value === category;
+                    return (
+                      <button
+                        key={c.value}
+                        type="button"
+                        onClick={() => {
+                          setCategory(c.value);
+                          setProfileGateVisible(false);
+                        }}
+                        className={cn(
+                          "group overflow-hidden rounded-md border text-left transition-colors",
+                          isActive
+                            ? "border-[#43AA72] bg-[#EAF6EF]"
+                            : "border-[#E8E8E8] bg-white hover:bg-[#F9FAFD]",
+                        )}
+                      >
+                        {c.imageUrl ? (
+                          <div className="aspect-[16/10] w-full overflow-hidden border-b border-[#E8E8E8] bg-[#F3F4F8]">
+                            <img
+                              src={c.imageUrl}
+                              alt=""
+                              className="size-full object-cover"
+                            />
+                          </div>
+                        ) : null}
+                        <div className="flex items-start justify-between gap-3 p-4">
+                          <div className="min-w-0 space-y-1">
+                            <Typography
+                              as="div"
+                              variant="body-lg"
+                              className={cn(
+                                "text-[16px] font-semibold leading-none",
+                                isActive ? "text-[#1F6B43]" : "text-[#25314D]",
+                              )}
+                            >
+                              {c.key}
+                            </Typography>
+                            {c.rosterHint ? (
+                              <Typography
+                                variant="body-sm"
+                                className={cn(
+                                  "text-[12px] font-medium leading-[1.45]",
+                                  isActive
+                                    ? "text-[#1F6B43]/90"
+                                    : "text-[#6B7890]",
+                                )}
+                              >
+                                {c.rosterHint}
+                              </Typography>
+                            ) : null}
+                            {c.hint ? (
+                              <Typography
+                                variant="body-sm"
+                                className={cn(
+                                  "text-[14px] leading-[1.45]",
+                                  isActive
+                                    ? "text-[#1F6B43]"
+                                    : "text-[#8B96AD]",
+                                )}
+                              >
+                                {c.hint}
+                              </Typography>
+                            ) : null}
+                          </div>
+                          <span
                             className={cn(
-                              "text-[16px] font-semibold leading-none",
-                              isActive ? "text-[#1F6B43]" : "text-[#25314D]",
+                              "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border text-[12px] font-semibold",
+                              isActive
+                                ? "border-[#43AA72] bg-[#43AA72] text-white"
+                                : "border-[#D7DAE1] bg-white text-transparent group-hover:text-[#D7DAE1]",
                             )}
                           >
-                            {c.key}
-                          </Typography>
-                          <Typography
-                            variant="body-sm"
-                            className={cn(
-                              "text-[14px] leading-[1.45]",
-                              isActive ? "text-[#1F6B43]" : "text-[#8B96AD]",
-                            )}
-                          >
-                            {c.hint}
-                          </Typography>
+                            ✓
+                          </span>
                         </div>
-                        <span
-                          className={cn(
-                            "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border text-[12px] font-semibold",
-                            isActive
-                              ? "border-[#43AA72] bg-[#43AA72] text-white"
-                              : "border-[#D7DAE1] bg-white text-transparent group-hover:text-[#D7DAE1]",
-                          )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+
+              {profileGateVisible && !profileComplete ? (
+                <div className="space-y-3">
+                  <DashboardPanelEmptyState
+                    icon={UserIcon}
+                    title="Complete your profile first"
+                    description="Update your profile with all required personal info and documents before you can register for a rally."
+                    variant="error"
+                  />
+                  {profileGaps.length > 0 ? (
+                    <div className="rounded-md border border-[#F2D6D6] bg-[#FFF5F5] px-4 py-3">
+                      <Typography
+                        variant="body-sm"
+                        className="font-medium text-[#8B2B2B]"
+                      >
+                        Missing: {profileGaps.join(", ")}
+                      </Typography>
+                      <Typography
+                        variant="body-sm"
+                        className="mt-2 text-[#B45353]"
+                      >
+                        <Link
+                          to={ROUTES.PROFILE}
+                          className="font-semibold text-[#1F6B43] underline"
                         >
-                          ✓
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
+                          Go to Profile
+                        </Link>{" "}
+                        to complete these fields.
+                      </Typography>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
 
               <div className="flex flex-col-reverse items-stretch justify-end gap-3 pt-2 sm:flex-row sm:items-center sm:gap-4">
                 <Button
                   type="button"
-                  variant="primary-outline"
+                  variant="destructive-outline"
                   className="h-[46px] w-full rounded-md px-8 text-[16px] font-medium sm:w-auto sm:min-w-[150px] sm:text-[17px]"
                   onClick={() => {
                     setCategory(null);
+                    setProfileGateVisible(false);
                   }}
                 >
                   <Typography as="span" variant="body" color="inherit">
@@ -486,14 +657,54 @@ export default function RegistrationPage() {
                 <Button
                   type="button"
                   className="h-[46px] w-full rounded-md px-6 text-[16px] font-medium sm:w-auto sm:min-w-[210px] sm:px-8 sm:text-[17px]"
-                  disabled={!category}
-                  onClick={() => setStep(2)}
+                  disabled={!category || !categoriesReady}
+                  onClick={() => {
+                    if (!categoriesReady) {
+                      toast.error(
+                        categoriesQuery.isError
+                          ? "Categories could not be loaded."
+                          : "Select a category to continue.",
+                      );
+                      return;
+                    }
+                    if (!profileComplete) {
+                      setProfileGateVisible(true);
+                      toast.error(
+                        "Complete your profile before continuing registration.",
+                      );
+                      return;
+                    }
+                    setProfileGateVisible(false);
+                    setStep(2);
+                  }}
                 >
                   <Typography as="span" variant="body" color="inherit">
                     Continue
                   </Typography>
                 </Button>
               </div>
+
+              {profileComplete ? (
+                <Typography variant="body-sm" className="text-[#6B7890]">
+                  Profile complete.{" "}
+                  <Link
+                    to={ROUTES.PROFILE}
+                    className="font-medium text-[#1F6B43] underline"
+                  >
+                    View profile
+                  </Link>
+                </Typography>
+              ) : (
+                <Typography variant="body-sm" className="text-[#6B7890]">
+                  <Link
+                    to={ROUTES.PROFILE}
+                    className="font-medium text-[#1F6B43] underline"
+                  >
+                    Update profile
+                  </Link>{" "}
+                  to complete required personal info and documents.
+                </Typography>
+              )}
             </div>
           ) : step === 2 ? (
             <div className="space-y-6">
@@ -507,8 +718,12 @@ export default function RegistrationPage() {
                     Select team
                   </Typography>
                   <Typography variant="body-sm" className="text-[#8B96AD]">
-                    Choose a team for this category. Manage teams and users on the{" "}
-                    <Link to={ROUTES.TEAMS} className="font-medium text-[#1F6B43] underline">
+                    Choose a team for this category. Manage teams and users on
+                    the{" "}
+                    <Link
+                      to={ROUTES.TEAMS}
+                      className="font-medium text-[#1F6B43] underline"
+                    >
                       Teams
                     </Link>{" "}
                     page.
@@ -528,15 +743,12 @@ export default function RegistrationPage() {
               {!token ? (
                 <div className="rounded-md border border-[#F2D6D6] bg-[#FFF5F5] p-4">
                   <Typography variant="body" className="text-[#8B2B2B]">
-                    You’re not logged in. Please login first so we can fetch your teams.
+                    You’re not logged in. Please login first so we can fetch
+                    your teams.
                   </Typography>
                 </div>
               ) : myTeamQuery.isLoading ? (
-                <div className="rounded-md border border-[#E8E8E8] bg-[#F9FAFD] p-4">
-                  <Typography variant="body" className="text-[#25314D]">
-                    Loading your teams…
-                  </Typography>
-                </div>
+                <PanelBlockSkeleton lines={3} />
               ) : myTeamQuery.isError ? (
                 <div className="rounded-md border border-[#F2D6D6] bg-[#FFF5F5] p-4">
                   <Typography variant="body" className="text-[#8B2B2B]">
@@ -547,7 +759,10 @@ export default function RegistrationPage() {
                 <div className="rounded-md border border-[#E8E8E8] bg-[#F9FAFD] p-4">
                   <Typography variant="body" className="text-[#25314D]">
                     No team exists for this category yet.{" "}
-                    <Link to={ROUTES.TEAMS} className="font-medium text-[#1F6B43] underline">
+                    <Link
+                      to={ROUTES.TEAMS}
+                      className="font-medium text-[#1F6B43] underline"
+                    >
                       Create a team
                     </Link>{" "}
                     on the Teams page, then return here.
@@ -561,17 +776,30 @@ export default function RegistrationPage() {
                       t.member_ids?.length > 0
                         ? t.member_ids.map((m) => m.name).join(", ")
                         : "—";
-                    const navName = t.navigator_id?.name ?? "N/A";
+                    const navName = t.navigator_id?.name ?? "—";
+                    const teamValidation = categoryRecord
+                      ? validateTeamForRegistration(
+                          categoryRecord,
+                          getTeamMemberIds(t),
+                          t.navigator_id?._id,
+                        )
+                      : null;
+                    const isInvalid =
+                      teamValidation != null && !teamValidation.ok;
                     return (
                       <button
                         key={t._id}
                         type="button"
-                        onClick={() => setSelectedRegistrationTeamId(t._id)}
+                        onClick={() => handleSelectRegistrationTeam(t._id)}
                         className={cn(
                           "rounded-md border p-4 text-left transition-colors",
                           isSel
-                            ? "border-[#43AA72] bg-[#EAF6EF]"
-                            : "border-[#E8E8E8] bg-white hover:bg-[#F9FAFD]",
+                            ? isInvalid
+                              ? "border-[#E04444] bg-[#FFF5F5]"
+                              : "border-[#43AA72] bg-[#EAF6EF]"
+                            : isInvalid
+                              ? "border-[#F2D6D6] bg-[#FFFBFB] hover:bg-[#FFF5F5]"
+                              : "border-[#E8E8E8] bg-white hover:bg-[#F9FAFD]",
                         )}
                       >
                         <div className="flex items-start justify-between gap-3">
@@ -616,6 +844,14 @@ export default function RegistrationPage() {
                             >
                               Navigator: {navName}
                             </Typography>
+                            {isInvalid && teamValidation ? (
+                              <Typography
+                                variant="body-sm"
+                                className="mt-2 text-[13px] text-[#B91C1C]"
+                              >
+                                {teamValidation.message}
+                              </Typography>
+                            ) : null}
                           </div>
                           <span
                             className={cn(
@@ -635,18 +871,61 @@ export default function RegistrationPage() {
                 </div>
               )}
 
+              {selectedTeam &&
+              selectedTeamValidation &&
+              !selectedTeamValidation.ok ? (
+                <div className="rounded-md border border-[#F2D6D6] bg-[#FFF5F5] p-4">
+                  <div className="flex gap-3">
+                    <AlertCircleIcon className="mt-0.5 size-5 shrink-0 text-[#B91C1C]" />
+                    <div>
+                      <Typography
+                        variant="body"
+                        className="font-medium text-[#8B2B2B]"
+                      >
+                        Team not ready for registration
+                      </Typography>
+                      <Typography
+                        variant="body-sm"
+                        className="mt-1 text-[#B45353]"
+                      >
+                        {selectedTeamValidation.message}
+                      </Typography>
+                      <Typography
+                        variant="body-sm"
+                        className="mt-2 text-[#B45353]"
+                      >
+                        <Link
+                          to={ROUTES.TEAMS}
+                          className="font-semibold text-[#1F6B43] underline"
+                        >
+                          Go to Teams
+                        </Link>{" "}
+                        to add members or assign a navigator. Team members are
+                        included automatically when you register.
+                      </Typography>
+                    </div>
+                  </div>
+                </div>
+              ) : null}
+
               {teamsForCategory.length > 0 ? (
                 <div className="flex flex-col items-stretch justify-end gap-3 pt-2 sm:flex-row sm:items-center sm:gap-4">
                   <Button
                     type="button"
                     className="h-[46px] w-full rounded-md px-6 text-[16px] font-medium sm:w-auto sm:min-w-[210px] sm:px-8 sm:text-[17px]"
-                    disabled={
-                      !selectedRegistrationTeamId ||
-                      !teamsForCategory.some(
-                        (t) => t._id === selectedRegistrationTeamId,
-                      )
-                    }
-                    onClick={() => setStep(3)}
+                    disabled={!canContinueStep2}
+                    onClick={() => {
+                      if (!canContinueStep2) {
+                        if (
+                          selectedTeamValidation &&
+                          !selectedTeamValidation.ok
+                        ) {
+                          toast.error(selectedTeamValidation.message);
+                        }
+                        return;
+                      }
+                      setStep(3);
+                    }}
                   >
                     <Typography as="span" variant="body" color="inherit">
                       Continue
@@ -667,7 +946,8 @@ export default function RegistrationPage() {
                     Consent
                   </Typography>
                   <Typography variant="body-sm" className="text-[#8B96AD]">
-                    Please review and accept the undertaking to submit your registration.
+                    Please review and accept the undertaking to submit your
+                    registration.
                   </Typography>
                 </div>
 
@@ -681,69 +961,54 @@ export default function RegistrationPage() {
                 </Button>
               </div>
 
-              <FormCommon form={consentForm} onSubmit={onSubmitConsent} className="space-y-5">
+              <FormCommon
+                form={consentForm}
+                onSubmit={onSubmitConsent}
+                className="space-y-5"
+              >
                 <div className="rounded-md border border-[#E8E8E8] bg-white p-4 sm:p-6">
-                  <Typography variant="body-lg" className="font-semibold text-[#25314D]">
+                  <Typography
+                    variant="body-lg"
+                    className="font-semibold text-[#25314D]"
+                  >
                     Registration details
                   </Typography>
                   <Typography variant="body-sm" className="mt-1 text-[#8B96AD]">
-                    Confirm your rally event. Team and vehicle were chosen in the steps above.
+                    Review the active rally and your selections, then accept the
+                    category undertaking below.
                   </Typography>
 
                   {category ? (
-                    <Typography variant="body-sm" className="mt-2 text-[#25314D]">
+                    <Typography
+                      variant="body-sm"
+                      className="mt-2 text-[#25314D]"
+                    >
                       Category:{" "}
                       <span className="font-semibold">
-                        {CATEGORY_LABELS[category as Category]}
+                        {categoryRecord?.title ??
+                          CATEGORY_LABELS[category as Category] ??
+                          category}
                       </span>
                     </Typography>
                   ) : null}
 
-                  {(upcomingRallyQuery.isLoading || activeRallyQuery.isLoading) &&
-                  step === 4 ? (
-                    <Typography variant="body-sm" className="mt-4 text-[#8B96AD]">
-                      Loading events…
-                    </Typography>
-                  ) : null}
+                  <div className="mt-4 space-y-4">
+                    <ActiveRallySummary
+                      event={activeRally}
+                      isLoading={activeRallyQuery.isLoading}
+                      isError={activeRallyQuery.isError}
+                      errorMessage={activeRallyQuery.error?.message}
+                      variant="inline"
+                    />
 
-                  {(upcomingRallyQuery.error || activeRallyQuery.error) && (
-                    <div className="mt-4 rounded-md border border-[#F2D6D6] bg-[#FFF5F5] p-3">
-                      <Typography variant="body-sm" className="text-[#8B2B2B]">
-                        {(upcomingRallyQuery.error ?? activeRallyQuery.error)?.message ??
-                          "Could not load rally events."}
-                      </Typography>
-                    </div>
-                  )}
-
-                  <div className="mt-5 grid gap-4 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Typography variant="label" className="text-[#6B7890]">
-                        Rally event
-                      </Typography>
-                      <select
-                        aria-label="Select rally event"
-                        className={fieldClassName}
-                        value={consentEventId}
-                        onChange={(e) => setConsentEventId(e.target.value)}
-                        disabled={selectableRallyEvents.length === 0 || isSubmittingRegistration}
-                      >
-                        {selectableRallyEvents.length === 0 ? (
-                          <option value="">No open events</option>
-                        ) : (
-                          selectableRallyEvents.map((e) => (
-                            <option key={e._id} value={e._id}>
-                              {e.name} · {e.location} ({e.status})
-                            </option>
-                          ))
-                        )}
-                      </select>
-                    </div>
-
-                    <div className="space-y-2 sm:col-span-2 rounded-md border border-[#E8E8E8] bg-[#F9FAFD] p-4">
+                    <div className="rounded-md border border-[#E8E8E8] bg-[#F9FAFD] p-4">
                       <Typography variant="label" className="text-[#6B7890]">
                         Your selections
                       </Typography>
-                      <Typography variant="body-sm" className="mt-2 text-[#25314D]">
+                      <Typography
+                        variant="body-sm"
+                        className="mt-2 text-[#25314D]"
+                      >
                         Team:{" "}
                         <span className="font-semibold">
                           {registrationSummary.team
@@ -751,7 +1016,10 @@ export default function RegistrationPage() {
                             : "—"}
                         </span>
                       </Typography>
-                      <Typography variant="body-sm" className="mt-1 text-[#25314D]">
+                      <Typography
+                        variant="body-sm"
+                        className="mt-1 text-[#25314D]"
+                      >
                         Vehicle:{" "}
                         <span className="font-semibold">
                           {registrationSummary.vehicle
@@ -760,10 +1028,13 @@ export default function RegistrationPage() {
                         </span>
                       </Typography>
                       {requiresNavigator ? (
-                        <Typography variant="body-sm" className="mt-1 text-[#25314D]">
+                        <Typography
+                          variant="body-sm"
+                          className="mt-1 text-[#25314D]"
+                        >
                           Navigator:{" "}
                           <span className="font-semibold">
-                            {registrationSummary.team?.navigator_id?.name ?? "—"}
+                            {registrationSummary.navigatorName ?? "—"}
                           </span>
                         </Typography>
                       ) : null}
@@ -773,31 +1044,27 @@ export default function RegistrationPage() {
 
                 <div className="rounded-md bg-[#F9FAFD] p-4 sm:p-6">
                   <Typography
-                    variant="body"
-                    className="max-w-[1100px] text-[14px] leading-[1.45] text-[#686868] sm:text-[15px]"
+                    variant="body-lg"
+                    className="mb-3 font-semibold text-[#25314D]"
                   >
-                    ADD copy of Drivers License and ID Card (MANDATORY)
-                    <br />
-                    * Driver and Navigator Racing suit is MANDATORY.
-                    <br />
-                    Roll Bar of standardized specifications and Fire Extinguisher (Minm 04 KG),
-                    four point harness seatbelts, &amp; First Aid Kit are mandatory for all vehicles.
-                    <br />
-                    I/We being the entrant/s and/or driver and/or rider, certify that the particulars
-                    on the Entry Form are true and correct.
+                    Category undertaking
                   </Typography>
+                  <CategoryConsentContent html={categoryConsentHtml} />
 
                   <div className="pt-5">
                     <Checkbox
                       control={consentForm.control}
                       name={"acceptedTerms"}
+                      disabled={!categoryConsentHtml}
                       label={
                         <span>
-                          I agree to the Terms &amp; Conditions.<span className="text-[#E04444]"> *</span>
+                          I have read and agree to the undertaking above for
+                          this category.
+                          <span className="text-[#E04444]"> *</span>
                         </span>
                       }
                       checkboxClassName="size-6 border-[#CED4DF] bg-white"
-                      itemClassName="items-center"
+                      itemClassName="items-start"
                     />
                   </div>
                 </div>
@@ -808,388 +1075,408 @@ export default function RegistrationPage() {
                     className="h-[46px] w-full rounded-md px-6 text-[16px] font-medium sm:w-auto sm:min-w-[210px] sm:px-8 sm:text-[17px]"
                     disabled={
                       isSubmittingRegistration ||
-                      !consentEventId ||
+                      !activeRallyEventId ||
+                      activeRallyQuery.isLoading ||
+                      activeRallyQuery.isError ||
+                      !categoryConsentHtml ||
                       !selectedRegistrationTeamId ||
                       !selectedRegistrationVehicleId ||
-                      (requiresNavigator &&
-                        !registrationSummary.team?.navigator_id?._id) ||
-                      selectableRallyEvents.length === 0 ||
-                      !teamsForCategory.some((t) => t._id === selectedRegistrationTeamId) ||
-                      !vehicles.some((v) => v._id === selectedRegistrationVehicleId)
+                      !selectedTeamValidation?.ok ||
+                      !teamsForCategory.some(
+                        (t) => t._id === selectedRegistrationTeamId,
+                      ) ||
+                      !vehicles.some(
+                        (v) => v._id === selectedRegistrationVehicleId,
+                      )
                     }
                   >
                     <Typography as="span" variant="body" color="inherit">
-                      {isSubmittingRegistration ? "Submitting…" : "Submit registration"}
+                      {isSubmittingRegistration
+                        ? "Submitting…"
+                        : "Submit registration"}
                     </Typography>
                   </Button>
                 </div>
               </FormCommon>
             </div>
-          )
-          : null}
+          ) : null}
           {isVehicleStep ? (
             <div className="space-y-6">
-                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                            <div className="space-y-1">
-                              <Typography
-                                as="h3"
-                                variant="body-lg"
-                                className="text-[18px] leading-none text-[#4A4A4A] sm:text-[20px]"
-                              >
-                                Vehicle details
-                              </Typography>
-                              <Typography variant="body-sm" className="text-[#8B96AD]">
-                                Select a vehicle for your category and team. You can add or edit vehicles anytime.
-                              </Typography>
-                            </div>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1">
+                  <Typography
+                    as="h3"
+                    variant="body-lg"
+                    className="text-[18px] leading-none text-[#4A4A4A] sm:text-[20px]"
+                  >
+                    Vehicle details
+                  </Typography>
+                  <Typography variant="body-sm" className="text-[#8B96AD]">
+                    Select a vehicle for your category and team. Manage vehicles
+                    on the{" "}
+                    <Link
+                      to={ROUTES.VEHICLE}
+                      className="font-medium text-[#1F6B43] underline"
+                    >
+                      Vehicle
+                    </Link>{" "}
+                    page.
+                  </Typography>
+                </div>
 
-                            <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row sm:items-center">
-                              <Button
-                                type="button"
-                                variant="primary-outline"
-                                className="h-[44px] w-full rounded-md px-6 text-[15px] font-medium sm:w-auto"
-                                onClick={() => setStep(2)}
-                              >
-                                Back
-                              </Button>
-                              <Button
-                                type="button"
-                                className="h-[44px] w-full rounded-md px-6 text-[15px] font-medium sm:w-auto"
-                                onClick={() => {
-                                  setVehicleMode("new");
-                                  setEditingVehicleId(null);
-                                  vehicleForm.reset(defaultVehicleFormValues);
-                                }}
-                                disabled={
-                                  !token ||
-                                  myVehicleQuery.isLoading ||
-                                  vehicleMode === "new" ||
-                                  vehicleMode === "edit"
-                                }
-                              >
-                                <PlusIcon className="size-4" />
-                                Add vehicle
-                              </Button>
-                            </div>
-                          </div>
+                <Button
+                  type="button"
+                  variant="primary-outline"
+                  className="h-[44px] w-full rounded-md px-6 text-[15px] font-medium sm:w-auto"
+                  onClick={() => setStep(2)}
+                >
+                  Back
+                </Button>
+              </div>
 
-                          {!token ? (
-                            <div className="rounded-md border border-[#F2D6D6] bg-[#FFF5F5] p-4">
-                              <Typography variant="body" className="text-[#8B2B2B]">
-                                You’re not logged in. Please login first so we can fetch your vehicle.
-                              </Typography>
-                            </div>
-                          ) : myVehicleQuery.isLoading ? (
-                            <div className="rounded-md border border-[#E8E8E8] bg-[#F9FAFD] p-4">
-                              <Typography variant="body" className="text-[#25314D]">
-                                Loading your vehicles…
-                              </Typography>
-                            </div>
-                          ) : myVehicleQuery.isError ? (
-                            <div className="rounded-md border border-[#F2D6D6] bg-[#FFF5F5] p-4">
-                              <Typography variant="body" className="text-[#8B2B2B]">
-                                Could not fetch your vehicle. You can still add a new one below.
-                              </Typography>
-                            </div>
-                          ) : vehicleMode === "list" ? (
-                            vehiclesForRegistration.length > 0 ? (
-                            <div className="grid gap-3 sm:grid-cols-2">
-                              {vehiclesForRegistration.map((v: Vehicle) => {
-                                const imgUrl = toPublicFileUrl(v.image);
-                                const isSel = selectedRegistrationVehicleId === v._id;
-                                return (
-                                  <button
-                                    key={v._id}
-                                    type="button"
-                                    onClick={() => setSelectedRegistrationVehicleId(v._id)}
-                                    className={cn(
-                                      "rounded-md border p-4 text-left transition-colors",
-                                      isSel
-                                        ? "border-[#43AA72] bg-[#EAF6EF]"
-                                        : "border-[#E8E8E8] bg-white hover:bg-[#F9FAFD]",
-                                    )}
-                                  >
-                                    <div className="flex gap-3">
-                                      <div className="relative size-16 shrink-0 overflow-hidden rounded-lg border border-[#E8E8E8] bg-[#F9FAFD]">
-                                        {imgUrl ? (
-                                          <img
-                                            src={imgUrl}
-                                            alt=""
-                                            className="size-full object-cover"
-                                          />
-                                        ) : (
-                                          <div className="flex size-full items-center justify-center text-[10px] text-[#9AA6C8]">
-                                            No photo
-                                          </div>
-                                        )}
-                                        <label
-                                          className="absolute bottom-0.5 right-0.5 flex size-6 cursor-pointer items-center justify-center rounded-full bg-[#25314D] text-white shadow"
-                                          onClick={(e) => e.stopPropagation()}
-                                        >
-                                          <input
-                                            type="file"
-                                            accept="image/*"
-                                            className="hidden"
-                                            disabled={uploadImageMutation.isPending}
-                                            onChange={async (e) => {
-                                              const file = e.target.files?.[0];
-                                              if (!file) return;
-                                              await uploadImageMutation.mutateAsync({
-                                                vehicleId: v._id,
-                                                file,
-                                              });
-                                              e.target.value = "";
-                                            }}
-                                          />
-                                          <span className="sr-only">Upload image</span>
-                                        </label>
-                                      </div>
-                                      <div className="min-w-0 flex-1">
-                                        <Typography
-                                          as="div"
-                                          variant="body-lg"
-                                          className={cn(
-                                            "truncate text-[15px] font-semibold",
-                                            isSel ? "text-[#1F6B43]" : "text-[#25314D]",
-                                          )}
-                                        >
-                                          {v.model}
-                                        </Typography>
-                                        <Typography
-                                          variant="body-sm"
-                                          className={cn(isSel ? "text-[#1F6B43]" : "text-[#8B96AD]")}
-                                        >
-                                          {CATEGORY_LABELS[v.category as Category] ?? v.category}
-                                          {v.class ? ` · ${v.class}` : ""}
-                                          {v.power != null ? ` · Power ${v.power}` : ""}
-                                        </Typography>
-                                        <div className="mt-2 flex flex-wrap gap-2">
-                                          <Button
-                                            type="button"
-                                            variant="primary-outline"
-                                            className="h-8 rounded-md px-3 text-[13px]"
-                                            onClick={(e) => {
-                                              e.preventDefault();
-                                              e.stopPropagation();
-                                              setEditingVehicleId(v._id);
-                                              setVehicleMode("edit");
-                                              vehicleForm.reset(vehicleToFormValues(v));
-                                            }}
-                                          >
-                                            Edit
-                                          </Button>
-                                          <Button
-                                            type="button"
-                                            variant="destructive-outline"
-                                            className="h-8 rounded-md px-3 text-[13px]"
-                                            disabled={deleteVehicleMutation.isPending}
-                                            onClick={async (e) => {
-                                              e.preventDefault();
-                                              e.stopPropagation();
-                                              await deleteVehicleMutation.mutateAsync(v._id);
-                                              if (selectedRegistrationVehicleId === v._id) {
-                                                setSelectedRegistrationVehicleId("");
-                                              }
-                                              if (editingVehicleId === v._id) {
-                                                setEditingVehicleId(null);
-                                                setVehicleMode("list");
-                                                vehicleForm.reset(defaultVehicleFormValues);
-                                              }
-                                            }}
-                                          >
-                                            <Trash2Icon className="size-3.5" />
-                                            Delete
-                                          </Button>
-                                        </div>
-                                      </div>
-                                      <span
-                                        className={cn(
-                                          "mt-1 grid size-5 shrink-0 place-items-center self-start rounded-full border text-[12px] font-semibold",
-                                          isSel
-                                            ? "border-[#43AA72] bg-[#43AA72] text-white"
-                                            : "border-[#D7DAE1] bg-white text-transparent",
-                                        )}
-                                        aria-hidden
-                                      >
-                                        ✓
-                                      </span>
-                                    </div>
-                                  </button>
-                                );
-                              })}
-                            </div>
-                            ) : vehicles.length > 0 ? (
-                            <div className="rounded-md border border-[#E8E8E8] bg-[#F9FAFD] p-4">
-                              <Typography variant="body" className="text-[#25314D]">
-                                No vehicle matches this category and selected team. Use{" "}
-                                <span className="font-semibold">Add vehicle</span> above or create one below.
-                              </Typography>
-                            </div>
-                          ) : (
-                            <div className="rounded-md border border-[#E8E8E8] bg-[#F9FAFD] p-4">
-                              <Typography variant="body" className="text-[#25314D]">
-                                No vehicles yet. Use{" "}
-                                <span className="font-semibold">Add vehicle</span> above or the form below to create your first one.
-                              </Typography>
-                            </div>
-                          )
-                          ) : null}
-
-                          {(vehicleMode === "new" ||
-                            vehicleMode === "edit" ||
-                            vehicles.length === 0) && (
-                            <FormCommon
-                              form={vehicleForm}
-                              onSubmit={onSubmitVehicle}
-                              className="space-y-5"
-                            >
-                              <div className="rounded-md bg-[#F9FAFD] p-4 sm:p-6">
-                                <div className="flex flex-col gap-4 border-b border-[#E8E8E8] pb-5 sm:flex-row sm:items-start sm:gap-8">
-                                  <ImagePicker
-                                    control={vehicleForm.control}
-                                    name="vehicleImage"
-                                    label="Vehicle photo"
-                                    description="Optional. Uploaded when you save."
-                                    variant="avatar"
-                                    disabled={isSavingVehicle}
-                                  />
-                                </div>
-                                <div className="grid grid-cols-1 gap-5 pt-5 lg:grid-cols-2">
-                                  <Input
-                                    control={vehicleForm.control}
-                                    name={"model"}
-                                    label="Model"
-                                    placeholder="e.g. Toyota Hilux"
-                                    className={fieldClassName}
-                                  />
-                                  <Input
-                                    control={vehicleForm.control}
-                                    name={"engine"}
-                                    label="Engine"
-                                    placeholder="e.g. 2.8L Turbo Diesel"
-                                    className={fieldClassName}
-                                  />
-                                  <Select
-                                    control={vehicleForm.control}
-                                    name={"category"}
-                                    label="Category"
-                                    placeholder="Select category"
-                                    options={vehicleCategorySelectOptions}
-                                    className={fieldClassName}
-                                  />
-                                  <Input
-                                    control={vehicleForm.control}
-                                    name={"frame"}
-                                    label="Frame (optional)"
-                                    placeholder="e.g. Ladder frame"
-                                    className={fieldClassName}
-                                  />
-                                  <Input
-                                    control={vehicleForm.control}
-                                    name={"power"}
-                                    label="Power (optional)"
-                                    placeholder="e.g. 201"
-                                    className={fieldClassName}
-                                    type="number"
-                                  />
-                                  <Input
-                                    control={vehicleForm.control}
-                                    name={"weight"}
-                                    label="Weight (optional)"
-                                    placeholder="e.g. 2100"
-                                    className={fieldClassName}
-                                    type="number"
-                                  />
-                                  <Input
-                                    control={vehicleForm.control}
-                                    name={"length"}
-                                    label="Length (optional)"
-                                    placeholder="e.g. 5325"
-                                    className={fieldClassName}
-                                    type="number"
-                                  />
-                                  <Input
-                                    control={vehicleForm.control}
-                                    name={"tank_capacity"}
-                                    label="Tank capacity (optional)"
-                                    placeholder="e.g. 80"
-                                    className={fieldClassName}
-                                    type="number"
-                                  />
-                                  <Input
-                                    control={vehicleForm.control}
-                                    name={"class"}
-                                    label="Class (optional)"
-                                    placeholder="e.g. T1"
-                                    className={fieldClassName}
-                                  />
-                                </div>
-                              </div>
-
-                              {vehicleError && (
-                                <div className="rounded-md border border-[#F2D6D6] bg-[#FFF5F5] p-4">
-                                  <Typography variant="body" className="text-[#8B2B2B]">
-                                    Could not save vehicle. Please try again.
-                                  </Typography>
+              {!token ? (
+                <div className="rounded-md border border-[#F2D6D6] bg-[#FFF5F5] p-4">
+                  <Typography variant="body" className="text-[#8B2B2B]">
+                    You’re not logged in. Please login first so we can fetch
+                    your vehicle.
+                  </Typography>
+                </div>
+              ) : myVehicleQuery.isLoading ? (
+                <PanelBlockSkeleton lines={3} />
+              ) : myVehicleQuery.isError ? (
+                <div className="rounded-md border border-[#F2D6D6] bg-[#FFF5F5] p-4">
+                  <Typography variant="body" className="text-[#8B2B2B]">
+                    Could not fetch your vehicles. You can still{" "}
+                    <Link
+                      to={ROUTES.VEHICLE}
+                      className="font-medium text-[#1F6B43] underline"
+                    >
+                      add a vehicle
+                    </Link>{" "}
+                    on the Vehicle page.
+                  </Typography>
+                </div>
+              ) : vehicleMode === "list" ? (
+                vehiclesForRegistration.length > 0 ? (
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    {vehiclesForRegistration.map((v: Vehicle) => {
+                      const imgUrl = toPublicFileUrl(v.image);
+                      const isSel = selectedRegistrationVehicleId === v._id;
+                      return (
+                        <button
+                          key={v._id}
+                          type="button"
+                          onClick={() =>
+                            setSelectedRegistrationVehicleId(v._id)
+                          }
+                          className={cn(
+                            "rounded-md border p-4 text-left transition-colors",
+                            isSel
+                              ? "border-[#43AA72] bg-[#EAF6EF]"
+                              : "border-[#E8E8E8] bg-white hover:bg-[#F9FAFD]",
+                          )}
+                        >
+                          <div className="flex gap-3">
+                            <div className="relative size-16 shrink-0 overflow-hidden rounded-lg border border-[#E8E8E8] bg-[#F9FAFD]">
+                              {imgUrl ? (
+                                <img
+                                  src={imgUrl}
+                                  alt=""
+                                  className="size-full object-cover"
+                                />
+                              ) : (
+                                <div className="flex size-full items-center justify-center text-[10px] text-[#9AA6C8]">
+                                  No photo
                                 </div>
                               )}
-
-                              <div className="flex flex-col-reverse items-stretch justify-end gap-3 pb-2 sm:flex-row sm:items-center sm:gap-4">
-                                <Button
-                                  type="button"
-                                  variant="primary-outline"
-                                  className="h-[46px] w-full rounded-md px-8 text-[16px] font-medium sm:w-auto sm:min-w-[150px] sm:text-[17px]"
-                                  onClick={(e) => {
-                                    e.preventDefault();
-                                    if (vehicles.length > 0) {
-                                      setVehicleMode("list");
-                                      setEditingVehicleId(null);
-                                    } else {
-                                      setVehicleMode("new");
-                                      setEditingVehicleId(null);
-                                    }
-                                    vehicleForm.reset(defaultVehicleFormValues);
-                                  }}
-                                  disabled={isSavingVehicle}
-                                >
-                                  <Typography as="span" variant="body" color="inherit">
-                                    Cancel
-                                  </Typography>
-                                </Button>
-                                <Button
-                                  type="submit"
-                                  className="h-[46px] w-full rounded-md px-6 text-[16px] font-medium sm:w-auto sm:min-w-[210px] sm:px-8 sm:text-[17px]"
-                                  disabled={isSavingVehicle}
-                                >
-                                  <Typography as="span" variant="body" color="inherit">
-                                    {vehicleMode === "edit" ? "Update vehicle" : "Save vehicle"}
-                                  </Typography>
-                                </Button>
-                              </div>
-                            </FormCommon>
-                          )}
-
-                          {vehiclesForRegistration.length > 0 && vehicleMode === "list" && (
-                            <div className="flex flex-col items-stretch justify-end gap-3 pt-2 sm:flex-row sm:items-center sm:gap-4">
-                              <Button
-                                type="button"
-                                className="h-[46px] w-full rounded-md px-6 text-[16px] font-medium sm:w-auto sm:min-w-[210px] sm:px-8 sm:text-[17px]"
-                                disabled={
-                                  !selectedRegistrationVehicleId ||
-                                  !vehiclesForRegistration.some(
-                                    (v) => v._id === selectedRegistrationVehicleId,
-                                  )
-                                }
-                                onClick={() => setStep(4)}
+                              <label
+                                className={cn(
+                                  "absolute bottom-0.5 right-0.5 flex size-7 cursor-pointer items-center justify-center rounded-full bg-[#3FA565] text-white shadow-md",
+                                  uploadImageMutation.isPending &&
+                                    "pointer-events-none opacity-70",
+                                )}
+                                aria-label="Upload vehicle photo"
+                                onClick={(e) => e.stopPropagation()}
                               >
-                                <Typography as="span" variant="body" color="inherit">
-                                  Continue
-                                </Typography>
-                              </Button>
+                                <CameraIcon className="size-3.5" aria-hidden />
+                                <input
+                                  type="file"
+                                  accept="image/*"
+                                  className="hidden"
+                                  disabled={uploadImageMutation.isPending}
+                                  onChange={async (e) => {
+                                    const file = e.target.files?.[0];
+                                    if (!file) return;
+                                    try {
+                                      await uploadImageMutation.mutateAsync({
+                                        vehicleId: v._id,
+                                        file,
+                                      });
+                                      toast.success("Vehicle photo updated.");
+                                    } catch (err) {
+                                      toast.error(
+                                        err instanceof Error
+                                          ? err.message
+                                          : "Could not upload photo.",
+                                      );
+                                    }
+                                    e.target.value = "";
+                                  }}
+                                />
+                              </label>
                             </div>
-                          )}
-                        </div>
+                            <div className="min-w-0 flex-1">
+                              <Typography
+                                as="div"
+                                variant="body-lg"
+                                className={cn(
+                                  "truncate text-[15px] font-semibold",
+                                  isSel ? "text-[#1F6B43]" : "text-[#25314D]",
+                                )}
+                              >
+                                {v.model}
+                              </Typography>
+                              <Typography
+                                variant="body-sm"
+                                className={cn(
+                                  isSel ? "text-[#1F6B43]" : "text-[#8B96AD]",
+                                )}
+                              >
+                                {resolveCategoryTitle(
+                                  categoriesQuery.data?.data,
+                                  v.category,
+                                )}
+                                {v.class ? ` · ${v.class}` : ""}
+                                {v.power != null ? ` · Power ${v.power}` : ""}
+                              </Typography>
+                              <div
+                                className="mt-2"
+                                onClick={(e) => e.stopPropagation()}
+                                onKeyDown={(e) => e.stopPropagation()}
+                              >
+                                <EditDeleteIconActions
+                                  editLabel="Edit vehicle"
+                                  deleteLabel="Delete vehicle"
+                                  onEdit={() => {
+                                    setEditingVehicleId(v._id);
+                                    setVehicleMode("edit");
+                                    vehicleForm.reset(vehicleToFormValues(v));
+                                  }}
+                                  deleteDisabled={
+                                    deleteVehicleMutation.isPending
+                                  }
+                                  onDelete={async () => {
+                                    await deleteVehicleMutation.mutateAsync(
+                                      v._id,
+                                    );
+                                    if (
+                                      selectedRegistrationVehicleId === v._id
+                                    ) {
+                                      setSelectedRegistrationVehicleId("");
+                                    }
+                                    if (editingVehicleId === v._id) {
+                                      setEditingVehicleId(null);
+                                      setVehicleMode("list");
+                                      vehicleForm.reset(
+                                        defaultVehicleFormValues,
+                                      );
+                                    }
+                                  }}
+                                />
+                              </div>
+                            </div>
+                            <span
+                              className={cn(
+                                "mt-1 grid size-5 shrink-0 place-items-center self-start rounded-full border text-[12px] font-semibold",
+                                isSel
+                                  ? "border-[#43AA72] bg-[#43AA72] text-white"
+                                  : "border-[#D7DAE1] bg-white text-transparent",
+                              )}
+                              aria-hidden
+                            >
+                              ✓
+                            </span>
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : vehicles.length > 0 ? (
+                  <div className="rounded-md border border-[#E8E8E8] bg-[#F9FAFD] p-4">
+                    <Typography variant="body" className="text-[#25314D]">
+                      No vehicle matches this category and selected team.{" "}
+                      <Link
+                        to={ROUTES.VEHICLE}
+                        className="font-medium text-[#1F6B43] underline"
+                      >
+                        Add a vehicle
+                      </Link>{" "}
+                      on the Vehicle page, then return here.
+                    </Typography>
+                  </div>
+                ) : (
+                  <div className="rounded-md border border-[#E8E8E8] bg-[#F9FAFD] p-4">
+                    <Typography variant="body" className="text-[#25314D]">
+                      No vehicles yet.{" "}
+                      <Link
+                        to={ROUTES.VEHICLE}
+                        className="font-medium text-[#1F6B43] underline"
+                      >
+                        Add a vehicle
+                      </Link>{" "}
+                      on the Vehicle page, then return here.
+                    </Typography>
+                  </div>
+                )
+              ) : null}
 
+              {vehicleMode === "edit" && (
+                <FormCommon
+                  form={vehicleForm}
+                  onSubmit={onSubmitVehicle}
+                  className="space-y-5"
+                >
+                  <div className="rounded-md bg-[#F9FAFD] p-4 sm:p-6">
+                    <div className="flex flex-col gap-4 border-b border-[#E8E8E8] pb-5 sm:flex-row sm:items-start sm:gap-8">
+                      <ImagePicker
+                        control={vehicleForm.control}
+                        name="vehicleImage"
+                        label="Vehicle photo"
+                        description="Optional. Uploaded when you save."
+                        variant="avatar"
+                        disabled={isSavingVehicle}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 gap-5 pt-5 lg:grid-cols-2">
+                      <Input
+                        control={vehicleForm.control}
+                        name={"model"}
+                        label="Model"
+                        placeholder="e.g. Toyota Hilux"
+                        className={fieldClassName}
+                      />
+                      <Input
+                        control={vehicleForm.control}
+                        name={"engine"}
+                        label="Engine"
+                        placeholder="e.g. 2.8L Turbo Diesel"
+                        className={fieldClassName}
+                      />
+                      <Select
+                        control={vehicleForm.control}
+                        name={"category"}
+                        label="Category"
+                        placeholder="Select category"
+                        options={vehicleCategoryOptions}
+                        className={fieldClassName}
+                      />
+                      <Input
+                        control={vehicleForm.control}
+                        name={"frame"}
+                        label="Frame (optional)"
+                        placeholder="e.g. Ladder frame"
+                        className={fieldClassName}
+                      />
+                      <Input
+                        control={vehicleForm.control}
+                        name={"power"}
+                        label="Power (optional)"
+                        placeholder="e.g. 201"
+                        className={fieldClassName}
+                        type="number"
+                      />
+                      <Input
+                        control={vehicleForm.control}
+                        name={"weight"}
+                        label="Weight (optional)"
+                        placeholder="e.g. 2100"
+                        className={fieldClassName}
+                        type="number"
+                      />
+                      <Input
+                        control={vehicleForm.control}
+                        name={"length"}
+                        label="Length (optional)"
+                        placeholder="e.g. 5325"
+                        className={fieldClassName}
+                        type="number"
+                      />
+                      <Input
+                        control={vehicleForm.control}
+                        name={"tank_capacity"}
+                        label="Tank capacity (optional)"
+                        placeholder="e.g. 80"
+                        className={fieldClassName}
+                        type="number"
+                      />
+                      <Input
+                        control={vehicleForm.control}
+                        name={"class"}
+                        label="Class (optional)"
+                        placeholder="e.g. T1"
+                        className={fieldClassName}
+                      />
+                    </div>
+                  </div>
+
+                  {vehicleError && (
+                    <div className="rounded-md border border-[#F2D6D6] bg-[#FFF5F5] p-4">
+                      <Typography variant="body" className="text-[#8B2B2B]">
+                        Could not save vehicle. Please try again.
+                      </Typography>
+                    </div>
+                  )}
+
+                  <div className="flex flex-col-reverse items-stretch justify-end gap-3 pb-2 sm:flex-row sm:items-center sm:gap-4">
+                    <Button
+                      type="button"
+                      variant="destructive-outline"
+                      className="h-[46px] w-full rounded-md px-8 text-[16px] font-medium sm:w-auto sm:min-w-[150px] sm:text-[17px]"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        setVehicleMode("list");
+                        setEditingVehicleId(null);
+                        vehicleForm.reset(defaultVehicleFormValues);
+                      }}
+                      disabled={isSavingVehicle}
+                    >
+                      <Typography as="span" variant="body" color="inherit">
+                        Cancel
+                      </Typography>
+                    </Button>
+                    <Button
+                      type="submit"
+                      className="h-[46px] w-full rounded-md px-6 text-[16px] font-medium sm:w-auto sm:min-w-[210px] sm:px-8 sm:text-[17px]"
+                      disabled={isSavingVehicle}
+                    >
+                      <Typography as="span" variant="body" color="inherit">
+                        Update vehicle
+                      </Typography>
+                    </Button>
+                  </div>
+                </FormCommon>
+              )}
+
+              {vehiclesForRegistration.length > 0 && vehicleMode === "list" && (
+                <div className="flex flex-col items-stretch justify-end gap-3 pt-2 sm:flex-row sm:items-center sm:gap-4">
+                  <Button
+                    type="button"
+                    className="h-[46px] w-full rounded-md px-6 text-[16px] font-medium sm:w-auto sm:min-w-[210px] sm:px-8 sm:text-[17px]"
+                    disabled={
+                      !selectedRegistrationVehicleId ||
+                      !vehiclesForRegistration.some(
+                        (v) => v._id === selectedRegistrationVehicleId,
+                      )
+                    }
+                    onClick={() => setStep(4)}
+                  >
+                    <Typography as="span" variant="body" color="inherit">
+                      Continue
+                    </Typography>
+                  </Button>
+                </div>
+              )}
+            </div>
           ) : null}
         </div>
       </div>

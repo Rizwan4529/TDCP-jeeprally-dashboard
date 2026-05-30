@@ -1,5 +1,14 @@
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
-import { CalendarDaysIcon, Clock3Icon, MapPinIcon } from "lucide-react";
+import * as React from "react";
+import {
+  AlertCircleIcon,
+  CalendarDaysIcon,
+  CalendarOffIcon,
+  Clock3Icon,
+  LayoutGridIcon,
+  MapPinIcon,
+  MedalIcon,
+  TrophyIcon,
+} from "lucide-react";
 
 import DashboardBg from "@/assets/images/dashboard-png.png";
 import DashboardCar from "@/assets/images/dashboard-car.png";
@@ -8,189 +17,247 @@ import TeamIcon from "@/assets/icons/team-icon.svg";
 import TotalPointsIcon from "@/assets/icons/total-points-icon.svg";
 import VehicleIcon from "@/assets/icons/vehicle-icon.svg";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { ParticipationRankingChart } from "@/components/dashboard/ParticipationRankingChart";
 import {
-  ChartContainer,
-  ChartTooltip,
-  ChartTooltipContent,
-  type ChartConfig,
-} from "@/components/ui/chart";
+  DashboardPanelEmptyState,
+  DriverSummarySkeleton,
+  EventHeroSkeleton,
+  EventScheduleListSkeleton,
+  RankingTableSkeleton,
+  StatsGridSkeleton,
+} from "@/components/common/LoadingStates";
+import { useDriverDashboardQuery } from "@/hooks/api/use-dashboard";
+import { useRallyEventsQuery } from "@/hooks/api/use-rally-events";
+import type { RallyEvent } from "@/api/types/rally";
+import { fetchAuthToken } from "@/utils/helpers";
 import { cn } from "@/lib/utils";
+import {
+  eventCountdownTarget,
+  formatDayMonth,
+  formatEventDateRangeHero,
+  formatEventScheduleDates,
+  getCountdownParts,
+  splitUpcomingEvents,
+} from "@/utils/dashboard-events";
+import {
+  buildDriverSummary,
+  buildRankingRows,
+  buildStatCards,
+  formatOrdinalPosition,
+  type StatCardView,
+} from "@/utils/dashboard-me";
 
-const statCards = [
-  {
-    label: "Ranking",
-    value: "04",
-    icon: RankingIcon,
-    iconMode: "circle",
-  },
-  {
-    label: "Vehicle",
-    value: "Jimny",
-    icon: VehicleIcon,
-    iconMode: "circle",
-  },
-  {
-    label: "Team",
-    value: "RS Rider",
-    icon: TeamIcon,
-    iconMode: "plain",
-  },
-  {
-    label: "Total Points",
-    value: "154",
-    icon: TotalPointsIcon,
-    iconMode: "plain",
-  },
-] as const;
-
-const scheduleItems = [
-  {
-    id: "thal-rally-jan-04-a",
-    day: "04",
-    month: "JAN",
-    title: "Thal jeep rally",
-    time: "08:00AM -10:00PM",
-    location: "Cholistan, desert Bhawalpur",
-  },
-  {
-    id: "thal-rally-jan-04-b",
-    day: "04",
-    month: "JAN",
-    title: "Thal jeep rally",
-    time: "08:00AM -10:00PM",
-    location: "Cholistan, desert Bhawalpur",
-  },
-] as const;
-
-const summaryItems = [
-  { label: "Stage Points", value: "98%", color: "#24D2C5" },
-  { label: "Position Points", value: "44%", color: "#F6B900" },
-  { label: "Bonus Point", value: "12%", color: "#4BAD73" },
-  { label: "Total Points", value: "22%", color: "#6254E8" },
-] as const;
-
-const rankingRows = [
-  {
-    id: "cholistan-2024-110",
-    year: "2024",
-    event: "Cholistan",
-    category: "Pro",
-    result: "2nd",
-    time: "03:12:56",
-    points: "110",
-    delta: "+2",
-  },
-  {
-    id: "cholistan-2024-221-win",
-    year: "2024",
-    event: "Cholistan",
-    category: "Pro",
-    result: "1st",
-    time: "03:12:56",
-    points: "221",
-    delta: "+2",
-  },
-  {
-    id: "cholistan-2024-221-drop-a",
-    year: "2024",
-    event: "Cholistan",
-    category: "Pro",
-    result: "2nd",
-    time: "03:12:56",
-    points: "221",
-    delta: "-2",
-  },
-  {
-    id: "cholistan-2024-221-drop-b",
-    year: "2024",
-    event: "Cholistan",
-    category: "Pro",
-    result: "2nd",
-    time: "03:12:56",
-    points: "221",
-    delta: "-2",
-  },
-] as const;
-
-const progressData = [
-  { year: "2020", value: 4.1 },
-  { year: "2021", value: 2.6 },
-  { year: "2022", value: 3.4 },
-  { year: "2023", value: 2.9 },
-  { year: "2024", value: 3.5 },
-  { year: "2025", value: 3.2 },
-];
-
-const progressChartConfig = {
-  value: {
-    label: "Progress",
-    color: "#76E8B1",
-  },
-} satisfies ChartConfig;
+const STAT_ICONS = {
+  ranking: RankingIcon,
+  vehicle: VehicleIcon,
+  team: TeamIcon,
+  points: TotalPointsIcon,
+} as const;
 
 const surfaceCard =
   "rounded-lg border border-[#E0E0E0] bg-white shadow-none ring-0";
 
-const progressDot = {
-  r: 7,
-  fill: "#BFF5D8",
-  stroke: "#85EDB8",
-  strokeWidth: 4,
-};
+/** Fixed panel height; body scrolls vertically inside the card. */
+const dashboardScrollCardClass = cn(
+  surfaceCard,
+  "flex max-h-[320px] min-h-[240px] flex-col gap-0 overflow-hidden py-0",
+);
+
+const dashboardPanelScrollClass =
+  "dashboard-panel-scroll min-h-0 flex-1 overflow-y-auto pr-0.5";
+
+const locationIconClass = "size-3.5 shrink-0 text-[#7F8697]";
+
+function useCountdown(targetIso: string | null | undefined) {
+  const [now, setNow] = React.useState(() => Date.now());
+
+  React.useEffect(() => {
+    if (!targetIso) return;
+    const id = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [targetIso]);
+
+  return React.useMemo(
+    () => getCountdownParts(targetIso, now),
+    [targetIso, now],
+  );
+}
 
 export default function DashboardPage() {
+  const token = React.useMemo(() => Boolean(fetchAuthToken()), []);
+  const upcomingQuery = useRallyEventsQuery({ status: "upcoming" });
+  const dashboardQuery = useDriverDashboardQuery(token);
+
+  const events = Array.isArray(upcomingQuery.data?.data)
+    ? upcomingQuery.data.data
+    : [];
+  const dashboardData = dashboardQuery.data?.data;
+
+  const { nextEvent, scheduledEvents } = React.useMemo(
+    () => splitUpcomingEvents(events),
+    [events],
+  );
+
+  const showNextEvent =
+    !upcomingQuery.isLoading && !upcomingQuery.isError && nextEvent != null;
+
+  const showNextEventEmpty =
+    !upcomingQuery.isLoading && !upcomingQuery.isError && nextEvent == null;
+
+  const statCards = React.useMemo(
+    () => buildStatCards(dashboardData?.cards),
+    [dashboardData?.cards],
+  );
+  const rankingRows = React.useMemo(
+    () => buildRankingRows(dashboardData?.overall_rallies),
+    [dashboardData?.overall_rallies],
+  );
+  const hasRallyHistory =
+    (dashboardData?.overall_rallies?.length ?? 0) > 0 ||
+    (dashboardData?.best_rallies?.length ?? 0) > 0;
+
+  const driverSummary = React.useMemo(
+    () => buildDriverSummary(dashboardData),
+    [dashboardData],
+  );
+
   return (
     <div className="space-y-6 pb-2">
-      <EventHero />
-      <StatsGrid />
+      {upcomingQuery.isLoading ? (
+        <EventHeroSkeleton />
+      ) : showNextEvent ? (
+        <EventHero event={nextEvent} />
+      ) : showNextEventEmpty ? (
+        <NextEventEmpty />
+      ) : upcomingQuery.isError ? (
+        <NextEventError message={upcomingQuery.error?.message} />
+      ) : null}
+      <StatsGrid
+        cards={statCards}
+        isLoading={dashboardQuery.isLoading}
+        isError={dashboardQuery.isError}
+        hasHistory={hasRallyHistory}
+      />
 
       <div className="grid gap-6 xl:grid-cols-[1.04fr_1fr]">
-        <EventSchedule />
-        <DriverSummary />
+        <EventSchedule
+          events={scheduledEvents}
+          hasOtherUpcoming={events.length > 0}
+          isLoading={upcomingQuery.isLoading}
+          isError={upcomingQuery.isError}
+          errorMessage={upcomingQuery.error?.message}
+        />
+        <DriverSummary
+          highlights={driverSummary.highlights}
+          bestPosition={driverSummary.bestPosition}
+          isEmpty={!hasRallyHistory}
+          isLoading={dashboardQuery.isLoading}
+          isError={dashboardQuery.isError}
+          errorMessage={dashboardQuery.error?.message}
+        />
       </div>
 
-      <div className="grid gap-6 xl:grid-cols-[1.5fr_0.92fr]">
-        <OverallRanking />
-        <ProgressChart />
-      </div>
+      <OverallRanking
+        rows={rankingRows}
+        isLoading={dashboardQuery.isLoading}
+        isError={dashboardQuery.isError}
+        errorMessage={dashboardQuery.error?.message}
+      />
+
+      <ParticipationRankingChart enabled={token} />
     </div>
   );
 }
 
-function EventHero() {
+function NextEventPanel({ children }: { children: React.ReactNode }) {
   return (
-    <section className="relative min-h-[200px] overflow-visible pt-3">
-      <div className="relative h-[200px] overflow-hidden rounded-[10px] bg-[#9B6A45]">
+    <section className="pt-3 pb-1">
+      <Card className={cn(surfaceCard, "overflow-hidden py-0")}>
+        <div className="flex min-h-[120px] items-center justify-center px-6 py-8">
+          {children}
+        </div>
+      </Card>
+    </section>
+  );
+}
+
+function NextEventEmpty() {
+  return (
+    <NextEventPanel>
+      <DashboardPanelEmptyState
+        icon={CalendarDaysIcon}
+        title="No upcoming event"
+        description="There are no rallies scheduled right now. Check back when new events are announced."
+        className="min-h-0 w-full max-w-md border-none bg-transparent py-6"
+      />
+    </NextEventPanel>
+  );
+}
+
+function NextEventError({ message }: { message?: string }) {
+  return (
+    <NextEventPanel>
+      <DashboardPanelEmptyState
+        icon={AlertCircleIcon}
+        title="Could not load next event"
+        description={
+          message ??
+          "Upcoming rally details could not be loaded. Please try again later."
+        }
+        variant="error"
+        className="min-h-0 w-full max-w-md border-none bg-transparent py-6"
+      />
+    </NextEventPanel>
+  );
+}
+
+function EventHero({ event }: { event: RallyEvent }) {
+  const countdown = useCountdown(eventCountdownTarget(event));
+  const dateRange = formatEventDateRangeHero(event.date, event.end_date);
+
+  return (
+    <section className="relative overflow-visible pt-3 pb-1">
+      <div className="relative min-h-[200px] overflow-hidden rounded-[10px] bg-[#9B6A45]">
         <img
           src={DashboardBg}
           alt=""
-          className="absolute inset-0 h-full w-full object-cover"
+          className="absolute inset-0 size-full object-cover"
         />
         <div className="absolute inset-0 bg-black/10" />
-        <div className="relative z-10 flex h-full max-w-[390px] flex-col justify-center px-7 text-white sm:px-9">
+        <div className="relative z-10 flex min-h-[200px] max-w-[calc(100%-1.5rem)] flex-col justify-center px-7 py-6 text-white sm:max-w-[420px] sm:px-9 sm:py-7 md:max-w-[min(52%,480px)]">
           <p className="text-xs font-semibold uppercase leading-none">
             Next Event
           </p>
-          <h2 className="mt-3 text-[22px] font-bold leading-none sm:text-[24px]">
-            TDCP JEEP RALLY
+          <h2 className="mt-3 text-[22px] font-bold leading-snug sm:text-[24px]">
+            {event.name}
           </h2>
+          {event.edition_number > 0 ? (
+            <p className="mt-1 text-[11px] font-semibold uppercase tracking-wide text-white/85">
+              Edition {event.edition_number}
+            </p>
+          ) : null}
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] font-semibold">
             <span className="inline-flex items-center gap-2">
               <CalendarDaysIcon className="size-4 text-[#FFA51E]" />
-              24 - 26 JAN 2025
+              {dateRange}
             </span>
             <span className="inline-flex items-center gap-2">
-              <MapPinIcon className="size-4 text-[#FFA51E]" />
-              Cholistan, desert Bhawalpur
+              <MapPinIcon
+                className="size-4 text-[#FFA51E]"
+                strokeWidth={2.25}
+              />
+              {event.location}
             </span>
           </div>
           <div className="mt-4 flex items-end text-[#FFA51E]">
-            {[
-              ["08", "Days"],
-              ["12", "Hrs"],
-              ["44", "Mins"],
-              ["22", "Secs"],
-            ].map(([value, label], index) => (
+            {(
+              [
+                [countdown.days, "Days"],
+                [countdown.hours, "Hrs"],
+                [countdown.mins, "Mins"],
+                [countdown.secs, "Secs"],
+              ] as const
+            ).map(([value, label], index) => (
               <div
                 key={label}
                 className={cn(
@@ -211,248 +278,360 @@ function EventHero() {
       <img
         src={DashboardCar}
         alt="Green rally car"
-        className="pointer-events-none absolute -top-10 right-[-38px] z-20 hidden w-[46%] min-w-[330px] max-w-[450px] object-contain drop-shadow-[0_18px_16px_rgba(0,0,0,0.22)] md:block xl:right-10"
+        className="pointer-events-none absolute top-1/2 right-[-38px] z-20 hidden w-[46%] min-w-[300px] max-w-[450px] -translate-y-1/2 object-contain drop-shadow-[0_18px_16px_rgba(0,0,0,0.22)] md:block xl:right-10"
       />
     </section>
   );
 }
 
-function StatsGrid() {
+function StatsGrid({
+  cards,
+  isLoading,
+  isError,
+  hasHistory,
+}: {
+  cards: StatCardView[];
+  isLoading: boolean;
+  isError: boolean;
+  hasHistory: boolean;
+}) {
+  if (isLoading) return <StatsGridSkeleton />;
+  if (isError) {
+    return (
+      <Card className={cn(surfaceCard, "py-0")}>
+        <DashboardPanelEmptyState
+          icon={AlertCircleIcon}
+          title="Could not load stats"
+          description="Your ranking, team, and points could not be loaded. Refresh the page or try again later."
+          variant="error"
+          className="min-h-[120px] border-none bg-white"
+        />
+      </Card>
+    );
+  }
+
+  if (!hasHistory) {
+    return (
+      <Card className={cn(surfaceCard, "py-0")}>
+        <DashboardPanelEmptyState
+          icon={LayoutGridIcon}
+          title="No driver stats yet"
+          description="Complete a rally registration and finish an event to see your ranking, team, and points here."
+          className="min-h-[120px] border-none bg-white"
+        />
+      </Card>
+    );
+  }
+
   return (
     <section className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-      {statCards.map((card) => (
-        <Card
-          key={card.label}
-          className={cn(
-            surfaceCard,
-            "h-[82px] flex-row items-center justify-between gap-4 px-5 py-0",
-          )}
-        >
-          <div className="flex min-w-0 items-center gap-4">
-            {card.iconMode === "circle" ? (
-              <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-dashboard-icon-bg">
-                <img src={card.icon} alt="" className="size-7" />
-              </span>
-            ) : null}
+      {cards.map((card) => {
+        const icon = STAT_ICONS[card.iconKey];
+        return (
+          <Card
+            key={card.label}
+            className={cn(
+              surfaceCard,
+              "h-[82px] flex-row items-center justify-between gap-4 px-5 py-0",
+            )}
+          >
+            <div className="flex min-w-0 items-center gap-4">
+              {card.iconMode === "circle" ? (
+                <span className="flex size-14 shrink-0 items-center justify-center rounded-full bg-dashboard-icon-bg">
+                  <img src={icon} alt="" className="size-7" />
+                </span>
+              ) : null}
 
-            <div className="min-w-0">
-              <p className="text-[16px] font-medium leading-tight text-[#AAAAB2]">
-                {card.label}
-              </p>
-              <p className="mt-1 truncate text-[19px] font-bold leading-tight text-[#24242B]">
-                {card.value}
-              </p>
+              <div className="min-w-0">
+                <p className="text-[16px] font-medium leading-tight text-[#AAAAB2]">
+                  {card.label}
+                </p>
+                <p className="mt-1 truncate text-[19px] font-bold leading-tight text-[#24242B]">
+                  {card.value}
+                </p>
+              </div>
             </div>
-          </div>
 
-          {card.iconMode === "plain" ? (
-            <img
-              src={card.icon}
-              alt=""
-              className={cn(
-                "shrink-0 object-contain",
-                card.label === "Team" ? "size-[50px]" : "size-14",
-              )}
-            />
-          ) : null}
-        </Card>
-      ))}
+            {card.iconMode === "plain" ? (
+              <img
+                src={icon}
+                alt=""
+                className={cn(
+                  "shrink-0 object-contain",
+                  card.iconKey === "team" ? "size-[50px]" : "size-14",
+                )}
+              />
+            ) : null}
+          </Card>
+        );
+      })}
     </section>
   );
 }
 
-function EventSchedule() {
+function EventSchedule({
+  events,
+  hasOtherUpcoming,
+  isLoading,
+  isError,
+  errorMessage,
+}: {
+  events: RallyEvent[];
+  hasOtherUpcoming: boolean;
+  isLoading: boolean;
+  isError: boolean;
+  errorMessage?: string;
+}) {
   return (
-    <Card className={cn(surfaceCard, "min-h-[240px] gap-0 py-0")}>
-      <CardHeader className="px-5 pb-4 pt-6">
+    <Card className={dashboardScrollCardClass}>
+      <CardHeader className="shrink-0 px-5 pb-4 pt-6">
         <CardTitle className="text-[18px] font-bold uppercase text-[#2D2D31]">
-          Event Schedule
+          Events Scheduled
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4 px-5 pb-6">
-        {scheduleItems.map((item) => (
-          <div
-            key={item.id}
-            className="flex min-h-[62px] items-center gap-4 rounded-lg border border-[#DCDDE2] bg-gradient-to-r from-white to-[#FAFBFF] px-3"
-          >
-            <div className="flex size-[50px] shrink-0 flex-col items-center justify-center rounded-[4px] bg-dashboard-icon-bg text-[#319F60]">
-              <span className="text-[20px] font-bold leading-none">
-                {item.day}
-              </span>
-              <span className="mt-1 text-[10px] font-medium leading-none text-[#61726A]">
-                {item.month}
-              </span>
+      <CardContent className="flex min-h-0 flex-1 flex-col px-5 pb-6 pt-0">
+        <div className={dashboardPanelScrollClass}>
+          {isLoading ? (
+            <EventScheduleListSkeleton count={3} />
+          ) : isError ? (
+            <DashboardPanelEmptyState
+              icon={AlertCircleIcon}
+              title="Could not load events"
+              description={
+                errorMessage ??
+                "Scheduled events could not be loaded. Please try again later."
+              }
+              variant="error"
+            />
+          ) : events.length === 0 ? (
+            <DashboardPanelEmptyState
+              icon={CalendarOffIcon}
+              title={
+                hasOtherUpcoming
+                  ? "No more events scheduled"
+                  : "No upcoming events"
+              }
+              description={
+                hasOtherUpcoming
+                  ? "When additional rallies are announced, they will appear here."
+                  : "Check back soon for new rally dates and registration windows."
+              }
+            />
+          ) : (
+            <div className="space-y-4">
+              {events.map((item) => {
+                const { day, month } = formatDayMonth(item.date);
+                return (
+                  <div
+                    key={item._id}
+                    className="flex min-h-[62px] items-center gap-4 rounded-lg border border-[#DCDDE2] bg-gradient-to-r from-white to-[#FAFBFF] px-3"
+                  >
+                    <div className="flex size-[50px] shrink-0 flex-col items-center justify-center rounded-[4px] bg-dashboard-icon-bg text-[#319F60]">
+                      <span className="text-[20px] font-bold leading-none">
+                        {day}
+                      </span>
+                      <span className="mt-1 text-[10px] font-medium leading-none text-[#61726A]">
+                        {month}
+                      </span>
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[16px] font-semibold leading-tight text-[#26262C]">
+                        {item.name}
+                      </p>
+                      <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-[#7F8697]">
+                        <span className="inline-flex items-center gap-1">
+                          <Clock3Icon className={locationIconClass} />
+                          {formatEventScheduleDates(item.date, item.end_date)}
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <MapPinIcon
+                            className={locationIconClass}
+                            strokeWidth={2.25}
+                          />
+                          {item.location}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-[16px] font-semibold leading-tight text-[#26262C]">
-                {item.title}
-              </p>
-              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-[#7F8697]">
-                <span className="inline-flex items-center gap-1">
-                  <Clock3Icon className="size-3.5" />
-                  {item.time}
-                </span>
-                <span className="inline-flex items-center gap-1">
-                  <MapPinIcon className="size-3.5 fill-[#7F8697]" />
-                  {item.location}
-                </span>
-              </div>
-            </div>
-          </div>
-        ))}
+          )}
+        </div>
       </CardContent>
     </Card>
   );
 }
 
-function DriverSummary() {
+function DriverSummary({
+  highlights,
+  bestPosition,
+  isEmpty,
+  isLoading,
+  isError,
+  errorMessage,
+}: {
+  highlights: { label: string; value: string; color: string }[];
+  bestPosition: number | null;
+  isEmpty: boolean;
+  isLoading: boolean;
+  isError: boolean;
+  errorMessage?: string;
+}) {
   return (
-    <Card className={cn(surfaceCard, "min-h-[240px] gap-0 py-0")}>
-      <CardHeader className="px-5 pb-3 pt-6">
+    <Card className={dashboardScrollCardClass}>
+      <CardHeader className="shrink-0 px-5 pb-3 pt-6">
         <CardTitle className="text-[18px] font-bold uppercase text-[#2D2D31]">
           Driver Overall Summary
         </CardTitle>
       </CardHeader>
-      <CardContent className="grid items-center gap-5 px-5 pb-5 sm:grid-cols-[1fr_auto]">
-        <div className="space-y-5">
-          {summaryItems.map((item) => (
-            <div
-              key={item.label}
-              className="grid grid-cols-[auto_1fr_auto] items-center gap-3 text-[14px]"
-            >
-              <span
-                className="size-2 rounded-full"
-                style={{ backgroundColor: item.color }}
-              />
-              <span className="text-[#34343A]">{item.label}</span>
-              <span className="font-bold text-black">{item.value}</span>
-            </div>
-          ))}
-        </div>
+      <CardContent className="flex min-h-0 flex-1 flex-col px-5 pb-5 pt-0">
+        <div className={dashboardPanelScrollClass}>
+          {isLoading ? (
+            <DriverSummarySkeleton />
+          ) : isError ? (
+            <DashboardPanelEmptyState
+              icon={AlertCircleIcon}
+              title="Could not load summary"
+              description={
+                errorMessage ??
+                "Your driver summary could not be loaded. Please try again later."
+              }
+              variant="error"
+            />
+          ) : isEmpty ? (
+            <DashboardPanelEmptyState
+              icon={MedalIcon}
+              title="No rally history yet"
+              description="Finish a rally to unlock your best finish, points, and performance highlights here."
+            />
+          ) : (
+            <div className="grid items-center gap-5 sm:grid-cols-[1fr_auto]">
+              <div className="space-y-5">
+                {highlights.map((item) => (
+                  <div
+                    key={item.label}
+                    className="grid grid-cols-[auto_1fr_auto] items-center gap-3 text-[14px]"
+                  >
+                    <span
+                      className="size-2 shrink-0 rounded-full"
+                      style={{ backgroundColor: item.color }}
+                    />
+                    <span className="text-[#34343A]">{item.label}</span>
+                    <span className="max-w-[140px] truncate text-right font-bold text-black sm:max-w-[180px]">
+                      {item.value}
+                    </span>
+                  </div>
+                ))}
+              </div>
 
-        <div className="relative mx-auto size-[154px] rounded-full bg-[conic-gradient(from_0deg,#4BAD73_0deg_90deg,#FFC949_90deg_180deg,#FFA02B_180deg_270deg,#4875FF_270deg_360deg)] shadow-[0_12px_18px_rgba(15,23,42,0.08)]">
-          <div className="absolute inset-[28px] rounded-full bg-[conic-gradient(from_0deg,rgba(20,119,60,0.45)_0deg_90deg,rgba(233,168,26,0.45)_90deg_180deg,rgba(238,121,14,0.45)_180deg_270deg,rgba(22,77,213,0.45)_270deg_360deg)]" />
-          <div className="absolute inset-[48px] rounded-full bg-white" />
+              <div
+                className={cn(
+                  "relative mx-auto flex size-[154px] flex-col items-center justify-center rounded-full border-[5px] shadow-[0_12px_18px_rgba(15,23,42,0.08)]",
+                  bestPosition === 1
+                    ? "border-[#FFD699] bg-[#FFF8EB]"
+                    : "border-[#C8E6D4] bg-[#EAF6EF]",
+                )}
+              >
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-[#1F6B43]">
+                  Best finish
+                </span>
+                <span
+                  className={cn(
+                    "mt-1 text-[36px] font-bold leading-none",
+                    bestPosition === 1 ? "text-[#FF9500]" : "text-[#1F6B43]",
+                  )}
+                >
+                  {bestPosition != null
+                    ? formatOrdinalPosition(bestPosition)
+                    : "—"}
+                </span>
+              </div>
+            </div>
+          )}
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function OverallRanking() {
+function OverallRanking({
+  rows,
+  isLoading,
+  isError,
+  errorMessage,
+}: {
+  rows: ReturnType<typeof buildRankingRows>;
+  isLoading: boolean;
+  isError: boolean;
+  errorMessage?: string;
+}) {
   return (
-    <Card className={cn(surfaceCard, "gap-0 py-0")}>
-      <CardHeader className="px-5 pb-4 pt-6">
+    <Card className={dashboardScrollCardClass}>
+      <CardHeader className="shrink-0 px-5 pb-4 pt-6">
         <CardTitle className="text-[18px] font-bold uppercase text-[#2D2D31]">
           Overall Ranking
         </CardTitle>
       </CardHeader>
-      <CardContent className="px-5 pb-6">
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[560px] border-collapse text-left">
-            <thead>
-              <tr className="bg-[#F0F1F4] text-[11px] font-bold uppercase text-[#5D6371]">
-                <th className="px-3 py-3">Year</th>
-                <th className="px-3 py-3">Events</th>
-                <th className="px-3 py-3">Category</th>
-                <th className="px-3 py-3">Overall Result</th>
-                <th className="px-3 py-3">Time</th>
-                <th className="px-3 py-3 text-right">Points</th>
-              </tr>
-            </thead>
-            <tbody>
-              {rankingRows.map((row) => (
-                <tr
-                  key={row.id}
-                  className="border-b border-[#E6E6E9] text-[12px] text-[#70727B]"
-                >
-                  <td className="px-3 py-3">{row.year}</td>
-                  <td className="px-3 py-3">{row.event}</td>
-                  <td className="px-3 py-3">{row.category}</td>
-                  <td
-                    className={cn(
-                      "px-3 py-3",
-                      row.result === "1st" && "text-[#FF9500]",
-                    )}
+      <CardContent className="flex min-h-0 flex-1 flex-col px-5 pb-6 pt-0">
+        <div className={cn(dashboardPanelScrollClass, "overflow-x-auto")}>
+          {isLoading ? (
+            <RankingTableSkeleton rows={4} />
+          ) : isError ? (
+            <DashboardPanelEmptyState
+              icon={AlertCircleIcon}
+              title="Could not load rankings"
+              description={
+                errorMessage ??
+                "Your overall ranking history could not be loaded. Please try again later."
+              }
+              variant="error"
+            />
+          ) : rows.length === 0 ? (
+            <DashboardPanelEmptyState
+              icon={TrophyIcon}
+              title="No completed rallies yet"
+              description="Your past rally results and points will show up here after you finish an event."
+            />
+          ) : (
+            <table className="w-full min-w-[560px] border-collapse text-left">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-[#F0F1F4] text-[11px] font-bold uppercase text-[#5D6371]">
+                  <th className="px-3 py-3">Year</th>
+                  <th className="px-3 py-3">Events</th>
+                  <th className="px-3 py-3">Category</th>
+                  <th className="px-3 py-3">Overall Result</th>
+                  <th className="px-3 py-3">Time</th>
+                  <th className="px-3 py-3 text-right">Points</th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row) => (
+                  <tr
+                    key={row.id}
+                    className="border-b border-[#E6E6E9] text-[12px] text-[#70727B]"
                   >
-                    {row.result}
-                  </td>
-                  <td className="px-3 py-3">{row.time}</td>
-                  <td className="px-3 py-3 text-right">
-                    <span>{row.points}</span>
-                    <span
+                    <td className="px-3 py-3">{row.year}</td>
+                    <td className="px-3 py-3">{row.event}</td>
+                    <td className="px-3 py-3">{row.category}</td>
+                    <td
                       className={cn(
-                        "ml-4 font-semibold",
-                        row.delta.startsWith("+")
-                          ? "text-[#20A764]"
-                          : "text-[#FF1D25]",
+                        "px-3 py-3 font-medium",
+                        row.isFirst && "text-[#FF9500]",
                       )}
                     >
-                      {row.delta}
-                    </span>
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+                      {row.result}
+                    </td>
+                    <td className="px-3 py-3">{row.time}</td>
+                    <td className="px-3 py-3 text-right font-semibold text-[#24242B]">
+                      {row.points}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
         </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function ProgressChart() {
-  return (
-    <Card className={cn(surfaceCard, "gap-0 py-0")}>
-      <CardHeader className="px-5 pb-4 pt-6">
-        <CardTitle className="text-[18px] font-bold uppercase text-[#2D2D31]">
-          Progress Over the Years
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="px-5 pb-4">
-        <ChartContainer
-          config={progressChartConfig}
-          className="h-[190px] w-full"
-        >
-          <AreaChart
-            accessibilityLayer
-            data={progressData}
-            margin={{ left: -10, right: 8, top: 8, bottom: 0 }}
-          >
-            <defs>
-              <linearGradient id="progressFill" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#76E8B1" stopOpacity={0.16} />
-                <stop offset="95%" stopColor="#76E8B1" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid vertical={false} strokeDasharray="0" />
-            <XAxis
-              dataKey="year"
-              axisLine={false}
-              tickLine={false}
-              tickMargin={12}
-              tick={{ fontSize: 10 }}
-            />
-            <YAxis
-              domain={[1, 5]}
-              ticks={[1, 2, 3, 4, 5]}
-              axisLine={false}
-              tickLine={false}
-              tickMargin={8}
-              tick={{ fontSize: 10 }}
-            />
-            <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
-            <Area
-              type="monotone"
-              dataKey="value"
-              stroke="var(--color-value)"
-              strokeWidth={2}
-              fill="url(#progressFill)"
-              dot={progressDot}
-              activeDot={progressDot}
-            />
-          </AreaChart>
-        </ChartContainer>
       </CardContent>
     </Card>
   );

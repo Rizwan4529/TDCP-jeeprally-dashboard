@@ -1,34 +1,18 @@
 import { z } from "zod";
 
+import type { CategoryRecord } from "@/api/types/categories";
 import type {
   CreateVehiclePayload,
   UpdateVehiclePayload,
   Vehicle,
 } from "@/api/types/vehicles";
-import {
-  CATEGORY,
-  CATEGORIES,
-  CATEGORY_LABELS,
-  type Category,
-} from "@/utils/constants";
+import type { Category } from "@/utils/constants";
 import { toPublicFileUrl } from "@/utils/helpers";
 
-const categorySchema = z.enum(
-  [
-    CATEGORY.STOCK_PREPAID,
-    CATEGORY.QUAD_BIKE,
-    CATEGORY.DIRT_BIKE,
-    CATEGORY.JEEP,
-    CATEGORY.TRUCK_RACE,
-  ],
-  { message: "Select a valid category" },
-);
-
-/** Form strings; optional API fields may be empty. */
 export const vehicleFormSchema = z.object({
   model: z.string().trim().min(1, "Model is required"),
   engine: z.string().trim().min(1, "Engine is required"),
-  category: categorySchema,
+  category: z.string().trim().min(1, "Select a valid category"),
   frame: z.string().optional(),
   power: z.string().optional(),
   weight: z.string().optional(),
@@ -44,7 +28,7 @@ export type VehicleFormValues = z.infer<typeof vehicleFormSchema>;
 export const emptyVehicleFormValues: VehicleFormValues = {
   model: "",
   engine: "",
-  category: CATEGORY.JEEP,
+  category: "",
   frame: "",
   power: "",
   weight: "",
@@ -99,13 +83,10 @@ export function buildUpdateVehiclePayload(
 }
 
 export function vehicleToFormValues(v: Vehicle): VehicleFormValues {
-  const cat = CATEGORIES.includes(v.category as Category)
-    ? (v.category as Category)
-    : CATEGORY.JEEP;
   return {
     model: v.model,
     engine: v.engine,
-    category: cat,
+    category: v.category,
     frame: v.frame ?? "",
     power: v.power != null ? String(v.power) : "",
     weight: v.weight != null ? String(v.weight) : "",
@@ -116,7 +97,22 @@ export function vehicleToFormValues(v: Vehicle): VehicleFormValues {
   };
 }
 
-export const vehicleCategorySelectOptions = CATEGORIES.map((value) => ({
-  label: CATEGORY_LABELS[value],
-  value,
-}));
+export function buildCategorySelectOptions(
+  categories: CategoryRecord[] | undefined,
+) {
+  if (!categories?.length) return [];
+  return categories.map((category) => ({
+    label: category.title,
+    value: category.key,
+  }));
+}
+
+export function resolveCategoryTitle(
+  categories: CategoryRecord[] | undefined,
+  key: string,
+): string {
+  return (
+    categories?.find((category) => category.key === key)?.title ??
+    key.replace(/_/g, " ")
+  );
+}

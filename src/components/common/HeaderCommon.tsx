@@ -1,4 +1,3 @@
-import { BellIcon, InfoIcon, MoonIcon, SearchIcon } from "lucide-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useNavigate } from "react-router-dom";
 

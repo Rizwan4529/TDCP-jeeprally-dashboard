@@ -308,6 +308,7 @@ export const profileUpdateSchema = z.object({
     .trim()
     .regex(/^\d{1,3}$/, "Enter a valid age"),
   address: requiredString("Enter your address"),
+  location: z.string().trim(),
   contact_number: pkMobileSchema,
   license_number: requiredString("Enter license number"),
   license_expiry: signupLicenseExpirySchema,

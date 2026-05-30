@@ -136,3 +136,13 @@
     @apply h-full;
     }
 }
+
+/*
+ * Dashboard scroll panels — minimal thumb only, no track fill, no arrow buttons.
+ * Do NOT use ::-webkit-scrollbar* here: on Windows that forces legacy scrollbars
+ * with up/down buttons. Standard scrollbar-width/color keeps the native thin bar.
+ */
+.dashboard-panel-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: #b0b8c6 transparent;
+}

@@ -5,7 +5,6 @@ import { toast } from "sonner";
 
 import { Typography } from "@/components/common/Typography";
 import { Button } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog,
   DialogContent,
@@ -92,7 +91,7 @@ export function AddUsersToTeamDialog({
   const [targetMode, setTargetMode] =
     React.useState<TeamTargetMode>("existing");
   const [existingTeamId, setExistingTeamId] = React.useState("");
-  const [assignAsNavigator, setAssignAsNavigator] = React.useState(false);
+  const [navigatorId, setNavigatorId] = React.useState("");
 
   const createMutation = useCreateTeamMutation();
   const updateMutation = useUpdateTeamMutation();
@@ -120,9 +119,33 @@ export function AddUsersToTeamDialog({
 
   const newCategoryKey = form.watch("category");
   const newCategory = categoryByKey.get(newCategoryKey);
-  const showNavigatorOptionExisting =
-    singleUser && existingTeam && needsNavigator(existingCategory);
-  const showNavigatorOptionNew = singleUser && needsNavigator(newCategory);
+  const isExistingMode = targetMode === "existing" || navigatorOnly;
+  const activeCategory = isExistingMode ? existingCategory : newCategory;
+  const showNavigatorPicker = needsNavigator(activeCategory);
+
+  const navigatorOptions = React.useMemo(() => {
+    if (!showNavigatorPicker) return [];
+    if (isExistingMode && existingTeam) {
+      const cat = categoryByKey.get(existingTeam.category);
+      const currentIds = teamMemberIdsFromTeam(existingTeam);
+      const merge = mergeTeamMemberIds(
+        currentIds,
+        selectedUserIds,
+        cat?.max_members ?? 0,
+      );
+      const ids = merge.ok ? merge.ids : selectedUserIds;
+      return members.filter((m) => ids.includes(m._id));
+    }
+    return selectedMembers;
+  }, [
+    showNavigatorPicker,
+    isExistingMode,
+    existingTeam,
+    categoryByKey,
+    selectedUserIds,
+    selectedMembers,
+    members,
+  ]);
 
   const wasOpenRef = React.useRef(false);
   React.useEffect(() => {
@@ -135,27 +158,33 @@ export function AddUsersToTeamDialog({
 
     setTargetMode("existing");
     setExistingTeamId(teamOptions[0]?._id ?? "");
-    setAssignAsNavigator(Boolean(navigatorOnly && singleUser));
+    setNavigatorId(
+      navigatorOnly && singleUserId ? singleUserId : "",
+    );
     form.reset({
       ...emptyTeamFormValues,
       category: categories[0]?.key ?? "",
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset only when dialog opens
-  }, [open, navigatorOnly, singleUser, teamOptions, categories]);
+  }, [open, navigatorOnly, singleUserId, teamOptions, categories]);
 
   React.useEffect(() => {
     if (!open) return;
-    if (!showNavigatorOptionExisting && !showNavigatorOptionNew) {
-      setAssignAsNavigator(false);
+    if (!showNavigatorPicker) {
+      setNavigatorId("");
+      return;
     }
-  }, [open, showNavigatorOptionExisting, showNavigatorOptionNew]);
+    setNavigatorId((prev) => {
+      if (prev && navigatorOptions.some((m) => m._id === prev)) return prev;
+      return navigatorOptions[0]?._id ?? "";
+    });
+  }, [open, showNavigatorPicker, navigatorOptions]);
 
   const onSubmitNew: SubmitHandler<TeamFormValues> = async (values) => {
     const cat = categoryByKey.get(values.category);
-    const navId =
-      assignAsNavigator && singleUserId && needsNavigator(cat)
-        ? singleUserId
-        : undefined;
+    const navId = needsNavigator(cat)
+      ? navigatorId || undefined
+      : undefined;
     const memberIds = needsRosterMembers(cat) ? selectedUserIds : [];
 
     const validation = validateTeamRoster(cat, memberIds, navId);
@@ -196,16 +225,16 @@ export function AddUsersToTeamDialog({
       return;
     }
 
-    let navigatorId: string | null | undefined =
+    let resolvedNavigatorId: string | null | undefined =
       existingTeam.navigator_id?._id ?? null;
-    if (assignAsNavigator && singleUserId && needsNavigator(cat)) {
-      navigatorId = singleUserId;
+    if (needsNavigator(cat)) {
+      resolvedNavigatorId = navigatorId || resolvedNavigatorId;
     }
 
     const validation = validateTeamRoster(
       cat,
       merge.ids,
-      needsNavigator(cat) ? (navigatorId ?? undefined) : undefined,
+      needsNavigator(cat) ? (resolvedNavigatorId ?? undefined) : undefined,
     );
     if (validation.ok === false) {
       toast.error(validation.message);
@@ -222,14 +251,10 @@ export function AddUsersToTeamDialog({
             category: existingTeam.category,
           },
           merge.ids,
-          needsNavigator(cat) ? navigatorId : null,
+          needsNavigator(cat) ? resolvedNavigatorId : null,
         ),
       });
-      toast.success(
-        assignAsNavigator && singleUser
-          ? "User added to team as navigator."
-          : "User(s) added to team.",
-      );
+      toast.success("User(s) added to team.");
       onOpenChange(false);
       onSuccess?.();
     } catch (err) {
@@ -240,7 +265,31 @@ export function AddUsersToTeamDialog({
   };
 
   const title = navigatorOnly ? "Add as navigator to team" : "Add to team";
-  const isExistingMode = targetMode === "existing" || navigatorOnly;
+
+  const navigatorSelect = showNavigatorPicker && navigatorOptions.length > 0 && (
+    <div className="grid gap-2">
+      <Label htmlFor="add-to-team-navigator">Navigator</Label>
+      <Select
+        value={navigatorId || undefined}
+        onValueChange={setNavigatorId}
+      >
+        <SelectTrigger id="add-to-team-navigator" className="w-full">
+          <SelectValue placeholder="Select navigator" />
+        </SelectTrigger>
+        <SelectContent>
+          {navigatorOptions.map((m) => (
+            <SelectItem key={m._id} value={m._id}>
+              {m.name}
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
+      <Typography variant="body-sm" className="text-muted-foreground">
+        Choose who will navigate for this team from the selected member
+        {navigatorOptions.length === 1 ? "" : "s"}.
+      </Typography>
+    </div>
+  );
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -318,23 +367,7 @@ export function AddUsersToTeamDialog({
                 </Typography>
               ) : null}
 
-              {showNavigatorOptionExisting ? (
-                <div className="flex items-start gap-3 rounded-lg border border-[#C8E6D4] bg-[#EAF6EF] p-3">
-                  <Checkbox
-                    id="assign-nav-existing"
-                    checked={assignAsNavigator}
-                    onCheckedChange={(checked) =>
-                      setAssignAsNavigator(checked === true)
-                    }
-                  />
-                  <Label
-                    htmlFor="assign-nav-existing"
-                    className="leading-snug font-medium text-[#1F6B43]"
-                  >
-                    Assign {selectedMembers[0]?.name} as navigator for this team
-                  </Label>
-                </div>
-              ) : null}
+              {navigatorSelect}
             </div>
           ) : (
             <FormCommon
@@ -366,23 +399,7 @@ export function AddUsersToTeamDialog({
                 className={fieldClassName}
               />
 
-              {showNavigatorOptionNew ? (
-                <div className="flex items-start gap-3 rounded-lg border border-[#C8E6D4] bg-[#EAF6EF] p-3">
-                  <Checkbox
-                    id="assign-nav-new"
-                    checked={assignAsNavigator}
-                    onCheckedChange={(checked) =>
-                      setAssignAsNavigator(checked === true)
-                    }
-                  />
-                  <Label
-                    htmlFor="assign-nav-new"
-                    className="leading-snug font-medium text-[#1F6B43]"
-                  >
-                    Assign {selectedMembers[0]?.name} as navigator
-                  </Label>
-                </div>
-              ) : null}
+              {navigatorSelect}
             </FormCommon>
           )}
         </div>
@@ -390,7 +407,7 @@ export function AddUsersToTeamDialog({
         <DialogFooter className="border-t px-6 py-4 sm:justify-end">
           <Button
             type="button"
-            variant="outline"
+            variant="destructive-outline"
             onClick={() => onOpenChange(false)}
             disabled={isSaving}
           >

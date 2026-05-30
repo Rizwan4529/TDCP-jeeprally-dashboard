@@ -24,9 +24,24 @@ export async function getRallyChallenges(
 export async function getRallyEvents(
   query: GetRallyEventsQuery,
 ): Promise<GetRallyEventsResponse> {
+  const params: Record<string, string | number> = {};
+
+  if (query.search?.trim()) {
+    params.search = query.search.trim();
+  }
+  if (query.status?.trim()) {
+    params.status = query.status.trim();
+  }
+  if (query.year != null) {
+    params.year = query.year;
+  }
+  if (query.sort) {
+    params.sort = query.sort;
+  }
+
   try {
     const { data } = await apiClient.get<GetRallyEventsResponse>("/rally", {
-      params: query,
+      params,
     });
     return data;
   } catch (err) {
@@ -45,4 +60,3 @@ export async function getRallyEvents(
     throw err;
   }
 }
-

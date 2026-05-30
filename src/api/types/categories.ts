@@ -6,6 +6,8 @@ export type CategoryRecord = {
   description?: string | null;
   max_members: number;
   navigator_allowed: boolean;
+  /** HTML undertaking shown on registration consent step */
+  consent?: string | null;
   created_at?: string;
   updated_at?: string;
 };

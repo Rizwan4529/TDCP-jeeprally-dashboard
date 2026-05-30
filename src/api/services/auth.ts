@@ -5,7 +5,12 @@ import type {
   RegisterPayload,
   RegisterResponse,
   UpdateProfilePayload,
+  UpdateProfileResponse,
 } from "@/api/types/auth";
+import {
+  appendUpdateProfileToFormData,
+  hasUpdateProfileChanges,
+} from "@/utils/profile-update";
 
 const multipartHeaders = { "Content-Type": "multipart/form-data" } as const;
 
@@ -37,32 +42,27 @@ export async function registerUser(
 
 export async function updateMyProfile(
   payload: UpdateProfilePayload,
-): Promise<RegisterResponse> {
+): Promise<UpdateProfileResponse> {
+  if (!hasUpdateProfileChanges(payload)) {
+    return { success: true, message: "No changes to save." };
+  }
+
   const formData = new FormData();
-  formData.append("name", payload.name);
-  formData.append("gender", payload.gender);
-  formData.append("age", payload.age);
-  formData.append("address", payload.address);
-  formData.append("contact_number", payload.contact_number);
-  formData.append("license_number", payload.license_number);
-  formData.append("license_expiry", payload.license_expiry);
-  formData.append("cnic", payload.cnic);
-  formData.append("date_of_birth", payload.date_of_birth);
-  formData.append("occupation", payload.occupation);
-  if (payload.profile_image instanceof File) {
-    formData.append("profile_image", payload.profile_image);
-  }
-  if (payload.cnic_image instanceof File) {
-    formData.append("cnic_image", payload.cnic_image);
-  }
-  if (payload.license_image instanceof File) {
-    formData.append("license_image", payload.license_image);
-  }
-  const { data } = await apiClient.put<RegisterResponse>(
-    "/auth/me",
-    formData,
-    { headers: { ...multipartHeaders } },
-  );
+  appendUpdateProfileToFormData(formData, payload);
+
+  const { data } = await apiClient.put<UpdateProfileResponse>("/auth/me", formData, {
+    headers: {
+      "Content-Type": "multipart/form-data",
+    },
+    transformRequest: [
+      (body, headers) => {
+        if (body instanceof FormData && headers) {
+          delete headers["Content-Type"];
+        }
+        return body;
+      },
+    ],
+  });
   return data;
 }
 

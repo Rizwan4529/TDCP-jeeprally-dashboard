@@ -2,42 +2,50 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { queryKeys } from "@/api/query-keys";
 import { updateMyProfile } from "@/api/services/auth";
-import type { LoginUser, RegisterResponse, UpdateProfilePayload } from "@/api/types/auth";
+import type { LoginUser, UpdateProfilePayload, UpdateProfileResponse } from "@/api/types/auth";
 import { fetchAuthUser, updateAuthUser } from "@/utils/helpers";
 import { parseLoginUserFromApiEnvelope } from "@/utils/profile-driver";
-
-function dateOnlyToUtcIso(dateYmd: string): string {
-  const trimmed = dateYmd.trim();
-  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
-    return `${trimmed}T00:00:00.000Z`;
-  }
-  return trimmed;
-}
+import { normDateForProfile } from "@/utils/profile-update";
 
 function mergeSessionAfterProfileUpdate(
   prev: LoginUser,
   variables: UpdateProfilePayload,
 ): LoginUser {
-  const ageNum = Number.parseInt(String(variables.age), 10);
-  return {
-    ...prev,
-    name: variables.name,
-    gender: variables.gender,
-    age: Number.isFinite(ageNum) ? ageNum : prev.age,
-    address: variables.address,
-    contact_number: variables.contact_number,
-    license_number: variables.license_number,
-    license_expiry: dateOnlyToUtcIso(variables.license_expiry),
-    date_of_birth: dateOnlyToUtcIso(variables.date_of_birth),
-    occupation: variables.occupation,
-    cnic: variables.cnic,
-  };
+  const next: LoginUser = { ...prev };
+
+  if (variables.name !== undefined) next.name = variables.name;
+  if (variables.gender !== undefined) next.gender = variables.gender;
+  if (variables.age !== undefined) {
+    const ageNum = Number.parseInt(String(variables.age), 10);
+    next.age = Number.isFinite(ageNum) ? ageNum : variables.age;
+  }
+  if (variables.address !== undefined) next.address = variables.address;
+  if (variables.location !== undefined) next.location = variables.location;
+  if (variables.contact_number !== undefined) {
+    next.contact_number = variables.contact_number;
+  }
+  if (variables.license_number !== undefined) {
+    next.license_number = variables.license_number;
+  }
+  if (variables.license_expiry !== undefined) {
+    next.license_expiry = normDateForProfile(variables.license_expiry)
+      ? `${normDateForProfile(variables.license_expiry)}T00:00:00.000Z`
+      : variables.license_expiry;
+  }
+  if (variables.date_of_birth !== undefined) {
+    const dob = normDateForProfile(variables.date_of_birth);
+    next.date_of_birth = dob ? `${dob}T00:00:00.000Z` : variables.date_of_birth;
+  }
+  if (variables.occupation !== undefined) next.occupation = variables.occupation;
+  if (variables.cnic !== undefined) next.cnic = variables.cnic;
+
+  return next;
 }
 
 export function useUpdateProfileMutation() {
   const queryClient = useQueryClient();
 
-  return useMutation<RegisterResponse, Error, UpdateProfilePayload>({
+  return useMutation<UpdateProfileResponse, Error, UpdateProfilePayload>({
     mutationFn: updateMyProfile,
     onSuccess: (data, variables) => {
       const fromApi = parseLoginUserFromApiEnvelope(data);

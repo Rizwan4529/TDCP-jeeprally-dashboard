@@ -2,8 +2,6 @@ import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { CameraIcon, DotIcon, PencilIcon } from "lucide-react";
-import { Line, LineChart, ResponsiveContainer, XAxis, YAxis } from "recharts";
-
 import { Typography } from "@/components/common/Typography";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -23,7 +21,12 @@ import { useUpdateProfileMutation } from "@/hooks/api/use-update-profile";
 import { useSessionUser } from "@/hooks/api/use-session-user";
 import { GENDER_OPTIONS } from "@/utils/constants";
 import { sessionToProfileDriver } from "@/utils/profile-driver";
+import {
+  buildUpdateProfilePayload,
+  hasUpdateProfileChanges,
+} from "@/utils/profile-update";
 import { toDateOnlyInputValue, toPublicFileUrl } from "@/utils/helpers";
+import { OtherRacesSection } from "@/components/profile/OtherRacesSection";
 import {
   profileUpdateSchema,
   type ProfileUpdateValues,
@@ -41,6 +44,7 @@ const profileFormDefaults: ProfileUpdateValues = {
   gender: "",
   age: "",
   address: "",
+  location: "",
   contact_number: "",
   license_number: "",
   license_expiry: "",
@@ -54,20 +58,6 @@ const profileFormDefaults: ProfileUpdateValues = {
 
 const profileFieldClassName =
   "h-11 w-full rounded-[10px] border-[#E8E8E8] bg-white px-3 text-[14px] text-[#1F1838]";
-
-const rankingData = [
-  { label: "1", green: 34, yellow: 41 },
-  { label: "2", green: 45, yellow: 56 },
-  { label: "3", green: 42, yellow: 47 },
-  { label: "4", green: 44, yellow: 49 },
-  { label: "5", green: 49, yellow: 52 },
-  { label: "6", green: 52, yellow: 33 },
-  { label: "7", green: 47, yellow: 46 },
-  { label: "8", green: 55, yellow: 42 },
-  { label: "9", green: 67, yellow: 48 },
-  { label: "10", green: 58, yellow: 63 },
-  { label: "11", green: 66, yellow: 35 },
-];
 
 export default function ProfilePage() {
   return <ProfileScreen />;
@@ -95,7 +85,8 @@ function ProfileScreen() {
               driver.age != null && String(driver.age).trim() !== ""
                 ? String(driver.age)
                 : "",
-            address: driver.address ?? driver.location ?? "",
+            address: driver.address ?? "",
+            location: driver.location ?? "",
             contact_number: driver.contact_number,
             license_number: driver.license_number ?? "",
             license_expiry: toDateOnlyInputValue(driver.license_expiry),
@@ -112,26 +103,22 @@ function ProfileScreen() {
   const onSubmitDriverProfile: SubmitHandler<ProfileUpdateValues> = async (
     values,
   ) => {
+    const payload = buildUpdateProfilePayload(values, sessionUser ?? null);
+    if (!hasUpdateProfileChanges(payload)) {
+      toast.message("No changes to save.");
+      return;
+    }
+
     try {
-      await updateProfileMutation.mutateAsync({
-        name: values.name,
-        gender: values.gender,
-        age: values.age,
-        address: values.address,
-        contact_number: values.contact_number,
-        license_number: values.license_number,
-        license_expiry: values.license_expiry,
-        cnic: values.cnic,
-        date_of_birth: values.date_of_birth,
-        occupation: values.occupation,
-        profile_image: values.profile_image,
-        cnic_image: values.cnic_image,
-        license_image: values.license_image,
-      });
+      await updateProfileMutation.mutateAsync(payload);
       toast.success("Profile updated.");
       setDriverMode("view");
-    } catch {
-      toast.error("Could not update profile. Please try again.");
+    } catch (err) {
+      const msg =
+        err instanceof Error
+          ? err.message
+          : "Could not update profile. Please try again.";
+      toast.error(msg);
     }
   };
 
@@ -274,6 +261,13 @@ function ProfileScreen() {
                 rows={3}
                 className={profileFieldClassName}
               />
+              <FormInput
+                control={driverForm.control}
+                name="location"
+                label="Location"
+                placeholder="e.g. Punjab"
+                className={profileFieldClassName}
+              />
               <div className="grid gap-5 md:grid-cols-2">
                 <FormInput
                   control={driverForm.control}
@@ -313,37 +307,62 @@ function ProfileScreen() {
                   className={profileFieldClassName}
                 />
               </div>
-              <Typography variant="caption" className="text-[#6B7890]">
-                Upload new images only if you want to replace the existing ones
-                on file.
-              </Typography>
-              <div className="grid gap-5 sm:grid-cols-3">
-                <ImagePicker
-                  control={driverForm.control}
-                  name="profile_image"
-                  label="Profile photo"
-                  accept="image/*"
-                  variant="compact"
-                />
-                <ImagePicker
-                  control={driverForm.control}
-                  name="cnic_image"
-                  label="CNIC image"
-                  accept="image/*"
-                  variant="compact"
-                />
-                <ImagePicker
-                  control={driverForm.control}
-                  name="license_image"
-                  label="License image"
-                  accept="image/*"
-                  variant="compact"
-                />
+              <div className="space-y-3 rounded-[12px] border border-[#E8E8E8] bg-[#F9FAFD] px-4 py-4 sm:px-5">
+                <div>
+                  <Typography
+                    variant="label"
+                    className="text-[13px] font-bold tracking-wide text-[#1F1838]"
+                  >
+                    Documents &amp; photos
+                  </Typography>
+                  <Typography variant="body-sm" className="mt-1 text-[#6B7890]">
+                    Preview shows what is saved on your account. Upload only
+                    when you need to replace a file.
+                  </Typography>
+                </div>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  <ImagePicker
+                    control={driverForm.control}
+                    name="profile_image"
+                    label="Driver's image"
+                    accept="image/jpeg,image/jpg,image/png,image/gif"
+                    variant="profile-document"
+                    existingImageUrl={toPublicFileUrl(
+                      driver?.profile_image ?? null,
+                    )}
+                    helperText="JPG, PNG, GIF"
+                    itemClassName="gap-2"
+                  />
+                  <ImagePicker
+                    control={driverForm.control}
+                    name="cnic_image"
+                    label="Driver's CNIC"
+                    accept="image/jpeg,image/jpg,image/png,image/gif"
+                    variant="profile-document"
+                    existingImageUrl={toPublicFileUrl(
+                      driver?.cnic_image ?? null,
+                    )}
+                    helperText="JPG, PNG, GIF"
+                    itemClassName="gap-2"
+                  />
+                  <ImagePicker
+                    control={driverForm.control}
+                    name="license_image"
+                    label="Driver's license"
+                    accept="image/jpeg,image/jpg,image/png,image/gif"
+                    variant="profile-document"
+                    existingImageUrl={toPublicFileUrl(
+                      driver?.license_image ?? null,
+                    )}
+                    helperText="JPG, PNG, GIF"
+                    itemClassName="gap-2 sm:col-span-2 lg:col-span-1"
+                  />
+                </div>
               </div>
               <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                 <Button
                   type="button"
-                  variant="primary-outline"
+                  variant="destructive-outline"
                   onClick={(e) => {
                     e.preventDefault();
                     setDriverMode("view");
@@ -371,10 +390,8 @@ function ProfileScreen() {
                 label="Phone Number"
                 value={driver?.contact_number ?? "—"}
               />
-              <Field
-                label="Address"
-                value={driver?.address ?? driver?.location ?? "—"}
-              />
+              <Field label="Address" value={driver?.address ?? "—"} />
+              <Field label="Location" value={driver?.location ?? "—"} />
               <Field label="Gender" value={driver?.gender ?? "—"} />
               <Field
                 label="Age"
@@ -407,7 +424,7 @@ function ProfileScreen() {
               />
               <Field label="Occupation" value={driver?.occupation ?? "—"} />
             </div>
-            {driver ? (
+            {/* {driver ? (
               <div className="flex flex-wrap gap-3">
                 <Button
                   type="button"
@@ -418,7 +435,7 @@ function ProfileScreen() {
                   Edit driver profile
                 </Button>
               </div>
-            ) : null}
+            ) : null} */}
           </div>
         )}
       </Card>
@@ -449,69 +466,7 @@ function ProfileScreen() {
         </div>
       </Card>
 
-      <Card className={cn(surface, "rounded-[14px]")}>
-        <SectionTitle>OTHER RACES</SectionTitle>
-        <div className="px-6 pb-6">
-          <DataTable
-            headerVariant="dark"
-            rows={[
-              [
-                "Red bull gas factory race",
-                "1 stage",
-                "Nissan Juke",
-                "2024",
-                "Driver",
-              ],
-              [
-                "Red bull gas factory race",
-                "1 stage",
-                "Dirt bike",
-                "2023",
-                "Navigator",
-              ],
-              ["Red bull gas factory race", "1 stage", "Revo", "2024", "Role"],
-            ]}
-          />
-        </div>
-      </Card>
-
-      <Card className={cn(surface, "rounded-[14px]")}>
-        <SectionTitle>RANKING</SectionTitle>
-        <div className="px-6 pb-6">
-          <div className="h-[240px] w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart
-                data={rankingData}
-                margin={{ top: 12, right: 12, left: 0, bottom: 8 }}
-              >
-                <XAxis
-                  dataKey="label"
-                  tickLine={false}
-                  axisLine={false}
-                  tick={{ fill: "#9AA6C8", fontSize: 12 }}
-                />
-                <YAxis hide domain={[0, 80]} />
-                <Line
-                  type="monotone"
-                  dataKey="yellow"
-                  stroke="#F4B400"
-                  strokeWidth={3}
-                  dot={false}
-                  activeDot={{ r: 5, fill: "#F4B400", strokeWidth: 0 }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="green"
-                  stroke="#3FA565"
-                  strokeWidth={3}
-                  dot={false}
-                  activeDot={{ r: 5, fill: "#3FA565", strokeWidth: 0 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
-      </Card>
+      <OtherRacesSection />
     </div>
   );
 }

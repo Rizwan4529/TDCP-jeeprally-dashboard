@@ -2,18 +2,20 @@ export const ENUMS = {
   AUTH_TOKEN: "token",
   /** Serialized `LoginUser` JSON from the last login (or profile update). */
   AUTH_USER: "auth_user",
-} as const
+} as const;
 
 /** App paths — use these instead of hard-coded route strings where practical. */
 export const ROUTES = {
   LOGIN: "/login",
   SIGNUP: "/signup",
   DASHBOARD: "/dashboard",
+  PROFILE: "/profile",
   TEAMS: "/teams",
-} as const
+  VEHICLE: "/vehicle",
+} as const;
 
 /** Relative API paths that may return 401 without treating the user as logged-out. */
-export const AUTH_PUBLIC_API_PATHS = ["/auth/login", "/auth/register"] as const
+export const AUTH_PUBLIC_API_PATHS = ["/auth/login", "/auth/register"] as const;
 
 export const CATEGORY = {
   STOCK_PREPAID: "stock_prepaid",
@@ -21,9 +23,9 @@ export const CATEGORY = {
   DIRT_BIKE: "dirt_bike",
   JEEP: "jeep",
   TRUCK_RACE: "truck_race",
-} as const
+} as const;
 
-export type Category = (typeof CATEGORY)[keyof typeof CATEGORY]
+export type Category = (typeof CATEGORY)[keyof typeof CATEGORY];
 
 export const CATEGORIES = [
   CATEGORY.STOCK_PREPAID,
@@ -31,7 +33,7 @@ export const CATEGORIES = [
   CATEGORY.DIRT_BIKE,
   CATEGORY.JEEP,
   CATEGORY.TRUCK_RACE,
-] as const satisfies readonly Category[]
+] as const satisfies readonly Category[];
 
 export const CATEGORY_LABELS: Record<Category, string> = {
   [CATEGORY.STOCK_PREPAID]: "Stock & Prepaid",
@@ -39,10 +41,10 @@ export const CATEGORY_LABELS: Record<Category, string> = {
   [CATEGORY.DIRT_BIKE]: "Dirt Bike",
   [CATEGORY.JEEP]: "Jeep",
   [CATEGORY.TRUCK_RACE]: "Truck Race",
-}
+};
 
 export const GENDER_OPTIONS = [
   { label: "Male", value: "male" },
   { label: "Female", value: "female" },
   { label: "Other", value: "other" },
-] as const
+] as const;

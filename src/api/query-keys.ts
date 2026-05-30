@@ -24,6 +24,18 @@ export const queryKeys = {
   },
   rally: {
     all: ["rally"] as const,
+    active: () => [...queryKeys.rally.all, "active"] as const,
     events: (params: unknown) => [...queryKeys.rally.all, "events", params] as const,
+  },
+  dashboard: {
+    all: ["dashboard"] as const,
+    me: () => [...queryKeys.dashboard.all, "me"] as const,
+    participationChart: () =>
+      [...queryKeys.dashboard.all, "participation-chart"] as const,
+  },
+  otherRaces: {
+    all: ["other-races"] as const,
+    list: () => [...queryKeys.otherRaces.all, "list"] as const,
+    detail: (id: string) => [...queryKeys.otherRaces.all, "detail", id] as const,
   },
 } as const

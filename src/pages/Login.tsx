@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom"
 import { useForm, type SubmitHandler } from "react-hook-form"
 
 import { FormCommon, Input } from "@/components/common/FormCommon"
+import { ButtonSpinner } from "@/components/common/LoadingStates"
 import { Typography } from "@/components/common/Typography"
 import AuthLayout from "@/components/layout/AuthLayout"
 import { Button } from "@/components/ui/button"
@@ -121,11 +122,16 @@ export default function LoginPage() {
         <Button
           type="submit"
           disabled={loginMutation.isPending}
+          aria-busy={loginMutation.isPending}
           className="mt-2 h-12 w-full rounded-md text-[16px] font-medium"
         >
-          <Typography as="span" variant="body" color="inherit">
-            {loginMutation.isPending ? "Signing in…" : "Login"}
-          </Typography>
+          {loginMutation.isPending ? (
+            <ButtonSpinner className="size-6 text-primary-foreground" />
+          ) : (
+            <Typography as="span" variant="body" color="inherit">
+              Login
+            </Typography>
+          )}
         </Button>
       </FormCommon>
 

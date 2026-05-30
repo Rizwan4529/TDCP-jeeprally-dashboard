@@ -34,7 +34,7 @@ function sessionToProfile(session: LoginUser): ProfileDriver {
     gender: session.gender,
     age: session.age,
     address: session.address,
-    location: null,
+    location: session.location ?? null,
     occupation: session.occupation,
     cnic: session.cnic,
     date_of_birth: session.date_of_birth,
@@ -94,8 +94,8 @@ export function mergeTeamDriverWithSession(
     contact_number: session.contact_number,
     gender: session.gender ?? embed.gender ?? null,
     age: session.age ?? embed.age ?? null,
-    address: session.address ?? embed.address ?? embed.location ?? null,
-    location: embed.location ?? null,
+    address: session.address ?? embed.address ?? null,
+    location: session.location ?? embed.location ?? null,
     occupation: session.occupation ?? embed.occupation ?? null,
     cnic: session.cnic ?? embed.cnic ?? null,
     date_of_birth: session.date_of_birth ?? embed.date_of_birth ?? null,
@@ -128,6 +128,13 @@ export function parseLoginUserFromApiEnvelope(data: unknown): LoginUser | null {
     }
     if (typeof d._id === "string" && typeof d.email === "string") {
       return d as LoginUser;
+    }
+    if (
+      typeof d.accessToken === "string" &&
+      typeof d.user === "object" &&
+      d.user !== null
+    ) {
+      return d.user as LoginUser;
     }
   }
   return null;

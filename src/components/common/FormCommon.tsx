@@ -10,8 +10,10 @@ import {
 import {
   CalendarIcon,
   CameraIcon,
+  CheckCircle2Icon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  CircleAlertIcon,
   ImageIcon,
   UploadIcon,
   XIcon,
@@ -128,7 +130,9 @@ type ImagePickerProps<TFieldValues extends FieldValues> =
     accept?: string
     helperText?: ReactNode
     previewClassName?: string
-    variant?: "preview" | "compact" | "avatar"
+    variant?: "preview" | "compact" | "avatar" | "profile-document"
+    /** Shown when no new file is selected (e.g. current upload from session). */
+    existingImageUrl?: string | null
   }
 
 type ImagePickerControlProps = Omit<
@@ -142,7 +146,8 @@ type ImagePickerControlProps = Omit<
   className?: string
   helperText?: ReactNode
   previewClassName?: string
-  variant?: "preview" | "compact" | "avatar"
+  variant?: "preview" | "compact" | "avatar" | "profile-document"
+  existingImageUrl?: string | null
 }
 
 function FieldLabel({ children }: { children: ReactNode }) {
@@ -340,41 +345,56 @@ function DatePickerControl({
           >
             <ChevronLeftIcon className="size-4" />
           </button>
-          <select
-            aria-label="Month"
-            className={cn(calendarSelectClassName, "min-w-0 flex-1")}
-            value={visibleMonth.getMonth()}
-            onChange={(event) => {
-              const monthIndex = Number(event.target.value)
+          <BaseSelect
+            value={String(visibleMonth.getMonth())}
+            onValueChange={(value: string) => {
               setVisibleMonth(
-                new Date(visibleMonth.getFullYear(), monthIndex, 1),
+                new Date(visibleMonth.getFullYear(), Number(value), 1),
               )
             }}
           >
-            {MONTH_LABELS.map((label, index) => (
-              <option key={label} value={index}>
-                {label}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Year"
-            className={cn(
-              calendarSelectClassName,
-              calendarYearsFuture > 0 ? "min-w-[5.25rem] shrink-0" : "w-[4.75rem]",
-            )}
-            value={visibleMonth.getFullYear()}
-            onChange={(event) => {
-              const year = Number(event.target.value)
-              setVisibleMonth(new Date(year, visibleMonth.getMonth(), 1))
+            <SelectTrigger
+              aria-label="Month"
+              size="sm"
+              className={cn(calendarSelectClassName, "min-w-0 flex-1 shadow-xs")}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="z-[100] max-h-60">
+              {MONTH_LABELS.map((label, index) => (
+                <SelectItem key={label} value={String(index)}>
+                  {label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </BaseSelect>
+          <BaseSelect
+            value={String(visibleMonth.getFullYear())}
+            onValueChange={(value: string) => {
+              setVisibleMonth(
+                new Date(Number(value), visibleMonth.getMonth(), 1),
+              )
             }}
           >
-            {yearOptions.map((year) => (
-              <option key={year} value={year}>
-                {year}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger
+              aria-label="Year"
+              size="sm"
+              className={cn(
+                calendarSelectClassName,
+                calendarYearsFuture > 0 ? "min-w-[5.25rem] shrink-0" : "w-[4.75rem]",
+                "shadow-xs",
+              )}
+            >
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent className="z-[100] max-h-60">
+              {yearOptions.map((year) => (
+                <SelectItem key={year} value={String(year)}>
+                  {year}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </BaseSelect>
           <button
             type="button"
             onClick={() => moveMonth(1)}
@@ -759,24 +779,32 @@ function ImagePickerControl({
   helperText,
   previewClassName,
   variant = "preview",
+  existingImageUrl,
   ...rootProps
 }: ImagePickerControlProps) {
   const inputRef = React.useRef<HTMLInputElement>(null)
+  const isNewFile =
+    typeof File !== "undefined" && value instanceof File
+
   const previewUrl = React.useMemo(() => {
-    if (typeof File !== "undefined" && value instanceof File) {
+    if (isNewFile && value instanceof File) {
       return URL.createObjectURL(value)
     }
-
-    return typeof value === "string" ? value : null
-  }, [value])
+    if (typeof value === "string" && value.trim()) {
+      return value
+    }
+    if (existingImageUrl?.trim()) {
+      return existingImageUrl
+    }
+    return null
+  }, [value, existingImageUrl, isNewFile])
 
   React.useEffect(() => {
-    if (typeof File !== "undefined" && value instanceof File && previewUrl) {
+    if (isNewFile && previewUrl?.startsWith("blob:")) {
       return () => URL.revokeObjectURL(previewUrl)
     }
-
     return undefined
-  }, [previewUrl, value])
+  }, [previewUrl, isNewFile])
 
   const handleSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0] ?? null
@@ -892,6 +920,111 @@ function ImagePickerControl({
     )
   }
 
+  if (variant === "profile-document") {
+    const fileName =
+      typeof File !== "undefined" && value instanceof File ? value.name : ""
+    const hasOnFile = Boolean(previewUrl)
+    const status = isNewFile
+      ? {
+          label: "New upload",
+          className: "border-[#BFD9F0] bg-[#EBF5FF] text-[#1D4E89]",
+          icon: UploadIcon,
+        }
+      : hasOnFile
+        ? {
+            label: "Uploaded",
+            className: "border-[#C5E6D4] bg-[#EAF6EF] text-[#1F6B43]",
+            icon: CheckCircle2Icon,
+          }
+        : {
+            label: "Required",
+            className: "border-[#F3D0D0] bg-[#FFF5F5] text-[#B91C1C]",
+            icon: CircleAlertIcon,
+          }
+    const StatusIcon = status.icon
+
+    return (
+      <div
+        {...rootProps}
+        className={cn(
+          "overflow-hidden rounded-[12px] border border-[#E8E8E8] bg-white shadow-[0_4px_14px_rgba(15,23,42,0.04)]",
+          className,
+        )}
+      >
+        <button
+          type="button"
+          disabled={disabled}
+          onClick={() => inputRef.current?.click()}
+          className="group relative block w-full aspect-[4/3] overflow-hidden bg-[#F4F6FA] outline-none focus-visible:ring-2 focus-visible:ring-[#3FA565]/40 disabled:cursor-not-allowed disabled:opacity-60"
+          aria-label={hasOnFile ? "Replace document image" : "Upload document image"}
+        >
+          {previewUrl ? (
+            <img
+              src={previewUrl}
+              alt=""
+              className="size-full object-cover transition-transform duration-200 group-hover:scale-[1.02]"
+            />
+          ) : (
+            <span className="flex size-full flex-col items-center justify-center gap-2 px-4 text-center">
+              <span className="flex size-12 items-center justify-center rounded-full bg-white shadow-sm">
+                <ImageIcon className="size-6 text-[#9AA6C8]" />
+              </span>
+              <Typography as="span" variant="caption" className="text-[#6B7890]">
+                No image on file
+              </Typography>
+            </span>
+          )}
+          <span
+            className={cn(
+              "absolute top-2.5 right-2.5 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide shadow-sm",
+              status.className,
+            )}
+          >
+            <StatusIcon className="size-3 shrink-0" aria-hidden />
+            {status.label}
+          </span>
+          {hasOnFile ? (
+            <span className="absolute inset-x-0 bottom-0 flex items-center justify-center gap-1.5 bg-gradient-to-t from-black/55 to-transparent py-3 text-[12px] font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
+              <CameraIcon className="size-3.5" aria-hidden />
+              {isNewFile ? "Change selection" : "Replace"}
+            </span>
+          ) : null}
+        </button>
+
+        <div className="space-y-2 border-t border-[#EEF0F4] px-3 py-3">
+          {fileName ? (
+            <p className="truncate text-[12px] text-[#6B7890]" title={fileName}>
+              {fileName}
+            </p>
+          ) : null}
+          <Button
+            type="button"
+            variant="primary-outline"
+            disabled={disabled}
+            onClick={() => inputRef.current?.click()}
+            className="h-9 w-full rounded-[8px] text-[13px] font-medium"
+          >
+            {hasOnFile ? "Replace image" : "Upload image"}
+          </Button>
+          {helperText ? (
+            <Typography as="p" variant="caption" className="text-center text-[#8B96AD]">
+              {helperText}
+            </Typography>
+          ) : null}
+        </div>
+
+        <BaseInput
+          ref={inputRef}
+          type="file"
+          accept={accept}
+          className="hidden"
+          disabled={disabled}
+          onChange={handleSelect}
+        />
+      </div>
+    )
+  }
+
   return (
     <div {...rootProps} className={cn("grid gap-3", className)}>
       <button
@@ -979,6 +1112,7 @@ function ImagePicker<TFieldValues extends FieldValues>({
   helperText,
   previewClassName,
   variant = "preview",
+  existingImageUrl,
 }: ImagePickerProps<TFieldValues>) {
   return (
     <FormField
@@ -1001,6 +1135,7 @@ function ImagePicker<TFieldValues extends FieldValues>({
               helperText={helperText}
               previewClassName={previewClassName}
               variant={variant}
+              existingImageUrl={existingImageUrl}
             />
           </FormControl>
           {description ? <FieldDescription>{description}</FieldDescription> : null}

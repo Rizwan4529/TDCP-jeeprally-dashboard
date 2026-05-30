@@ -1,8 +1,14 @@
 import { useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type SubmitHandler } from "react-hook-form";
-import { CameraIcon, PencilIcon, PlusIcon, Trash2Icon } from "lucide-react";
+import { CameraIcon, PlusIcon } from "lucide-react";
+import { EditDeleteIconActions } from "@/components/common/EditDeleteIconActions";
 
+import {
+  TextLineSkeleton,
+  SelectFieldSkeleton,
+  VehicleGridSkeleton,
+} from "@/components/common/LoadingStates";
 import { Typography } from "@/components/common/Typography";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -15,19 +21,21 @@ import {
   useUploadVehicleImageMutation,
 } from "@/hooks/api/use-vehicles";
 import { useMyTeamQuery } from "@/hooks/api/use-teams";
+import { useCategoriesQuery } from "@/hooks/api/use-categories";
 import { fetchAuthToken, toPublicFileUrl } from "@/utils/helpers";
 import { FormCommon, Input, Select } from "@/components/common/FormCommon";
 import type { Vehicle } from "@/api/types/vehicles";
 import {
+  buildCategorySelectOptions,
   buildCreateVehiclePayload,
   buildUpdateVehiclePayload,
   emptyVehicleFormValues,
-  vehicleCategorySelectOptions,
+  resolveCategoryTitle,
   vehicleFormSchema,
   vehicleToFormValues,
   type VehicleFormValues,
 } from "@/utils/vehicle-form";
-import { CATEGORY, CATEGORY_LABELS, type Category } from "@/utils/constants";
+import { CATEGORY } from "@/utils/constants";
 
 const surface = "bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)]";
 
@@ -40,17 +48,35 @@ export default function VehiclePage() {
 
 function VehicleScreen() {
   const token = useMemo(() => fetchAuthToken(), []);
+  const categoriesQuery = useCategoriesQuery(Boolean(token));
+  const categories = Array.isArray(categoriesQuery.data?.data)
+    ? categoriesQuery.data.data
+    : [];
+  const categoryOptions = useMemo(
+    () => buildCategorySelectOptions(categories),
+    [categories],
+  );
+  const defaultCategoryKey = useMemo(() => {
+    if (categories.length > 0) return categories[0].key;
+    return CATEGORY.JEEP;
+  }, [categories]);
+
   const teamQuery = useMyTeamQuery(Boolean(token));
   const teams = Array.isArray(teamQuery.data?.data) ? teamQuery.data.data : [];
   const team = teams[0] ?? null;
 
   const defaultFormValues = useMemo((): VehicleFormValues => {
-    const cat = team?.category;
+    const teamCategory = team?.category;
+    const category =
+      teamCategory &&
+      categories.some((item) => item.key === teamCategory)
+        ? teamCategory
+        : defaultCategoryKey;
     return {
       ...emptyVehicleFormValues,
-      category: (cat ?? CATEGORY.JEEP) as VehicleFormValues["category"],
+      category,
     };
-  }, [team?.category]);
+  }, [team?.category, categories, defaultCategoryKey]);
 
   const vehiclesQuery = useMyVehiclesQuery(Boolean(token));
   const vehicles = Array.isArray(vehiclesQuery.data?.data)
@@ -148,13 +174,15 @@ function VehicleScreen() {
             >
               Your vehicles
             </Typography>
-            <Typography variant="body-sm" className="mt-2 text-[#6B7890]">
-              {vehiclesQuery.isLoading
-                ? "Loading…"
-                : vehicles.length === 0
+            {vehiclesQuery.isLoading ? (
+              <TextLineSkeleton className="mt-2 h-4 w-48" />
+            ) : (
+              <Typography variant="body-sm" className="mt-2 text-[#6B7890]">
+                {vehicles.length === 0
                   ? "No vehicles yet. Add one to get started."
                   : `${vehicles.length} vehicle${vehicles.length === 1 ? "" : "s"} on file.`}
-            </Typography>
+              </Typography>
+            )}
           </div>
           <Button
             type="button"
@@ -169,11 +197,7 @@ function VehicleScreen() {
       </Card>
 
       {vehiclesQuery.isLoading ? (
-        <Card className={cn(surface, "rounded-[14px] p-6")}>
-          <Typography variant="body" className="text-[#6B7890]">
-            Loading vehicles…
-          </Typography>
-        </Card>
+        <VehicleGridSkeleton count={3} />
       ) : vehiclesQuery.isError ? (
         <Card className={cn(surface, "rounded-[14px] p-6")}>
           <Typography variant="body" className="text-destructive">
@@ -248,40 +272,26 @@ function VehicleScreen() {
                       variant="caption"
                       className="mt-1 text-[#6B7890]"
                     >
-                      {CATEGORY_LABELS[v.category as Category] ?? v.category}
+                      {resolveCategoryTitle(categories, v.category)}
                       {v.class ? ` · ${v.class}` : ""}
                       {v.power != null ? ` · Power ${v.power}` : ""}
                     </Typography>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2 p-4">
-                  <Button
-                    type="button"
-                    variant="primary-outline"
-                    size="sm"
-                    className="rounded-[10px]"
-                    onClick={() => openEdit(v)}
-                    disabled={panel !== "none"}
-                  >
-                    <PencilIcon className="size-4" />
-                    Edit
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="destructive-outline"
-                    size="sm"
-                    className="rounded-[10px]"
-                    disabled={
+                <div className="p-4">
+                  <EditDeleteIconActions
+                    editLabel="Edit vehicle"
+                    deleteLabel="Delete vehicle"
+                    onEdit={() => openEdit(v)}
+                    editDisabled={panel !== "none"}
+                    deleteDisabled={
                       deleteVehicleMutation.isPending || panel !== "none"
                     }
-                    onClick={async () => {
+                    onDelete={async () => {
                       await deleteVehicleMutation.mutateAsync(v._id);
                       if (editingId === v._id) closePanel();
                     }}
-                  >
-                    <Trash2Icon className="size-4" />
-                    Delete
-                  </Button>
+                  />
                 </div>
               </Card>
             );
@@ -323,14 +333,25 @@ function VehicleScreen() {
                   label="Engine"
                   className={fieldClassName}
                 />
-                <Select
-                  control={form.control}
-                  name="category"
-                  label="Category"
-                  placeholder="Select category"
-                  options={vehicleCategorySelectOptions}
-                  className={fieldClassName}
-                />
+                {categoriesQuery.isLoading ? (
+                  <SelectFieldSkeleton />
+                ) : categoriesQuery.isError || categoryOptions.length === 0 ? (
+                  <div className="rounded-md border border-[#F2D6D6] bg-[#FFF5F5] p-4 md:col-span-2">
+                    <Typography variant="body-sm" className="text-[#8B2B2B]">
+                      Could not load categories. Try again later.
+                    </Typography>
+                  </div>
+                ) : (
+                  <Select
+                    control={form.control}
+                    name="category"
+                    label="Category"
+                    placeholder="Select category"
+                    options={categoryOptions}
+                    className={fieldClassName}
+                    disabled={isSaving}
+                  />
+                )}
                 <Input
                   control={form.control}
                   name="frame"
@@ -376,7 +397,7 @@ function VehicleScreen() {
               <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
                 <Button
                   type="button"
-                  variant="primary-outline"
+                  variant="destructive-outline"
                   className="h-11 rounded-[10px] px-5 text-[14px] font-semibold"
                   onClick={(e) => {
                     e.preventDefault();
@@ -389,7 +410,11 @@ function VehicleScreen() {
                 <Button
                   type="submit"
                   className="h-11 rounded-[10px] bg-[#3FA565] px-5 text-[14px] font-semibold hover:bg-[#369A5D]"
-                  disabled={isSaving}
+                  disabled={
+                    isSaving ||
+                    categoriesQuery.isLoading ||
+                    categoryOptions.length === 0
+                  }
                 >
                   {panel === "edit" ? "Update" : "Save"}
                 </Button>

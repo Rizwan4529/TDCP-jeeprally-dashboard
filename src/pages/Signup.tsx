@@ -13,6 +13,7 @@ import {
   Select,
   Textarea,
 } from "@/components/common/FormCommon";
+import { ButtonSpinner } from "@/components/common/LoadingStates";
 import { Typography } from "@/components/common/Typography";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { useRegisterMutation } from "@/hooks/api/use-register";
@@ -346,13 +347,16 @@ export default function SignupPage() {
         <Button
           type="submit"
           disabled={registerMutation.isPending}
+          aria-busy={registerMutation.isPending}
           className="mt-2 h-12 w-full rounded-md text-[16px] font-medium disabled:opacity-70"
         >
-          <Typography as="span" variant="body" color="inherit">
-            {registerMutation.isPending
-              ? "Creating account…"
-              : "Create Account"}
-          </Typography>
+          {registerMutation.isPending ? (
+            <ButtonSpinner className="size-6 text-primary-foreground" />
+          ) : (
+            <Typography as="span" variant="body" color="inherit">
+              Create Account
+            </Typography>
+          )}
         </Button>
       </FormCommon>
 

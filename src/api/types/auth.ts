@@ -4,23 +4,31 @@ export type RegisterPayload = Record<string, string | File | undefined>
 /** @deprecated Use RegisterPayload */
 export type RegisterRequest = RegisterPayload
 
+/** Partial body for PUT /auth/me — only include fields being changed. */
 export type UpdateProfilePayload = {
-  name: string
-  gender: string
-  age: string
-  address: string
-  contact_number: string
-  license_number: string
-  license_expiry: string
-  cnic: string
-  date_of_birth: string
-  occupation: string
-  profile_image?: File | null
-  cnic_image?: File | null
-  license_image?: File | null
+  name?: string
+  gender?: string
+  age?: string
+  address?: string
+  location?: string
+  contact_number?: string
+  license_number?: string
+  license_expiry?: string
+  cnic?: string
+  date_of_birth?: string
+  occupation?: string
+  profile_image?: File
+  cnic_image?: File
+  license_image?: File
 }
 
-/** Extend when the backend contract is finalized (e.g. access_token, user). */
+export type UpdateProfileResponse = {
+  success: boolean
+  message: string
+  data?: LoginUser | { user: LoginUser }
+}
+
+/** @deprecated Use UpdateProfileResponse */
 export type RegisterResponse = unknown
 
 export type LoginRequest = {
@@ -40,6 +48,7 @@ export type LoginUser = {
   /** API may send a number; forms use strings. */
   age: number | string
   address: string
+  location?: string | null
   contact_number: string
   cnic: string
   license_number: string

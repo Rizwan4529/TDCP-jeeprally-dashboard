@@ -1,16 +1,15 @@
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type SubmitHandler } from "react-hook-form";
-import {
-  CompassIcon,
-  PencilIcon,
-  PlusIcon,
-  Trash2Icon,
-  UserPlusIcon,
-} from "lucide-react";
+import { CompassIcon, PlusIcon, Trash2Icon, UserPlusIcon } from "lucide-react";
+import { EditDeleteIconActions } from "@/components/common/EditDeleteIconActions";
 import { AddUsersToTeamDialog } from "@/components/teams/AddUsersToTeamDialog";
 import { toast } from "sonner";
 
+import {
+  SelectFieldSkeleton,
+  TeamsTableSkeleton,
+} from "@/components/common/LoadingStates";
 import { Typography } from "@/components/common/Typography";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -217,16 +216,26 @@ function RosterSection({ token }: { token: boolean }) {
 
   const clearSelection = () => setSelectedIds(new Set());
 
-  const toggleSelectAll = () => {
-    if (allSelected) clearSelection();
-    else setSelectedIds(new Set(members.map((m) => m._id)));
+  const handleSelectAllChange = (checked: boolean | "indeterminate") => {
+    if (checked === true) {
+      setSelectedIds(new Set(members.map((m) => m._id)));
+    } else {
+      clearSelection();
+    }
   };
 
-  const toggleSelectOne = (id: string) => {
+  const handleSelectOneChange = (id: string, checked: boolean | "indeterminate") => {
+    const isChecked = checked === true;
     setSelectedIds((prev) => {
+      if (isChecked) {
+        if (prev.has(id)) return prev;
+        const next = new Set(prev);
+        next.add(id);
+        return next;
+      }
+      if (!prev.has(id)) return prev;
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      next.delete(id);
       return next;
     });
   };
@@ -296,9 +305,7 @@ function RosterSection({ token }: { token: boolean }) {
 
       <div className="space-y-6 px-6 py-6">
         {membersQuery.isLoading ? (
-          <Typography variant="body" className="text-[#6B7890]">
-            Loading users…
-          </Typography>
+          <TeamsTableSkeleton rows={6} />
         ) : membersQuery.isError ? (
           <Typography variant="body" className="text-destructive">
             Could not load users.
@@ -376,7 +383,7 @@ function RosterSection({ token }: { token: boolean }) {
               </div>
             ) : null}
 
-            <TeamsDataTable>
+            <TeamsDataTable tableClassName="min-w-[1280px]">
               <TeamsDataTableHeader>
                 <TeamsDataTableHeaderRow>
                   <TeamsDataTableHead className="w-12">
@@ -388,7 +395,7 @@ function RosterSection({ token }: { token: boolean }) {
                             ? "indeterminate"
                             : false
                       }
-                      onCheckedChange={toggleSelectAll}
+                      onCheckedChange={handleSelectAllChange}
                       aria-label="Select all users"
                       className="border-white/40 data-[state=checked]:bg-white data-[state=checked]:text-[#3FA565]"
                     />
@@ -399,8 +406,10 @@ function RosterSection({ token }: { token: boolean }) {
                   <TeamsDataTableHead>CNIC</TeamsDataTableHead>
                   <TeamsDataTableHead>Date of birth</TeamsDataTableHead>
                   <TeamsDataTableHead>Navigator</TeamsDataTableHead>
-                  <TeamsDataTableHead>Teams</TeamsDataTableHead>
-                  <TeamsDataTableHead className="text-right">
+                  <TeamsDataTableHead className="min-w-[150px]">
+                    Teams
+                  </TeamsDataTableHead>
+                  <TeamsDataTableHead className="min-w-[96px] text-right">
                     Actions
                   </TeamsDataTableHead>
                 </TeamsDataTableHeaderRow>
@@ -418,7 +427,9 @@ function RosterSection({ token }: { token: boolean }) {
                       <TableCell className="px-4">
                         <Checkbox
                           checked={isSelected}
-                          onCheckedChange={() => toggleSelectOne(m._id)}
+                          onCheckedChange={(checked) =>
+                            handleSelectOneChange(m._id, checked)
+                          }
                           aria-label={`Select ${m.name}`}
                         />
                       </TableCell>
@@ -442,40 +453,26 @@ function RosterSection({ token }: { token: boolean }) {
                       <TableCell className="px-4">
                         <NavigatorStatusCell role={role} />
                       </TableCell>
-                      <TableCell className="px-4">
+                      <TableCell className="min-w-[150px] px-4 align-top">
                         <UserTeamsCell role={role} />
                       </TableCell>
-                      <TableCell className="px-4 text-right">
-                        <div className="flex flex-wrap justify-end gap-2">
-                          <Button
-                            type="button"
-                            variant="primary-outline"
-                            size="sm"
-                            className="rounded-[10px]"
-                            onClick={() => openEdit(m)}
-                          >
-                            <PencilIcon className="size-3.5" />
-                            Edit
-                          </Button>
-                          <Button
-                            type="button"
-                            variant="destructive-outline"
-                            size="sm"
-                            className="rounded-[10px]"
-                            disabled={deleteMutation.isPending}
-                            onClick={async () => {
-                              try {
-                                await deleteMutation.mutateAsync(m._id);
-                                toast.success("User removed.");
-                                if (editingId === m._id) closePanel();
-                              } catch (err) {
-                                toast.error(getTeamMemberErrorMessage(err));
-                              }
-                            }}
-                          >
-                            <Trash2Icon className="size-3.5" />
-                            Delete
-                          </Button>
+                      <TableCell className="min-w-[96px] px-4 text-right align-middle whitespace-nowrap">
+                        <div className="flex justify-end">
+                          <EditDeleteIconActions
+                          editLabel="Edit user"
+                          deleteLabel="Delete user"
+                          onEdit={() => openEdit(m)}
+                          deleteDisabled={deleteMutation.isPending}
+                          onDelete={async () => {
+                            try {
+                              await deleteMutation.mutateAsync(m._id);
+                              toast.success("User removed.");
+                              if (editingId === m._id) closePanel();
+                            } catch (err) {
+                              toast.error(getTeamMemberErrorMessage(err));
+                            }
+                          }}
+                          />
                         </div>
                       </TableCell>
                     </TableRow>
@@ -564,7 +561,7 @@ function RosterSection({ token }: { token: boolean }) {
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <Button
                 type="button"
-                variant="primary-outline"
+                variant="destructive-outline"
                 onClick={closePanel}
                 disabled={isSaving}
               >
@@ -631,6 +628,13 @@ function MyTeamsSection({
   );
   const [navigatorId, setNavigatorId] = React.useState("");
 
+  /** Roster at open-edit time — restored when user switches back to that category. */
+  const editRosterSnapshotRef = React.useRef<{
+    category: string;
+    memberIds: string[];
+    navigatorId: string;
+  } | null>(null);
+
   const createMutation = useCreateTeamMutation();
   const updateMutation = useUpdateTeamMutation();
   const deleteMutation = useDeleteTeamMutation();
@@ -654,29 +658,66 @@ function MyTeamsSection({
     const prev = prevCategoryRef.current;
     prevCategoryRef.current = watchedCategory;
     if (prev === undefined || prev === watchedCategory) return;
-    if (!showRosterPicker) {
+
+    const snapshot = editRosterSnapshotRef.current;
+    if (
+      panel === "edit" &&
+      snapshot &&
+      watchedCategory === snapshot.category
+    ) {
+      setSelectedMemberIds([...snapshot.memberIds]);
+      setNavigatorId(snapshot.navigatorId);
+      return;
+    }
+
+    const cat = categoryByKey.get(watchedCategory);
+    if (!needsRosterMembers(cat)) {
       setSelectedMemberIds([]);
       setNavigatorId("");
+      return;
     }
-  }, [panel, watchedCategory, showRosterPicker]);
+
+    const max = cat?.max_members ?? 0;
+    setSelectedMemberIds((ids) => {
+      const nextIds =
+        max > 0 && ids.length > max ? ids.slice(0, max) : ids;
+      if (!needsNavigator(cat)) {
+        setNavigatorId("");
+      } else {
+        setNavigatorId((navId) =>
+          navId && nextIds.includes(navId) ? navId : "",
+        );
+      }
+      return nextIds;
+    });
+  }, [panel, watchedCategory, categoryByKey]);
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const openNew = () => {
     setPanel("new");
     setEditingId(null);
+    editRosterSnapshotRef.current = null;
     setSelectedMemberIds([]);
     setNavigatorId("");
+    const initialCategory = categories[0]?.key ?? "";
+    prevCategoryRef.current = initialCategory;
     form.reset({
       ...emptyTeamFormValues,
-      category: categories[0]?.key ?? "",
+      category: initialCategory,
     });
   };
 
   const openEdit = (t: Team) => {
     const { memberIds, navigatorId: navId } = selectedMembersForTeamForm(t);
+    editRosterSnapshotRef.current = {
+      category: t.category,
+      memberIds: [...memberIds],
+      navigatorId: navId,
+    };
     setPanel("edit");
     setEditingId(t._id);
+    prevCategoryRef.current = t.category;
     form.reset(teamToFormValues(t));
     setSelectedMemberIds(memberIds);
     setNavigatorId(navId);
@@ -685,25 +726,36 @@ function MyTeamsSection({
   const closePanel = () => {
     setPanel("none");
     setEditingId(null);
+    editRosterSnapshotRef.current = null;
     setSelectedMemberIds([]);
     setNavigatorId("");
+    prevCategoryRef.current = undefined;
     form.reset(emptyTeamFormValues);
   };
 
-  const toggleMember = (id: string) => {
+  const handleMemberCheckedChange = (
+    id: string,
+    checked: boolean | "indeterminate",
+  ) => {
+    const isChecked = checked === true;
     const max = selectedCategory?.max_members ?? 0;
-    if (selectedMemberIds.includes(id)) {
-      setSelectedMemberIds(selectedMemberIds.filter((x) => x !== id));
-      if (navigatorId === id) setNavigatorId("");
+
+    if (isChecked) {
+      setSelectedMemberIds((prev) => {
+        if (prev.includes(id)) return prev;
+        if (max === 1) return [id];
+        if (max > 0 && prev.length >= max) return prev;
+        return [...prev, id];
+      });
+      if (max === 1 && showNavigatorPicker) setNavigatorId(id);
       return;
     }
-    if (max === 1) {
-      setSelectedMemberIds([id]);
-      if (showNavigatorPicker) setNavigatorId(id);
-      return;
-    }
-    if (selectedMemberIds.length >= max) return;
-    setSelectedMemberIds([...selectedMemberIds, id]);
+
+    setSelectedMemberIds((prev) => {
+      if (!prev.includes(id)) return prev;
+      return prev.filter((x) => x !== id);
+    });
+    setNavigatorId((prev) => (prev === id ? "" : prev));
   };
 
   const onSubmit: SubmitHandler<TeamFormValues> = async (values) => {
@@ -772,9 +824,7 @@ function MyTeamsSection({
 
       <div className="space-y-6 px-6 py-6">
         {isLoading ? (
-          <Typography variant="body" className="text-[#6B7890]">
-            Loading teams…
-          </Typography>
+          <TeamsTableSkeleton rows={5} />
         ) : teamsQuery.isError ? (
           <Typography variant="body" className="text-destructive">
             Could not load teams.
@@ -794,7 +844,7 @@ function MyTeamsSection({
                 <TeamsDataTableHead>Category</TeamsDataTableHead>
                 <TeamsDataTableHead>Members</TeamsDataTableHead>
                 <TeamsDataTableHead>Navigator</TeamsDataTableHead>
-                <TeamsDataTableHead className="text-right">
+                <TeamsDataTableHead className="min-w-[96px] text-right">
                   Actions
                 </TeamsDataTableHead>
               </TeamsDataTableHeaderRow>
@@ -836,33 +886,19 @@ function MyTeamsSection({
                         <span className="text-[#9AA6C8]">—</span>
                       )}
                     </TableCell>
-                    <TableCell className="px-4 text-right">
-                      <div className="flex flex-wrap justify-end gap-2">
-                        <Button
-                          type="button"
-                          variant="primary-outline"
-                          size="sm"
-                          className="rounded-[10px]"
-                          onClick={() => openEdit(t)}
-                        >
-                          <PencilIcon className="size-3.5" />
-                          Edit
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="destructive-outline"
-                          size="sm"
-                          className="rounded-[10px]"
-                          disabled={deleteMutation.isPending}
-                          onClick={async () => {
+                    <TableCell className="min-w-[96px] px-4 text-right align-middle whitespace-nowrap">
+                      <div className="flex justify-end">
+                        <EditDeleteIconActions
+                          editLabel="Edit team"
+                          deleteLabel="Delete team"
+                          onEdit={() => openEdit(t)}
+                          deleteDisabled={deleteMutation.isPending}
+                          onDelete={async () => {
                             await deleteMutation.mutateAsync(t._id);
                             toast.success("Team deleted.");
                             if (editingId === t._id) closePanel();
                           }}
-                        >
-                          <Trash2Icon className="size-3.5" />
-                          Delete
-                        </Button>
+                        />
                       </div>
                     </TableCell>
                   </TableRow>
@@ -887,7 +923,9 @@ function MyTeamsSection({
                 label="Team number"
                 className={fieldClassName}
               />
-              {categoryOptions.length > 0 ? (
+              {categoriesQuery.isLoading ? (
+                <SelectFieldSkeleton />
+              ) : categoryOptions.length > 0 ? (
                 <Select
                   control={form.control}
                   name="category"
@@ -898,7 +936,7 @@ function MyTeamsSection({
                 />
               ) : (
                 <Typography variant="body-sm" className="text-[#6B7890]">
-                  Loading categories…
+                  No categories available.
                 </Typography>
               )}
             </div>
@@ -943,17 +981,14 @@ function MyTeamsSection({
                           <TableRow
                             key={m._id}
                             data-state={selected ? "selected" : undefined}
-                            className={cn(
-                              "cursor-pointer",
-                              selected && "bg-[#EAF6EF]/60",
-                            )}
-                            onClick={() => toggleMember(m._id)}
+                            className={cn(selected && "bg-[#EAF6EF]/60")}
                           >
                             <TableCell className="px-4">
                               <Checkbox
                                 checked={selected}
-                                onCheckedChange={() => toggleMember(m._id)}
-                                onClick={(e) => e.stopPropagation()}
+                                onCheckedChange={(checked) =>
+                                  handleMemberCheckedChange(m._id, checked)
+                                }
                                 aria-label={`Select ${m.name}`}
                               />
                             </TableCell>
@@ -1005,7 +1040,7 @@ function MyTeamsSection({
             <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
               <Button
                 type="button"
-                variant="primary-outline"
+                variant="destructive-outline"
                 onClick={closePanel}
                 disabled={isSaving}
               >
@@ -1079,8 +1114,6 @@ function NavigatorBadge({ compact = false }: { compact?: boolean }) {
   );
 }
 
-const MAX_VISIBLE_TEAMS = 2;
-
 function getUserTeamNames(role: RosterRoleInfo | undefined): string[] {
   if (!role) return [];
   return [...new Set([...role.navigatorTeamNames, ...role.memberTeamNames])];
@@ -1099,13 +1132,18 @@ function UserTeamsCell({ role }: { role: RosterRoleInfo | undefined }) {
     return <span className="text-[#9AA6C8]">—</span>;
   }
 
-  const visible = teams.slice(0, MAX_VISIBLE_TEAMS);
-  const hasMore = teams.length > MAX_VISIBLE_TEAMS;
-
   return (
-    <span className="text-[#1F1838]" title={teams.join(", ")}>
-      {visible.join(", ")}
-      {hasMore ? ", …" : ""}
-    </span>
+    <div
+      className="flex flex-col gap-0.5 text-[13px] leading-snug text-[#1F1838]"
+      title={teams.join(", ")}
+    >
+      <span>
+        {teams[0]}
+        {teams.length > 1 ? "," : ""}
+      </span>
+      {teams.slice(1).map((name, index) => (
+        <span key={`${name}-${index}`}>{name}</span>
+      ))}
+    </div>
   );
 }

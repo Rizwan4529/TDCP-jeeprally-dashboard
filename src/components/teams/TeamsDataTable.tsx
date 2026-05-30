@@ -13,9 +13,12 @@ import { cn } from "@/lib/utils";
 export function TeamsDataTable({
   children,
   className,
+  tableClassName,
 }: {
   children: React.ReactNode;
   className?: string;
+  /** Override table min-width, e.g. min-w-[1280px] for wide roster tables */
+  tableClassName?: string;
 }) {
   return (
     <div
@@ -24,7 +27,9 @@ export function TeamsDataTable({
         className,
       )}
     >
-      <Table className="min-w-[720px]">{children}</Table>
+      <Table className={cn("w-full min-w-[720px]", tableClassName)}>
+        {children}
+      </Table>
     </div>
   );
 }
