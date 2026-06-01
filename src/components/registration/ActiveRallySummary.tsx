@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from "react";
 import {
   CalendarDaysIcon,
   FlagIcon,
@@ -9,7 +10,6 @@ import { Typography } from "@/components/common/Typography";
 import type { RallyEvent } from "@/api/types/rally";
 import {
   formatEventDateRangeHero,
-  formatEventScheduleDates,
 } from "@/utils/dashboard-events";
 import { cn } from "@/lib/utils";
 
@@ -94,7 +94,7 @@ export function ActiveRallySummary({
   }
 
   const dateRange = formatEventDateRangeHero(event.date, event.end_date);
-  const scheduleDates = formatEventScheduleDates(event.date, event.end_date);
+  const description = event.description?.trim() ?? "";
 
   return (
     <div
@@ -103,7 +103,7 @@ export function ActiveRallySummary({
         className,
       )}
     >
-      <div className="border-b border-[#C8E6D4]/80 bg-[#3FA565] px-4 py-2.5 sm:px-5">
+      <div className="border-b border-[#C8E6D4]/80 bg-[#3FA565] px-3 py-2 sm:px-4">
         <Typography
           variant="caption"
           className="font-semibold uppercase tracking-wide text-white/90"
@@ -111,58 +111,97 @@ export function ActiveRallySummary({
           Active rally · open for registration
         </Typography>
       </div>
-      <div className="space-y-3 p-4 sm:p-5">
-        <div>
+      <div className="space-y-2 p-3 sm:p-4">
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
           <Typography
             as="h4"
             variant="body-lg"
-            className="text-[18px] font-bold leading-snug text-[#1F1838] sm:text-[20px]"
+            className="text-[16px] font-bold leading-tight text-[#1F1838] sm:text-[17px]"
           >
             {event.name}
           </Typography>
           {event.edition_number > 0 ? (
-            <Typography variant="body-sm" className="mt-1 font-medium text-[#1F6B43]">
+            <Typography
+              variant="caption"
+              className="font-semibold text-[#1F6B43]"
+            >
               Edition {event.edition_number}
             </Typography>
           ) : null}
         </div>
 
-        <div className="flex flex-col gap-2 text-[13px] text-[#4A5568] sm:text-[14px]">
-          <span className="inline-flex items-start gap-2">
+        <div className="grid gap-1.5 text-[13px] text-[#4A5568] sm:grid-cols-2 sm:gap-3">
+          <span className="inline-flex items-center gap-1.5 min-w-0">
             <CalendarDaysIcon
-              className="mt-0.5 size-4 shrink-0 text-[#3FA565]"
+              className="size-3.5 shrink-0 text-[#3FA565]"
               aria-hidden
             />
-            <span>
-              <span className="font-medium text-[#25314D]">{dateRange}</span>
-              <span className="block text-[#6B7890]">{scheduleDates}</span>
+            <span className="truncate font-medium text-[#25314D]">
+              {dateRange}
             </span>
           </span>
-          <span className="inline-flex items-start gap-2">
+          <span className="inline-flex items-center gap-1.5 min-w-0">
             <MapPinIcon
-              className="mt-0.5 size-4 shrink-0 text-[#3FA565]"
+              className="size-3.5 shrink-0 text-[#3FA565]"
               aria-hidden
             />
-            <span className="font-medium text-[#25314D]">{event.location}</span>
+            <span className="truncate font-medium text-[#25314D]">
+              {event.location}
+            </span>
           </span>
         </div>
 
         {event.organiser ? (
-          <Typography variant="body-sm" className="text-[#6B7890]">
+          <Typography variant="caption" className="text-[#6B7890]">
             Organiser:{" "}
             <span className="font-medium text-[#25314D]">{event.organiser}</span>
           </Typography>
         ) : null}
 
-        {event.description?.trim() ? (
-          <Typography
-            variant="body-sm"
-            className="leading-relaxed text-[#6B7890]"
-          >
-            {event.description.trim()}
-          </Typography>
+        {description ? (
+          <RallyDescription text={description} />
         ) : null}
       </div>
+    </div>
+  );
+}
+
+function RallyDescription({ text }: { text: string }) {
+  const [expanded, setExpanded] = useState(false);
+  const [canExpand, setCanExpand] = useState(false);
+  const textRef = useRef<HTMLParagraphElement>(null);
+
+  useEffect(() => {
+    const el = textRef.current;
+    if (!el || expanded) {
+      return;
+    }
+
+    setCanExpand(el.scrollHeight > el.clientHeight + 1);
+  }, [text, expanded]);
+
+  const showToggle = canExpand || expanded;
+
+  return (
+    <div className="pt-0.5">
+      <p
+        ref={textRef}
+        className={cn(
+          "text-[13px] leading-snug text-[#6B7890]",
+          !expanded && "line-clamp-2",
+        )}
+      >
+        {text}
+      </p>
+      {showToggle ? (
+        <button
+          type="button"
+          onClick={() => setExpanded((prev) => !prev)}
+          className="mt-1 text-[12px] font-semibold text-[#1F6B43] hover:text-[#165A34] hover:underline"
+        >
+          {expanded ? "Read less" : "Read more"}
+        </button>
+      ) : null}
     </div>
   );
 }
@@ -177,13 +216,15 @@ function ActiveRallyCardSkeleton({ className }: { className?: string }) {
       aria-busy
       aria-label="Loading active rally"
     >
-      <div className="h-10 bg-[#E8E8E8]" />
-      <div className="space-y-3 p-5">
-        <div className="h-6 w-3/4 max-w-sm rounded bg-[#E8E8E8]" />
-        <div className="h-4 w-24 rounded bg-[#E8E8E8]" />
-        <div className="h-4 w-full max-w-md rounded bg-[#E8E8E8]" />
-        <div className="h-4 w-2/3 max-w-xs rounded bg-[#E8E8E8]" />
-        <div className="h-12 w-full rounded bg-[#E8E8E8]" />
+      <div className="h-9 bg-[#E8E8E8]" />
+      <div className="space-y-2 p-3 sm:p-4">
+        <div className="h-5 w-3/4 max-w-sm rounded bg-[#E8E8E8]" />
+        <div className="grid gap-2 sm:grid-cols-2">
+          <div className="h-4 w-full max-w-[180px] rounded bg-[#E8E8E8]" />
+          <div className="h-4 w-full max-w-[180px] rounded bg-[#E8E8E8]" />
+        </div>
+        <div className="h-3 w-32 rounded bg-[#E8E8E8]" />
+        <div className="h-8 w-full rounded bg-[#E8E8E8]" />
       </div>
     </div>
   );

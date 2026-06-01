@@ -59,6 +59,8 @@ type SharedFieldProps<TFieldValues extends FieldValues> = {
   control: Control<TFieldValues>
   name: FieldPath<TFieldValues>
   label?: ReactNode
+  /** When true, shows a red asterisk after the label. Omit for optional fields. */
+  required?: boolean
   description?: ReactNode
   placeholder?: string
   className?: string
@@ -150,10 +152,26 @@ type ImagePickerControlProps = Omit<
   existingImageUrl?: string | null
 }
 
-function FieldLabel({ children }: { children: ReactNode }) {
+function FieldLabel({
+  children,
+  required,
+}: {
+  children: ReactNode
+  required?: boolean
+}) {
   return (
-    <Typography as="span" variant="label" color="inherit">
+    <Typography
+      as="span"
+      variant="label"
+      color="inherit"
+      className="inline-flex items-center gap-0.5"
+    >
       {children}
+      {required ? (
+        <span className="font-semibold text-destructive" aria-hidden="true">
+          *
+        </span>
+      ) : null}
     </Typography>
   )
 }
@@ -486,6 +504,7 @@ function Input<TFieldValues extends FieldValues>({
   control,
   name,
   label,
+  required,
   description,
   placeholder,
   className,
@@ -502,7 +521,7 @@ function Input<TFieldValues extends FieldValues>({
         <FormItem className={itemClassName}>
           {label ? (
             <FormLabel>
-              <FieldLabel>{label}</FieldLabel>
+              <FieldLabel required={required}>{label}</FieldLabel>
             </FormLabel>
           ) : null}
           <FormControl>
@@ -527,6 +546,7 @@ function Textarea<TFieldValues extends FieldValues>({
   control,
   name,
   label,
+  required,
   description,
   placeholder,
   className,
@@ -543,7 +563,7 @@ function Textarea<TFieldValues extends FieldValues>({
         <FormItem className={itemClassName}>
           {label ? (
             <FormLabel>
-              <FieldLabel>{label}</FieldLabel>
+              <FieldLabel required={required}>{label}</FieldLabel>
             </FormLabel>
           ) : null}
           <FormControl>
@@ -568,6 +588,7 @@ function Select<TFieldValues extends FieldValues>({
   control,
   name,
   label,
+  required,
   description,
   placeholder,
   className,
@@ -585,7 +606,7 @@ function Select<TFieldValues extends FieldValues>({
         <FormItem className={itemClassName}>
           {label ? (
             <FormLabel>
-              <FieldLabel>{label}</FieldLabel>
+              <FieldLabel required={required}>{label}</FieldLabel>
             </FormLabel>
           ) : null}
           <BaseSelect
@@ -628,6 +649,7 @@ function DatePicker<TFieldValues extends FieldValues>({
   control,
   name,
   label,
+  required,
   description,
   placeholder,
   className,
@@ -645,7 +667,7 @@ function DatePicker<TFieldValues extends FieldValues>({
         <FormItem className={itemClassName}>
           {label ? (
             <FormLabel>
-              <FieldLabel>{label}</FieldLabel>
+              <FieldLabel required={required}>{label}</FieldLabel>
             </FormLabel>
           ) : null}
           <DatePickerControl
@@ -669,6 +691,7 @@ function RadioGroup<TFieldValues extends FieldValues>({
   control,
   name,
   label,
+  required,
   description,
   className,
   itemClassName,
@@ -684,7 +707,7 @@ function RadioGroup<TFieldValues extends FieldValues>({
         <FormItem className={itemClassName}>
           {label ? (
             <FormLabel>
-              <FieldLabel>{label}</FieldLabel>
+              <FieldLabel required={required}>{label}</FieldLabel>
             </FormLabel>
           ) : null}
           <FormControl>
@@ -734,6 +757,7 @@ function Checkbox<TFieldValues extends FieldValues>({
   control,
   name,
   label,
+  required,
   description,
   className,
   itemClassName,
@@ -746,7 +770,7 @@ function Checkbox<TFieldValues extends FieldValues>({
       control={control}
       name={name}
       render={({ field }) => (
-        <FormItem className={cn("flex flex-row items-start gap-3", itemClassName)}>
+        <FormItem className={cn("flex flex-row items-center gap-2.5", itemClassName)}>
           <FormControl>
             <BaseCheckbox
               checked={!!field.value}
@@ -758,7 +782,7 @@ function Checkbox<TFieldValues extends FieldValues>({
           <div className={cn("grid gap-1.5 leading-none", className)}>
             {label ? (
               <FormLabel>
-                <FieldLabel>{label}</FieldLabel>
+                <FieldLabel required={required}>{label}</FieldLabel>
               </FormLabel>
             ) : null}
             {description ? <FieldDescription>{description}</FieldDescription> : null}
@@ -1103,6 +1127,7 @@ function ImagePicker<TFieldValues extends FieldValues>({
   control,
   name,
   label,
+  required,
   description,
   className,
   itemClassName,
@@ -1122,7 +1147,7 @@ function ImagePicker<TFieldValues extends FieldValues>({
         <FormItem className={itemClassName}>
           {label ? (
             <FormLabel>
-              <FieldLabel>{label}</FieldLabel>
+              <FieldLabel required={required}>{label}</FieldLabel>
             </FormLabel>
           ) : null}
           <FormControl>

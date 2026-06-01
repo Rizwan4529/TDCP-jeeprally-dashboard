@@ -1,12 +1,13 @@
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type SubmitHandler } from "react-hook-form";
-import { CompassIcon, PlusIcon, Trash2Icon, UserPlusIcon } from "lucide-react";
+import { CompassIcon, PlusIcon, Trash2Icon, UserPlusIcon, UsersIcon, UsersRoundIcon } from "lucide-react";
 import { EditDeleteIconActions } from "@/components/common/EditDeleteIconActions";
 import { AddUsersToTeamDialog } from "@/components/teams/AddUsersToTeamDialog";
 import { toast } from "sonner";
 
 import {
+  EmptyState,
   SelectFieldSkeleton,
   TeamsTableSkeleton,
 } from "@/components/common/LoadingStates";
@@ -307,24 +308,30 @@ function RosterSection({ token }: { token: boolean }) {
         {membersQuery.isLoading ? (
           <TeamsTableSkeleton rows={6} />
         ) : membersQuery.isError ? (
-          <Typography variant="body" className="text-destructive">
-            Could not load users.
-          </Typography>
+          <EmptyState
+            icon={UsersIcon}
+            title="Could not load users"
+            description="Something went wrong while fetching your team members."
+            variant="error"
+            size="compact"
+          />
         ) : panel === "none" && members.length === 0 ? (
-          <div className="rounded-[12px] border border-[#E8E8E8] bg-[#F9FAFD] p-6 text-center">
-            <Typography variant="body" className="text-[#6B7890]">
-              No users yet. Add people you want on your teams.
-            </Typography>
-            <Button
-              type="button"
-              className="mt-4 bg-[#3FA565] hover:bg-[#369A5D]"
-              onClick={openNew}
-              disabled={!token}
-            >
-              <PlusIcon className="size-4" />
-              Add first user
-            </Button>
-          </div>
+          <EmptyState
+            icon={UsersIcon}
+            title="No users yet"
+            description="Add people you want on your teams before creating or joining a team."
+            action={
+              <Button
+                type="button"
+                className="bg-[#3FA565] hover:bg-[#369A5D]"
+                onClick={openNew}
+                disabled={!token}
+              >
+                <PlusIcon className="size-4" />
+                Add first user
+              </Button>
+            }
+          />
         ) : panel === "none" ? (
           <>
             {selectedIdList.length > 0 ? (
@@ -510,6 +517,7 @@ function RosterSection({ token }: { token: boolean }) {
                 control={form.control}
                 name="name"
                 label="Full name"
+                required
                 className={fieldClassName}
               />
               <Input
@@ -517,18 +525,21 @@ function RosterSection({ token }: { token: boolean }) {
                 name="email"
                 label="Email"
                 type="email"
+                required
                 className={fieldClassName}
               />
               <Input
                 control={form.control}
                 name="contact_number"
                 label="Contact number"
+                required
                 className={fieldClassName}
               />
               <Input
                 control={form.control}
                 name="cnic"
                 label="CNIC"
+                required
                 className={fieldClassName}
               />
               <DatePicker
@@ -536,25 +547,26 @@ function RosterSection({ token }: { token: boolean }) {
                 name="date_of_birth"
                 label="Date of birth"
                 placeholder="YYYY-MM-DD"
+                required
                 className={fieldClassName}
               />
               <Input
                 control={form.control}
                 name="occupation"
-                label="Occupation (optional)"
+                label="Occupation"
                 className={fieldClassName}
               />
               <Input
                 control={form.control}
                 name="location"
-                label="Location (optional)"
+                label="Location"
                 className={fieldClassName}
               />
             </div>
             <ImagePicker
               control={form.control}
               name="profile_image"
-              label="Profile photo (optional)"
+              label="Profile photo"
               accept="image/*"
               variant="compact"
             />
@@ -826,15 +838,30 @@ function MyTeamsSection({
         {isLoading ? (
           <TeamsTableSkeleton rows={5} />
         ) : teamsQuery.isError ? (
-          <Typography variant="body" className="text-destructive">
-            Could not load teams.
-          </Typography>
+          <EmptyState
+            icon={UsersRoundIcon}
+            title="Could not load teams"
+            description="Something went wrong while fetching your teams."
+            variant="error"
+            size="compact"
+          />
         ) : panel === "none" && teams.length === 0 ? (
-          <div className="rounded-[12px] border border-[#E8E8E8] bg-[#F9FAFD] p-6 text-center">
-            <Typography variant="body" className="text-[#6B7890]">
-              No teams yet. Create a team to register for events.
-            </Typography>
-          </div>
+          <EmptyState
+            icon={UsersRoundIcon}
+            title="No teams yet"
+            description="Create a team to register for events with your crew."
+            action={
+              <Button
+                type="button"
+                className="bg-[#3FA565] hover:bg-[#369A5D]"
+                onClick={openNew}
+                disabled={!token || categories.length === 0}
+              >
+                <PlusIcon className="size-4" />
+                Create first team
+              </Button>
+            }
+          />
         ) : panel === "none" ? (
           <TeamsDataTable>
             <TeamsDataTableHeader>
@@ -915,12 +942,14 @@ function MyTeamsSection({
                 control={form.control}
                 name="team_name"
                 label="Team name"
+                required
                 className={fieldClassName}
               />
               <Input
                 control={form.control}
                 name="team_number"
                 label="Team number"
+                required
                 className={fieldClassName}
               />
               {categoriesQuery.isLoading ? (
@@ -931,6 +960,7 @@ function MyTeamsSection({
                   name="category"
                   label="Category"
                   placeholder="Select category"
+                  required
                   options={categoryOptions}
                   className={fieldClassName}
                 />

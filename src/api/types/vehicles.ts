@@ -1,14 +1,20 @@
-import type { TeamCategory } from "@/api/types/teams";
+import type { CategoryRecord } from "@/api/types/categories";
 
-/** Vehicle race category — same enum as team category. */
-export type VehicleCategory = TeamCategory;
+export type VehicleOwner = {
+  _id: string;
+  name: string;
+  email: string;
+  profile_image?: string | null;
+  contact_number?: string;
+};
 
 export type Vehicle = {
   _id: string;
-  team_id?: string;
+  owner_id?: VehicleOwner;
+  category_id: CategoryRecord;
+  team_id?: string | null;
   model: string;
   engine: string;
-  category: VehicleCategory;
   frame?: string;
   power?: number;
   weight?: number;
@@ -35,9 +41,9 @@ export type GetMyVehicleResponse = GetMyVehiclesResponse;
 
 /** POST /vehicles */
 export type CreateVehiclePayload = {
+  category_id: string;
   model: string;
   engine: string;
-  category: VehicleCategory;
   frame?: string;
   power?: number;
   weight?: number;

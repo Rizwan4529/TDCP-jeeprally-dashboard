@@ -1,10 +1,11 @@
 import { useMemo, useState } from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type SubmitHandler } from "react-hook-form";
-import { CameraIcon, PlusIcon } from "lucide-react";
+import { CameraIcon, CarIcon, PlusIcon } from "lucide-react";
 import { EditDeleteIconActions } from "@/components/common/EditDeleteIconActions";
 
 import {
+  EmptyState,
   TextLineSkeleton,
   SelectFieldSkeleton,
   VehicleGridSkeleton,
@@ -30,12 +31,13 @@ import {
   buildCreateVehiclePayload,
   buildUpdateVehiclePayload,
   emptyVehicleFormValues,
-  resolveCategoryTitle,
+  getVehicleCategoryTitle,
+  vehicleFormFieldProps,
+  VEHICLE_FIELD_LIMITS,
   vehicleFormSchema,
   vehicleToFormValues,
   type VehicleFormValues,
 } from "@/utils/vehicle-form";
-import { CATEGORY } from "@/utils/constants";
 
 const surface = "bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)]";
 
@@ -56,27 +58,26 @@ function VehicleScreen() {
     () => buildCategorySelectOptions(categories),
     [categories],
   );
-  const defaultCategoryKey = useMemo(() => {
-    if (categories.length > 0) return categories[0].key;
-    return CATEGORY.JEEP;
-  }, [categories]);
 
   const teamQuery = useMyTeamQuery(Boolean(token));
   const teams = Array.isArray(teamQuery.data?.data) ? teamQuery.data.data : [];
   const team = teams[0] ?? null;
 
-  const defaultFormValues = useMemo((): VehicleFormValues => {
+  const defaultCategoryId = useMemo(() => {
+    if (categories.length === 0) return "";
     const teamCategory = team?.category;
-    const category =
-      teamCategory &&
-      categories.some((item) => item.key === teamCategory)
-        ? teamCategory
-        : defaultCategoryKey;
+    return (
+      categories.find((item) => item.key === teamCategory)?._id ??
+      categories[0]._id
+    );
+  }, [categories, team?.category]);
+
+  const defaultFormValues = useMemo((): VehicleFormValues => {
     return {
       ...emptyVehicleFormValues,
-      category,
+      category_id: defaultCategoryId,
     };
-  }, [team?.category, categories, defaultCategoryKey]);
+  }, [defaultCategoryId]);
 
   const vehiclesQuery = useMyVehiclesQuery(Boolean(token));
   const vehicles = Array.isArray(vehiclesQuery.data?.data)
@@ -199,19 +200,29 @@ function VehicleScreen() {
       {vehiclesQuery.isLoading ? (
         <VehicleGridSkeleton count={3} />
       ) : vehiclesQuery.isError ? (
-        <Card className={cn(surface, "rounded-[14px] p-6")}>
-          <Typography variant="body" className="text-destructive">
-            Could not load vehicles. Try again later.
-          </Typography>
-        </Card>
+        <EmptyState
+          icon={CarIcon}
+          title="Could not load vehicles"
+          description="Something went wrong while fetching your vehicles. Try again later."
+          variant="error"
+        />
       ) : panel !== "none" ? null : vehicles.length === 0 ? (
-        <Card className={cn(surface, "rounded-[14px] p-8")}>
-          <Typography variant="body" className="text-center text-[#6B7890]">
-            You have not added any vehicles yet. Use{" "}
-            <span className="font-semibold text-[#1F1838]">Add vehicle</span>{" "}
-            above to create your first entry.
-          </Typography>
-        </Card>
+        <EmptyState
+          icon={CarIcon}
+          title="No vehicles yet"
+          description="Add your first vehicle to use it when registering for events."
+          action={
+            <Button
+              type="button"
+              className="h-11 rounded-[10px] bg-[#3FA565] px-5 text-[14px] font-semibold hover:bg-[#369A5D]"
+              onClick={openNew}
+              disabled={!token}
+            >
+              <PlusIcon className="size-4" />
+              Add vehicle
+            </Button>
+          }
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {vehicles.map((v) => {
@@ -272,7 +283,7 @@ function VehicleScreen() {
                       variant="caption"
                       className="mt-1 text-[#6B7890]"
                     >
-                      {resolveCategoryTitle(categories, v.category)}
+                      {getVehicleCategoryTitle(v)}
                       {v.class ? ` · ${v.class}` : ""}
                       {v.power != null ? ` · Power ${v.power}` : ""}
                     </Typography>
@@ -324,13 +335,13 @@ function VehicleScreen() {
                 <Input
                   control={form.control}
                   name="model"
-                  label="Model"
+                  {...vehicleFormFieldProps("model")}
                   className={fieldClassName}
                 />
                 <Input
                   control={form.control}
                   name="engine"
-                  label="Engine"
+                  {...vehicleFormFieldProps("engine")}
                   className={fieldClassName}
                 />
                 {categoriesQuery.isLoading ? (
@@ -344,9 +355,8 @@ function VehicleScreen() {
                 ) : (
                   <Select
                     control={form.control}
-                    name="category"
-                    label="Category"
-                    placeholder="Select category"
+                    name="category_id"
+                    {...vehicleFormFieldProps("category")}
                     options={categoryOptions}
                     className={fieldClassName}
                     disabled={isSaving}
@@ -355,41 +365,53 @@ function VehicleScreen() {
                 <Input
                   control={form.control}
                   name="frame"
-                  label="Frame (optional)"
+                  {...vehicleFormFieldProps("frame")}
                   className={fieldClassName}
                 />
                 <Input
                   control={form.control}
                   name="power"
-                  label="Power (optional)"
+                  {...vehicleFormFieldProps("power")}
                   type="number"
+                  min={VEHICLE_FIELD_LIMITS.power.min}
+                  max={VEHICLE_FIELD_LIMITS.power.max}
+                  step={1}
                   className={fieldClassName}
                 />
                 <Input
                   control={form.control}
                   name="weight"
-                  label="Weight (optional)"
+                  {...vehicleFormFieldProps("weight")}
                   type="number"
+                  min={VEHICLE_FIELD_LIMITS.weight.min}
+                  max={VEHICLE_FIELD_LIMITS.weight.max}
+                  step={1}
                   className={fieldClassName}
                 />
                 <Input
                   control={form.control}
                   name="length"
-                  label="Length (optional)"
+                  {...vehicleFormFieldProps("length")}
                   type="number"
+                  min={VEHICLE_FIELD_LIMITS.length.min}
+                  max={VEHICLE_FIELD_LIMITS.length.max}
+                  step={0.1}
                   className={fieldClassName}
                 />
                 <Input
                   control={form.control}
                   name="tank_capacity"
-                  label="Tank capacity (optional)"
+                  {...vehicleFormFieldProps("tank_capacity")}
                   type="number"
+                  min={VEHICLE_FIELD_LIMITS.tank_capacity.min}
+                  max={VEHICLE_FIELD_LIMITS.tank_capacity.max}
+                  step={1}
                   className={fieldClassName}
                 />
                 <Input
                   control={form.control}
                   name="class"
-                  label="Class (optional)"
+                  {...vehicleFormFieldProps("class")}
                   className={fieldClassName}
                 />
               </div>
@@ -398,7 +420,7 @@ function VehicleScreen() {
                 <Button
                   type="button"
                   variant="destructive-outline"
-                  className="h-11 rounded-[10px] px-5 text-[14px] font-semibold"
+                  className="h-11 rounded-[10px]  text-[14px] font-semibold"
                   onClick={(e) => {
                     e.preventDefault();
                     closePanel();

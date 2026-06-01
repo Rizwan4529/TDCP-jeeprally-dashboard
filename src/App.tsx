@@ -1,5 +1,6 @@
 import { Navigate, Route, Routes } from "react-router-dom"
 
+import { ActiveRallyBootstrap } from "@/components/bootstrap/ActiveRallyBootstrap"
 import { GuestRoute } from "@/components/auth/GuestRoute"
 import { ProtectedRoute } from "@/components/auth/ProtectedRoute"
 import SidebarLayout from "@/components/layout/SidebarLayout"
@@ -16,28 +17,36 @@ import { ROUTES } from "@/utils/constants"
 
 const App = () => {
   return (
-    <Routes>
-      <Route element={<GuestRoute />}>
-        <Route path={ROUTES.LOGIN} element={<LoginPage />} />
-        <Route path={ROUTES.SIGNUP} element={<SignupPage />} />
-      </Route>
-
-      <Route element={<ProtectedRoute />}>
-        <Route element={<SidebarLayout />}>
-          <Route
-            index
-            element={<Navigate to={ROUTES.DASHBOARD} replace />}
-          />
-          <Route path="dashboard" element={<DashboardPage />} />
-          <Route path="profile" element={<ProfilePage />} />
-          <Route path={ROUTES.TEAMS.replace(/^\//, "")} element={<TeamsPage />} />
-          <Route path="vehicle" element={<VehiclePage />} />
-          <Route path="events" element={<EventsPage />} />
-          <Route path="registration" element={<RegistrationPage />} />
+    <>
+      <ActiveRallyBootstrap />
+      <Routes>
+        <Route element={<GuestRoute />}>
+          <Route path={ROUTES.LOGIN} element={<LoginPage />} />
+          <Route path={ROUTES.SIGNUP} element={<SignupPage />} />
         </Route>
-        <Route path="*" element={<NotFoundPage />} />
-      </Route>
-    </Routes>
+
+        <Route path="/" element={<ProtectedRoute />}>
+          <Route element={<SidebarLayout />}>
+            <Route
+              index
+              element={<Navigate to={ROUTES.DASHBOARD} replace />}
+            />
+            <Route path="dashboard" element={<DashboardPage />} />
+            <Route path="profile" element={<ProfilePage />} />
+            <Route
+              path={ROUTES.TEAMS.replace(/^\//, "")}
+              element={<TeamsPage />}
+            />
+            <Route path="vehicle" element={<VehiclePage />} />
+            <Route path="events" element={<EventsPage />} />
+            <Route path="registration" element={<RegistrationPage />} />
+          </Route>
+          <Route path="*" element={<NotFoundPage />} />
+        </Route>
+
+        <Route path="*" element={<Navigate to={ROUTES.LOGIN} replace />} />
+      </Routes>
+    </>
   )
 }
 

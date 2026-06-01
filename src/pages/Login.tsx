@@ -9,6 +9,8 @@ import { Typography } from "@/components/common/Typography"
 import AuthLayout from "@/components/layout/AuthLayout"
 import { Button } from "@/components/ui/button"
 import { useLoginMutation } from "@/hooks/api/use-login"
+import { useRedirectIfAuthenticated } from "@/hooks/use-auth-redirect"
+import { ROUTES } from "@/utils/constants"
 import {
   loginSchema,
   type LoginValues,
@@ -65,6 +67,7 @@ function getApiErrorMessage(error: unknown): string {
 
 export default function LoginPage() {
   const navigate = useNavigate()
+  useRedirectIfAuthenticated()
   const loginMutation = useLoginMutation()
   const form = useForm<LoginValues>({
     resolver: zodResolver(loginSchema),
@@ -79,7 +82,7 @@ export default function LoginPage() {
       },
       {
         onSuccess: () => {
-          navigate("/dashboard", { replace: true })
+          navigate(ROUTES.DASHBOARD, { replace: true })
         },
       },
     )
@@ -105,6 +108,7 @@ export default function LoginPage() {
           control={form.control}
           name="login"
           label="Email or username"
+          required
           placeholder="Enter email or username"
           autoComplete="username"
           className={authInputClassName}
@@ -113,6 +117,7 @@ export default function LoginPage() {
           control={form.control}
           name="password"
           label="Password"
+          required
           type="password"
           placeholder="Enter password"
           autoComplete="current-password"

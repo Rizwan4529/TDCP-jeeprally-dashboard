@@ -106,6 +106,7 @@ export function OtherRaceDialog({
             control={form.control}
             name="team"
             label="Team / race name"
+            required
             placeholder="e.g. Red bull gas factory race"
             className={fieldClassName}
           />
@@ -114,6 +115,7 @@ export function OtherRaceDialog({
               control={form.control}
               name="position"
               label="Position"
+              required
               placeholder="e.g. 1 stage"
               className={fieldClassName}
             />
@@ -121,6 +123,7 @@ export function OtherRaceDialog({
               control={form.control}
               name="vehicle"
               label="Vehicle"
+              required
               placeholder="e.g. Nissan Juke"
               className={fieldClassName}
             />
@@ -130,6 +133,7 @@ export function OtherRaceDialog({
               control={form.control}
               name="year"
               label="Year"
+              required
               inputMode="numeric"
               maxLength={4}
               placeholder="2024"
@@ -139,6 +143,7 @@ export function OtherRaceDialog({
               control={form.control}
               name="role"
               label="Role"
+              required
               placeholder="Select role"
               options={OTHER_RACE_ROLE_OPTIONS.map((o) => ({
                 label: o.label,

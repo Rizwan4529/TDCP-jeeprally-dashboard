@@ -379,12 +379,14 @@ export function AddUsersToTeamDialog({
                 control={form.control}
                 name="team_name"
                 label="Team name"
+                required
                 className={fieldClassName}
               />
               <Input
                 control={form.control}
                 name="team_number"
                 label="Team number"
+                required
                 className={fieldClassName}
               />
               <FormSelect
@@ -392,6 +394,7 @@ export function AddUsersToTeamDialog({
                 name="category"
                 label="Category"
                 placeholder="Select category"
+                required
                 options={categories.map((c) => ({
                   label: c.title,
                   value: c.key,

@@ -272,26 +272,9 @@ export const signupSchema = z
   .object({
     fullName: requiredString("Enter your full name"),
     email: z.string().trim().email("Enter a valid email address"),
+    contactNumber: pkMobileSchema,
     password: z.string().min(6, "Password must be at least 6 characters"),
     confirmPassword: requiredString("Confirm your password"),
-    gender: requiredString("Select gender"),
-    age: z
-      .string()
-      .trim()
-      .regex(/^\d{1,3}$/, "Enter a valid age"),
-    address: requiredString("Enter your address"),
-    contactNumber: pkMobileSchema,
-    licenseNumber: requiredString("Enter license number"),
-    licenseExpiry: signupLicenseExpirySchema,
-    cnic: cnicDigitsSchema,
-    dateOfBirth: signupDateOfBirthSchema,
-    occupation: requiredString("Enter occupation"),
-    profileImage: requiredFile("Profile photo is required"),
-    cnicImage: requiredFile("CNIC image is required"),
-    licenseImage: requiredFile("License image is required"),
-    acceptedTerms: z.boolean().refine((value) => value, {
-      message: "You must agree to the terms and conditions",
-    }),
   })
   .refine((value) => value.password === value.confirmPassword, {
     message: "Passwords do not match",

@@ -1,16 +1,16 @@
-import type { ReactNode } from "react"
+import type { ReactNode } from "react";
 
-import { Typography } from "@/components/common/Typography"
-import Logo from "@/assets/icons/logo.png"
-import AUTH_IMAGE_URL from "@/assets/images/auth-layout-img-left.png"
+import { Typography } from "@/components/common/Typography";
+import Logo from "@/assets/icons/logo.png";
+import AUTH_IMAGE_URL from "@/assets/images/auth-layout-img-left.png";
 // const AUTH_IMAGE_URL =
 //   "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1600&q=85"
 
 type AuthLayoutProps = {
-  title: string
-  subtitle: string
-  children: ReactNode
-}
+  title: string;
+  subtitle: string;
+  children: ReactNode;
+};
 
 export default function AuthLayout({
   title,
@@ -21,8 +21,12 @@ export default function AuthLayout({
     <main className="grid h-svh overflow-hidden bg-[#FDFDFE] lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
       <section className="h-svh overflow-y-auto px-5 sm:px-8 lg:px-12">
         <div className="mx-auto flex min-h-full w-full max-w-[470px] flex-col justify-center py-8">
-          <div className="mb-8 flex items-center gap-3 sm:mb-10">
-            <img src={Logo} alt="Jeep Rally" className="size-14 object-contain" />
+          <div className="mb-8 flex items-center gap-3 sm:mb-4">
+            <img
+              src={Logo}
+              alt="Jeep Rally"
+              className="size-14 object-contain"
+            />
             <div>
               <Typography
                 as="span"
@@ -69,11 +73,7 @@ export default function AuthLayout({
         />
         <div className="absolute inset-0 bg-gradient-to-tr from-[#06140D]/75 via-[#06140D]/25 to-transparent" />
         <div className="absolute bottom-10 left-10 max-w-[520px]">
-          <Typography
-            as="span"
-            variant="overline"
-            className="text-white/75"
-          >
+          <Typography as="span" variant="overline" className="text-white/75">
             TDCP Jeep Rally
           </Typography>
           <Typography
@@ -86,5 +86,5 @@ export default function AuthLayout({
         </div>
       </section>
     </main>
-  )
+  );
 }

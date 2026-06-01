@@ -1,8 +1,11 @@
 import axios from "axios";
-import { StatusCodes } from "http-status-codes";
 
-import { AUTH_PUBLIC_API_PATHS, ROUTES } from "@/utils/constants";
-import { fetchAuthToken, removeAuthToken } from "@/utils/helpers";
+import { AUTH_PUBLIC_API_PATHS } from "@/utils/constants";
+import {
+  isUnauthorizedError,
+  logoutAndRedirectToLogin,
+} from "@/utils/auth-session";
+import { fetchAuthToken } from "@/utils/helpers";
 
 export const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL,
@@ -33,15 +36,13 @@ apiClient.interceptors.response.use(
       return Promise.reject(error);
     }
 
-    const status = error.response?.status;
     const requestUrl = error.config?.url;
 
     if (
-      status === StatusCodes.UNAUTHORIZED &&
+      isUnauthorizedError(error) &&
       !isAuthPublicRequest(requestUrl)
     ) {
-      removeAuthToken();
-      window.location.replace(ROUTES.LOGIN);
+      logoutAndRedirectToLogin();
     }
 
     return Promise.reject(error);

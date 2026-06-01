@@ -1,67 +1,45 @@
 import type { LucideIcon } from "lucide-react";
+import type { ReactNode } from "react";
 import { Loader2Icon } from "lucide-react";
 
-import { Typography } from "@/components/common/Typography";
+import {
+  EmptyState,
+  type EmptyStateSize,
+  type EmptyStateVariant,
+} from "@/components/common/EmptyState";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
 export function DashboardPanelEmptyState({
-  icon: Icon,
+  icon,
   title,
   description,
   variant = "default",
   className,
+  action,
 }: {
   icon: LucideIcon;
   title: string;
-  description: string;
-  variant?: "default" | "error";
+  description: ReactNode;
+  variant?: EmptyStateVariant;
   className?: string;
+  action?: ReactNode;
 }) {
-  const isError = variant === "error";
-
   return (
-    <div
-      className={cn(
-        "flex min-h-[180px] flex-col items-center justify-center rounded-lg border border-dashed px-6 py-10 text-center",
-        isError
-          ? "border-[#F2D6D6] bg-[#FFF5F5]"
-          : "border-[#DCDDE2] bg-[#FAFBFF]",
-        className,
-      )}
-    >
-      <span
-        className={cn(
-          "flex size-14 items-center justify-center rounded-full",
-          isError
-            ? "bg-[#FEE2E2] text-[#B91C1C]"
-            : "bg-dashboard-icon-bg text-[#319F60]",
-        )}
-      >
-        <Icon className="size-7" strokeWidth={1.75} aria-hidden />
-      </span>
-      <Typography
-        as="p"
-        variant="label"
-        className={cn(
-          "mt-4 text-[15px] font-semibold",
-          isError ? "text-[#8B2B2B]" : "text-[#26262C]",
-        )}
-      >
-        {title}
-      </Typography>
-      <Typography
-        variant="body-sm"
-        className={cn(
-          "mt-1 max-w-[280px]",
-          isError ? "text-[#B45353]" : "text-[#7F8697]",
-        )}
-      >
-        {description}
-      </Typography>
-    </div>
+    <EmptyState
+      icon={icon}
+      title={title}
+      description={description}
+      variant={variant}
+      size="default"
+      action={action}
+      className={className}
+    />
   );
 }
+
+export type { EmptyStateSize, EmptyStateVariant };
+export { EmptyState };
 
 export function ButtonSpinner({ className }: { className?: string }) {
   return (

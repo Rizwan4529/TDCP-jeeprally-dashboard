@@ -2,6 +2,8 @@ export const ENUMS = {
   AUTH_TOKEN: "token",
   /** Serialized `LoginUser` JSON from the last login (or profile update). */
   AUTH_USER: "auth_user",
+  /** Mongo `_id` of the current active rally from GET /rally/active. */
+  ACTIVE_EVENT_ID: "active_event_id",
 } as const;
 
 /** App paths — use these instead of hard-coded route strings where practical. */

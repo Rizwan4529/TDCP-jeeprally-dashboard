@@ -28,6 +28,7 @@ import {
 } from "@/components/common/LoadingStates";
 import { useDriverDashboardQuery } from "@/hooks/api/use-dashboard";
 import { useRallyEventsQuery } from "@/hooks/api/use-rally-events";
+import { useAuthRedirectOnQueryError } from "@/hooks/use-auth-redirect";
 import type { RallyEvent } from "@/api/types/rally";
 import { fetchAuthToken } from "@/utils/helpers";
 import { cn } from "@/lib/utils";
@@ -87,6 +88,9 @@ export default function DashboardPage() {
   const token = React.useMemo(() => Boolean(fetchAuthToken()), []);
   const upcomingQuery = useRallyEventsQuery({ status: "upcoming" });
   const dashboardQuery = useDriverDashboardQuery(token);
+
+  useAuthRedirectOnQueryError(dashboardQuery.error, dashboardQuery.isError);
+  useAuthRedirectOnQueryError(upcomingQuery.error, upcomingQuery.isError);
 
   const events = Array.isArray(upcomingQuery.data?.data)
     ? upcomingQuery.data.data

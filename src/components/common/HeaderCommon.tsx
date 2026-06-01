@@ -1,8 +1,9 @@
 import { useQueryClient } from "@tanstack/react-query";
+import { LogOutIcon, SettingsIcon, UserRoundIcon } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 import { Typography } from "@/components/common/Typography";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -12,8 +13,9 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useSessionUser } from "@/hooks/api/use-session-user";
+import { cn } from "@/lib/utils";
 import { ROUTES } from "@/utils/constants";
-import { removeAuthToken } from "@/utils/helpers";
+import { removeAuthToken, toPublicFileUrl } from "@/utils/helpers";
 
 type HeaderCommonProps = {
   title: string;
@@ -32,11 +34,53 @@ function initialsFromName(name: string | undefined) {
     .join("");
 }
 
+function MenuItemIcon({
+  icon: Icon,
+  className,
+}: {
+  icon: typeof UserRoundIcon;
+  className?: string;
+}) {
+  return (
+    <span
+      className={cn(
+        "flex size-8 shrink-0 items-center justify-center rounded-lg",
+        className,
+      )}
+    >
+      <Icon className="size-4" strokeWidth={2} aria-hidden />
+    </span>
+  );
+}
+
+function HeaderUserAvatar({
+  name,
+  profileImage,
+  className,
+}: {
+  name: string | undefined;
+  profileImage: string | null;
+  className?: string;
+}) {
+  const initials = initialsFromName(name);
+
+  return (
+    <Avatar className={cn("border-2 border-[#253C92]", className)}>
+      {profileImage ? (
+        <AvatarImage src={profileImage} alt={name ?? "Profile photo"} />
+      ) : null}
+      <AvatarFallback className="bg-[#CED8FF] text-sm font-semibold text-[#253C92]">
+        {initials}
+      </AvatarFallback>
+    </Avatar>
+  );
+}
+
 export default function HeaderCommon({ title, subtitle }: HeaderCommonProps) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { data: sessionUser } = useSessionUser();
-  const avatarInitials = initialsFromName(sessionUser?.name);
+  const profileImageUrl = toPublicFileUrl(sessionUser?.profile_image);
 
   const handleLogout = () => {
     removeAuthToken();
@@ -65,39 +109,76 @@ export default function HeaderCommon({ title, subtitle }: HeaderCommonProps) {
       </div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <button type="button" className="shrink-0 rounded-full outline-none">
-            <Avatar className="size-10 border-2 border-[#253C92] sm:size-11">
-              <AvatarFallback className="bg-[#CED8FF] text-sm font-semibold text-[#253C92]">
-                {avatarInitials}
-              </AvatarFallback>
-            </Avatar>
+          <button
+            type="button"
+            aria-label="Open account menu"
+            className="shrink-0 rounded-full outline-none focus-visible:ring-2 focus-visible:ring-[#253C92]/30"
+          >
+            <HeaderUserAvatar
+              name={sessionUser?.name}
+              profileImage={profileImageUrl}
+              className="size-10 sm:size-11"
+            />
           </button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
-          <DropdownMenuLabel>
-            <Typography as="span" variant="caption" color="inherit">
-              Account
-            </Typography>
+        <DropdownMenuContent align="end" className="w-64 p-2">
+          <DropdownMenuLabel className="p-0 font-normal">
+            <div className="flex items-center gap-3 rounded-lg bg-[#F7F9FC] px-3 py-3">
+              <HeaderUserAvatar
+                name={sessionUser?.name}
+                profileImage={profileImageUrl}
+                className="size-11"
+              />
+              <div className="min-w-0 flex-1">
+                <Typography
+                  as="p"
+                  variant="label"
+                  className="truncate text-[14px] font-semibold text-[#1F1838]"
+                >
+                  {sessionUser?.name ?? "Account"}
+                </Typography>
+                <Typography
+                  as="p"
+                  variant="caption"
+                  className="truncate text-[12px] text-[#6B7890]"
+                >
+                  {sessionUser?.email ?? "Signed in"}
+                </Typography>
+              </div>
+            </div>
           </DropdownMenuLabel>
+          <DropdownMenuSeparator className="my-2" />
           <DropdownMenuItem
-            className="cursor-pointer gap-2 py-2"
-            onSelect={() => navigate("/profile")}
+            className="cursor-pointer gap-3 rounded-lg px-2 py-2.5"
+            onSelect={() => navigate(ROUTES.PROFILE)}
           >
+            <MenuItemIcon
+              icon={UserRoundIcon}
+              className="bg-[#EAF6EF] text-[#2F8F57]"
+            />
             <Typography as="span" variant="label" color="inherit">
               View Profile
             </Typography>
           </DropdownMenuItem>
-          <DropdownMenuItem className="cursor-pointer gap-2 py-2">
+          <DropdownMenuItem className="cursor-pointer gap-3 rounded-lg px-2 py-2.5">
+            <MenuItemIcon
+              icon={SettingsIcon}
+              className="bg-[#EEF2F7] text-[#64748B]"
+            />
             <Typography as="span" variant="label" color="inherit">
               Settings
             </Typography>
           </DropdownMenuItem>
-          <DropdownMenuSeparator />
+          <DropdownMenuSeparator className="my-2" />
           <DropdownMenuItem
             variant="destructive"
-            className="cursor-pointer gap-2 py-2"
+            className="cursor-pointer gap-3 rounded-lg px-2 py-2.5"
             onSelect={handleLogout}
           >
+            <MenuItemIcon
+              icon={LogOutIcon}
+              className="bg-[#FEE2E2] text-[#B91C1C]"
+            />
             <Typography as="span" variant="label" color="inherit">
               Logout
             </Typography>

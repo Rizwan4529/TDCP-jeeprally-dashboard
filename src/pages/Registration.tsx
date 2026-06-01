@@ -14,6 +14,7 @@ import {
 } from "@/components/common/FormCommon";
 import {
   DashboardPanelEmptyState,
+  EmptyState,
   PanelBlockSkeleton,
   RegistrationCategoryGridSkeleton,
 } from "@/components/common/LoadingStates";
@@ -23,8 +24,10 @@ import { cn } from "@/lib/utils";
 import {
   AlertCircleIcon,
   CameraIcon,
+  CarIcon,
   LayoutGridIcon,
   UserIcon,
+  UsersRoundIcon,
 } from "lucide-react";
 import { EditDeleteIconActions } from "@/components/common/EditDeleteIconActions";
 import { ActiveRallySummary } from "@/components/registration/ActiveRallySummary";
@@ -45,14 +48,17 @@ import type { CreateRegistrationPayload } from "@/api/types/registrations";
 import type { TeamCategory } from "@/api/types/teams";
 import type { Vehicle } from "@/api/types/vehicles";
 import { fetchAuthToken, toPublicFileUrl } from "@/utils/helpers";
-import { getRallyEventId } from "@/utils/rally-event";
+import { resolveActiveEventId } from "@/utils/rally-event";
 import { useActiveRallyQuery } from "@/hooks/api/use-active-rally";
 import {
   buildCategorySelectOptions,
   buildCreateVehiclePayload,
   buildUpdateVehiclePayload,
   emptyVehicleFormValues,
-  resolveCategoryTitle,
+  getVehicleCategoryKey,
+  getVehicleCategoryTitle,
+  vehicleFormFieldProps,
+  VEHICLE_FIELD_LIMITS,
   vehicleFormSchema,
   vehicleToFormValues,
   type VehicleFormValues,
@@ -204,13 +210,13 @@ export default function RegistrationPage() {
   const defaultVehicleFormValues = useMemo((): VehicleFormValues => {
     return {
       ...emptyVehicleFormValues,
-      category: category ?? "",
+      category_id: categoryRecord?._id ?? "",
     };
-  }, [category]);
+  }, [categoryRecord?._id]);
 
   const activeRallyQuery = useActiveRallyQuery(Boolean(token));
   const activeRally = activeRallyQuery.data?.data ?? null;
-  const activeRallyEventId = getRallyEventId(activeRally);
+  const activeRallyEventId = resolveActiveEventId(activeRally);
 
   const teamsForCategory = useMemo(() => {
     if (!category) return [];
@@ -248,7 +254,7 @@ export default function RegistrationPage() {
     if (!category || !selectedRegistrationTeamId) return [];
     return vehicles.filter(
       (v) =>
-        v.category === category &&
+        getVehicleCategoryKey(v) === category &&
         (!v.team_id || v.team_id === selectedRegistrationTeamId),
     );
   }, [vehicles, category, selectedRegistrationTeamId]);
@@ -324,7 +330,12 @@ export default function RegistrationPage() {
       vehicles.find((v) => v._id === selectedRegistrationVehicleId) ?? null;
     const navigatorName = team?.navigator_id?.name ?? null;
     return { team, vehicle, navigatorName };
-  }, [teams, vehicles, selectedRegistrationTeamId, selectedRegistrationVehicleId]);
+  }, [
+    teams,
+    vehicles,
+    selectedRegistrationTeamId,
+    selectedRegistrationVehicleId,
+  ]);
 
   useEffect(() => {
     if (!category) {
@@ -400,7 +411,10 @@ export default function RegistrationPage() {
     const selectedVehicle = vehicles.find(
       (v) => v._id === selectedRegistrationVehicleId,
     );
-    if (!selectedVehicle || selectedVehicle.category !== category) {
+    if (
+      !selectedVehicle ||
+      getVehicleCategoryKey(selectedVehicle) !== category
+    ) {
       toast.error("Selected vehicle must match your registration category.");
       return;
     }
@@ -639,72 +653,73 @@ export default function RegistrationPage() {
                   ) : null}
                 </div>
               ) : null}
+              <div className="flex items-center justify-between flex-row-reverse">
+                <div className="flex flex-col-reverse items-stretch justify-end gap-3 pt-2 sm:flex-row sm:items-center sm:gap-4">
+                  <Button
+                    type="button"
+                    variant="destructive-outline"
+                    className="h-[46px] w-full rounded-md px-8 text-[16px] font-medium sm:w-auto sm:text-[17px]"
+                    onClick={() => {
+                      setCategory(null);
+                      setProfileGateVisible(false);
+                    }}
+                  >
+                    <Typography as="span" variant="body" color="inherit">
+                      Reset
+                    </Typography>
+                  </Button>
+                  <Button
+                    type="button"
+                    className="h-[46px] w-full rounded-md px-6 text-[16px] font-medium sm:w-auto  sm:px-8 sm:text-[17px]"
+                    disabled={!category || !categoriesReady}
+                    onClick={() => {
+                      if (!categoriesReady) {
+                        toast.error(
+                          categoriesQuery.isError
+                            ? "Categories could not be loaded."
+                            : "Select a category to continue.",
+                        );
+                        return;
+                      }
+                      if (!profileComplete) {
+                        setProfileGateVisible(true);
+                        toast.error(
+                          "Complete your profile before continuing registration.",
+                        );
+                        return;
+                      }
+                      setProfileGateVisible(false);
+                      setStep(2);
+                    }}
+                  >
+                    <Typography as="span" variant="body" color="inherit">
+                      Continue
+                    </Typography>
+                  </Button>
+                </div>
 
-              <div className="flex flex-col-reverse items-stretch justify-end gap-3 pt-2 sm:flex-row sm:items-center sm:gap-4">
-                <Button
-                  type="button"
-                  variant="destructive-outline"
-                  className="h-[46px] w-full rounded-md px-8 text-[16px] font-medium sm:w-auto sm:min-w-[150px] sm:text-[17px]"
-                  onClick={() => {
-                    setCategory(null);
-                    setProfileGateVisible(false);
-                  }}
-                >
-                  <Typography as="span" variant="body" color="inherit">
-                    Reset
+                {profileComplete ? (
+                  <Typography variant="body-sm" className="text-[#6B7890]">
+                    Profile complete.{" "}
+                    <Link
+                      to={ROUTES.PROFILE}
+                      className="font-medium text-[#1F6B43] underline"
+                    >
+                      View profile
+                    </Link>
                   </Typography>
-                </Button>
-                <Button
-                  type="button"
-                  className="h-[46px] w-full rounded-md px-6 text-[16px] font-medium sm:w-auto sm:min-w-[210px] sm:px-8 sm:text-[17px]"
-                  disabled={!category || !categoriesReady}
-                  onClick={() => {
-                    if (!categoriesReady) {
-                      toast.error(
-                        categoriesQuery.isError
-                          ? "Categories could not be loaded."
-                          : "Select a category to continue.",
-                      );
-                      return;
-                    }
-                    if (!profileComplete) {
-                      setProfileGateVisible(true);
-                      toast.error(
-                        "Complete your profile before continuing registration.",
-                      );
-                      return;
-                    }
-                    setProfileGateVisible(false);
-                    setStep(2);
-                  }}
-                >
-                  <Typography as="span" variant="body" color="inherit">
-                    Continue
+                ) : (
+                  <Typography variant="body-sm" className="text-[#6B7890]">
+                    <Link
+                      to={ROUTES.PROFILE}
+                      className="font-medium text-[#1F6B43] underline"
+                    >
+                      Update profile
+                    </Link>{" "}
+                    to complete required personal info and documents.
                   </Typography>
-                </Button>
+                )}
               </div>
-
-              {profileComplete ? (
-                <Typography variant="body-sm" className="text-[#6B7890]">
-                  Profile complete.{" "}
-                  <Link
-                    to={ROUTES.PROFILE}
-                    className="font-medium text-[#1F6B43] underline"
-                  >
-                    View profile
-                  </Link>
-                </Typography>
-              ) : (
-                <Typography variant="body-sm" className="text-[#6B7890]">
-                  <Link
-                    to={ROUTES.PROFILE}
-                    className="font-medium text-[#1F6B43] underline"
-                  >
-                    Update profile
-                  </Link>{" "}
-                  to complete required personal info and documents.
-                </Typography>
-              )}
             </div>
           ) : step === 2 ? (
             <div className="space-y-6">
@@ -756,18 +771,23 @@ export default function RegistrationPage() {
                   </Typography>
                 </div>
               ) : teamsForCategory.length === 0 ? (
-                <div className="rounded-md border border-[#E8E8E8] bg-[#F9FAFD] p-4">
-                  <Typography variant="body" className="text-[#25314D]">
-                    No team exists for this category yet.{" "}
-                    <Link
-                      to={ROUTES.TEAMS}
-                      className="font-medium text-[#1F6B43] underline"
-                    >
-                      Create a team
-                    </Link>{" "}
-                    on the Teams page, then return here.
-                  </Typography>
-                </div>
+                <EmptyState
+                  icon={UsersRoundIcon}
+                  title="No team for this category"
+                  description={
+                    <>
+                      Create a team on the Teams page, then return here to
+                      continue registration.{" "}
+                      <Link
+                        to={ROUTES.TEAMS}
+                        className="font-medium text-[#1F6B43] underline"
+                      >
+                        Go to Teams
+                      </Link>
+                    </>
+                  }
+                  size="compact"
+                />
               ) : (
                 <div className="grid gap-3 sm:grid-cols-2">
                   {teamsForCategory.map((t) => {
@@ -912,7 +932,7 @@ export default function RegistrationPage() {
                 <div className="flex flex-col items-stretch justify-end gap-3 pt-2 sm:flex-row sm:items-center sm:gap-4">
                   <Button
                     type="button"
-                    className="h-[46px] w-full rounded-md px-6 text-[16px] font-medium sm:w-auto sm:min-w-[210px] sm:px-8 sm:text-[17px]"
+                    className="h-[46px] w-full rounded-md px-6 text-[16px] font-medium sm:w-auto sm:px-8 sm:text-[17px]"
                     disabled={!canContinueStep2}
                     onClick={() => {
                       if (!canContinueStep2) {
@@ -1064,7 +1084,7 @@ export default function RegistrationPage() {
                         </span>
                       }
                       checkboxClassName="size-6 border-[#CED4DF] bg-white"
-                      itemClassName="items-start"
+                      itemClassName="items-center"
                     />
                   </div>
                 </div>
@@ -1076,8 +1096,6 @@ export default function RegistrationPage() {
                     disabled={
                       isSubmittingRegistration ||
                       !activeRallyEventId ||
-                      activeRallyQuery.isLoading ||
-                      activeRallyQuery.isError ||
                       !categoryConsentHtml ||
                       !selectedRegistrationTeamId ||
                       !selectedRegistrationVehicleId ||
@@ -1242,10 +1260,7 @@ export default function RegistrationPage() {
                                   isSel ? "text-[#1F6B43]" : "text-[#8B96AD]",
                                 )}
                               >
-                                {resolveCategoryTitle(
-                                  categoriesQuery.data?.data,
-                                  v.category,
-                                )}
+                                {getVehicleCategoryTitle(v)}
                                 {v.class ? ` · ${v.class}` : ""}
                                 {v.power != null ? ` · Power ${v.power}` : ""}
                               </Typography>
@@ -1302,31 +1317,41 @@ export default function RegistrationPage() {
                     })}
                   </div>
                 ) : vehicles.length > 0 ? (
-                  <div className="rounded-md border border-[#E8E8E8] bg-[#F9FAFD] p-4">
-                    <Typography variant="body" className="text-[#25314D]">
-                      No vehicle matches this category and selected team.{" "}
-                      <Link
-                        to={ROUTES.VEHICLE}
-                        className="font-medium text-[#1F6B43] underline"
-                      >
-                        Add a vehicle
-                      </Link>{" "}
-                      on the Vehicle page, then return here.
-                    </Typography>
-                  </div>
+                  <EmptyState
+                    icon={CarIcon}
+                    title="No matching vehicle"
+                    description={
+                      <>
+                        Add a vehicle that matches this category and team on the
+                        Vehicle page, then return here.{" "}
+                        <Link
+                          to={ROUTES.VEHICLE}
+                          className="font-medium text-[#1F6B43] underline"
+                        >
+                          Go to Vehicle
+                        </Link>
+                      </>
+                    }
+                    size="compact"
+                  />
                 ) : (
-                  <div className="rounded-md border border-[#E8E8E8] bg-[#F9FAFD] p-4">
-                    <Typography variant="body" className="text-[#25314D]">
-                      No vehicles yet.{" "}
-                      <Link
-                        to={ROUTES.VEHICLE}
-                        className="font-medium text-[#1F6B43] underline"
-                      >
-                        Add a vehicle
-                      </Link>{" "}
-                      on the Vehicle page, then return here.
-                    </Typography>
-                  </div>
+                  <EmptyState
+                    icon={CarIcon}
+                    title="No vehicles yet"
+                    description={
+                      <>
+                        Add a vehicle on the Vehicle page, then return here to
+                        continue registration.{" "}
+                        <Link
+                          to={ROUTES.VEHICLE}
+                          className="font-medium text-[#1F6B43] underline"
+                        >
+                          Go to Vehicle
+                        </Link>
+                      </>
+                    }
+                    size="compact"
+                  />
                 )
               ) : null}
 
@@ -1342,7 +1367,7 @@ export default function RegistrationPage() {
                         control={vehicleForm.control}
                         name="vehicleImage"
                         label="Vehicle photo"
-                        description="Optional. Uploaded when you save."
+                        description="Uploaded when you save."
                         variant="avatar"
                         disabled={isSavingVehicle}
                       />
@@ -1351,69 +1376,72 @@ export default function RegistrationPage() {
                       <Input
                         control={vehicleForm.control}
                         name={"model"}
-                        label="Model"
-                        placeholder="e.g. Toyota Hilux"
+                        {...vehicleFormFieldProps("model")}
                         className={fieldClassName}
                       />
                       <Input
                         control={vehicleForm.control}
                         name={"engine"}
-                        label="Engine"
-                        placeholder="e.g. 2.8L Turbo Diesel"
+                        {...vehicleFormFieldProps("engine")}
                         className={fieldClassName}
                       />
                       <Select
                         control={vehicleForm.control}
-                        name={"category"}
-                        label="Category"
-                        placeholder="Select category"
+                        name={"category_id"}
+                        {...vehicleFormFieldProps("category")}
                         options={vehicleCategoryOptions}
                         className={fieldClassName}
                       />
                       <Input
                         control={vehicleForm.control}
                         name={"frame"}
-                        label="Frame (optional)"
-                        placeholder="e.g. Ladder frame"
+                        {...vehicleFormFieldProps("frame")}
                         className={fieldClassName}
                       />
                       <Input
                         control={vehicleForm.control}
                         name={"power"}
-                        label="Power (optional)"
-                        placeholder="e.g. 201"
+                        {...vehicleFormFieldProps("power")}
                         className={fieldClassName}
                         type="number"
+                        min={VEHICLE_FIELD_LIMITS.power.min}
+                        max={VEHICLE_FIELD_LIMITS.power.max}
+                        step={1}
                       />
                       <Input
                         control={vehicleForm.control}
                         name={"weight"}
-                        label="Weight (optional)"
-                        placeholder="e.g. 2100"
+                        {...vehicleFormFieldProps("weight")}
                         className={fieldClassName}
                         type="number"
+                        min={VEHICLE_FIELD_LIMITS.weight.min}
+                        max={VEHICLE_FIELD_LIMITS.weight.max}
+                        step={1}
                       />
                       <Input
                         control={vehicleForm.control}
                         name={"length"}
-                        label="Length (optional)"
-                        placeholder="e.g. 5325"
+                        {...vehicleFormFieldProps("length")}
                         className={fieldClassName}
                         type="number"
+                        min={VEHICLE_FIELD_LIMITS.length.min}
+                        max={VEHICLE_FIELD_LIMITS.length.max}
+                        step={0.1}
                       />
                       <Input
                         control={vehicleForm.control}
                         name={"tank_capacity"}
-                        label="Tank capacity (optional)"
-                        placeholder="e.g. 80"
+                        {...vehicleFormFieldProps("tank_capacity")}
                         className={fieldClassName}
                         type="number"
+                        min={VEHICLE_FIELD_LIMITS.tank_capacity.min}
+                        max={VEHICLE_FIELD_LIMITS.tank_capacity.max}
+                        step={1}
                       />
                       <Input
                         control={vehicleForm.control}
                         name={"class"}
-                        label="Class (optional)"
-                        placeholder="e.g. T1"
+                        {...vehicleFormFieldProps("class")}
                         className={fieldClassName}
                       />
                     </div>
@@ -1461,7 +1489,7 @@ export default function RegistrationPage() {
                 <div className="flex flex-col items-stretch justify-end gap-3 pt-2 sm:flex-row sm:items-center sm:gap-4">
                   <Button
                     type="button"
-                    className="h-[46px] w-full rounded-md px-6 text-[16px] font-medium sm:w-auto sm:min-w-[210px] sm:px-8 sm:text-[17px]"
+                    className="h-[46px] w-full rounded-md px-6 text-[16px] font-medium sm:w-auto sm:px-8 sm:text-[17px]"
                     disabled={
                       !selectedRegistrationVehicleId ||
                       !vehiclesForRegistration.some(

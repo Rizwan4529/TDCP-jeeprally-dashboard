@@ -229,12 +229,14 @@ function ProfileScreen() {
                   control={driverForm.control}
                   name="name"
                   label="Full name"
+                  required
                   className={profileFieldClassName}
                 />
                 <Select
                   control={driverForm.control}
                   name="gender"
                   label="Gender"
+                  required
                   placeholder="Select gender"
                   options={genderSelectOptions}
                   className={profileFieldClassName}
@@ -243,6 +245,7 @@ function ProfileScreen() {
                   control={driverForm.control}
                   name="age"
                   label="Age"
+                  required
                   inputMode="numeric"
                   maxLength={3}
                   className={profileFieldClassName}
@@ -251,6 +254,7 @@ function ProfileScreen() {
                   control={driverForm.control}
                   name="occupation"
                   label="Occupation"
+                  required
                   className={profileFieldClassName}
                 />
               </div>
@@ -258,6 +262,7 @@ function ProfileScreen() {
                 control={driverForm.control}
                 name="address"
                 label="Address"
+                required
                 rows={3}
                 className={profileFieldClassName}
               />
@@ -273,6 +278,7 @@ function ProfileScreen() {
                   control={driverForm.control}
                   name="contact_number"
                   label="Contact number"
+                  required
                   inputMode="numeric"
                   maxLength={11}
                   className={profileFieldClassName}
@@ -281,12 +287,14 @@ function ProfileScreen() {
                   control={driverForm.control}
                   name="license_number"
                   label="License number"
+                  required
                   className={profileFieldClassName}
                 />
                 <DatePicker
                   control={driverForm.control}
                   name="license_expiry"
                   label="License expiry"
+                  required
                   placeholder="YYYY-MM-DD"
                   calendarYearsFuture={50}
                   className={profileFieldClassName}
@@ -295,6 +303,7 @@ function ProfileScreen() {
                   control={driverForm.control}
                   name="cnic"
                   label="CNIC"
+                  required
                   inputMode="numeric"
                   maxLength={13}
                   className={profileFieldClassName}
@@ -303,6 +312,7 @@ function ProfileScreen() {
                   control={driverForm.control}
                   name="date_of_birth"
                   label="Date of birth"
+                  required
                   placeholder="YYYY-MM-DD"
                   className={profileFieldClassName}
                 />

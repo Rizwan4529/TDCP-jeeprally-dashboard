@@ -4,54 +4,29 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm, type SubmitHandler } from "react-hook-form";
 
-import {
-  Checkbox,
-  DatePicker,
-  FormCommon,
-  ImagePicker,
-  Input,
-  Select,
-  Textarea,
-} from "@/components/common/FormCommon";
+import { FormCommon, Input } from "@/components/common/FormCommon";
 import { ButtonSpinner } from "@/components/common/LoadingStates";
 import { Typography } from "@/components/common/Typography";
 import AuthLayout from "@/components/layout/AuthLayout";
 import { useRegisterMutation } from "@/hooks/api/use-register";
+import { useRedirectIfAuthenticated } from "@/hooks/use-auth-redirect";
 import { Button } from "@/components/ui/button";
 import { queryKeys } from "@/api/query-keys";
 import { updateAuthToken, updateAuthUser } from "@/utils/helpers";
 import { parseLoginUserFromApiEnvelope } from "@/utils/profile-driver";
 import type { RegisterResponse } from "@/api/types/auth";
 import { signupSchema, type SignupValues } from "@/utils/zodSchema";
-import { GENDER_OPTIONS } from "@/utils/constants";
 
 const defaultValues: SignupValues = {
   fullName: "",
   email: "",
+  contactNumber: "",
   password: "",
   confirmPassword: "",
-  gender: "",
-  age: "",
-  address: "",
-  contactNumber: "",
-  licenseNumber: "",
-  licenseExpiry: "",
-  cnic: "",
-  dateOfBirth: "",
-  occupation: "",
-  profileImage: null,
-  cnicImage: null,
-  licenseImage: null,
-  acceptedTerms: false,
 };
 
 const authInputClassName =
   "h-12 w-full rounded-md border-[#D7DAE1] bg-white px-4 text-[15px] text-[#25314D] shadow-[0_1px_2px_rgba(15,23,42,0.05)] placeholder:text-[#8B96AD]";
-
-const genderSelectOptions = GENDER_OPTIONS.map((o) => ({
-  label: o.label,
-  value: o.value,
-}));
 
 function persistTokenFromRegisterResponse(data: RegisterResponse): boolean {
   if (typeof data !== "object" || data === null) {
@@ -129,6 +104,7 @@ function getApiErrorMessage(error: unknown): string {
 
 export default function SignupPage() {
   const navigate = useNavigate();
+  useRedirectIfAuthenticated();
   const queryClient = useQueryClient();
   const registerMutation = useRegisterMutation();
 
@@ -143,18 +119,7 @@ export default function SignupPage() {
         name: values.fullName,
         email: values.email,
         password: values.password,
-        gender: values.gender,
-        age: values.age,
-        address: values.address,
         contact_number: values.contactNumber,
-        license_number: values.licenseNumber,
-        license_expiry: values.licenseExpiry,
-        cnic: values.cnic,
-        date_of_birth: values.dateOfBirth,
-        occupation: values.occupation,
-        profile_image: values.profileImage!,
-        cnic_image: values.cnicImage!,
-        license_image: values.licenseImage!,
       },
       {
         onSuccess: (data) => {
@@ -178,164 +143,59 @@ export default function SignupPage() {
   return (
     <AuthLayout
       title="Create account"
-      subtitle="Set up your Jeep Rally dashboard account with a few details."
+      subtitle="Sign up with your basic details to get started."
     >
       <FormCommon form={form} onSubmit={onSubmit} className="space-y-5">
-        <div className="grid gap-5 md:grid-cols-2">
-          <Input
-            control={form.control}
-            name="fullName"
-            label="Full name"
-            placeholder="Enter full name"
-            autoComplete="name"
-            className={authInputClassName}
-          />
-          <Input
-            control={form.control}
-            name="email"
-            label="Email"
-            type="email"
-            placeholder="Enter email"
-            autoComplete="email"
-            className={authInputClassName}
-          />
-          <Select
-            control={form.control}
-            name="gender"
-            label="Gender"
-            placeholder="Select gender"
-            options={genderSelectOptions}
-            className={authInputClassName}
-          />
-          <Input
-            control={form.control}
-            name="age"
-            label="Age"
-            inputMode="numeric"
-            placeholder="e.g. 32"
-            autoComplete="off"
-            maxLength={3}
-            className={authInputClassName}
-          />
-        </div>
-
-        <Textarea
+        <Input
           control={form.control}
-          name="address"
-          label="Address"
-          placeholder="Street, city"
-          rows={3}
+          name="fullName"
+          label="Full name"
+          required
+          placeholder="Enter full name"
+          autoComplete="name"
           className={authInputClassName}
         />
-
-        <div className="grid gap-5 md:grid-cols-2">
-          <Input
-            control={form.control}
-            name="contactNumber"
-            label="Contact number"
-            type="tel"
-            inputMode="numeric"
-            placeholder="03001234567"
-            autoComplete="tel"
-            maxLength={11}
-            className={authInputClassName}
-          />
-          <Input
-            control={form.control}
-            name="licenseNumber"
-            label="License number"
-            placeholder="Driving license number"
-            autoComplete="off"
-            className={authInputClassName}
-          />
-          <DatePicker
-            control={form.control}
-            name="licenseExpiry"
-            label="License expiry"
-            placeholder="Select expiry date"
-            displayFormat="dmy"
-            calendarYearsFuture={50}
-            className={authInputClassName}
-          />
-          <Input
-            control={form.control}
-            name="cnic"
-            label="CNIC"
-            inputMode="numeric"
-            placeholder="13-digit CNIC without dashes"
-            autoComplete="off"
-            maxLength={13}
-            className={authInputClassName}
-          />
-          <DatePicker
-            control={form.control}
-            name="dateOfBirth"
-            label="Date of birth"
-            placeholder="Select date of birth"
-            displayFormat="dmy"
-            className={authInputClassName}
-          />
-          <Input
-            control={form.control}
-            name="occupation"
-            label="Occupation"
-            placeholder="Your profession"
-            autoComplete="organization-title"
-            className={authInputClassName}
-          />
-        </div>
-
-        <div className="grid gap-5 md:grid-cols-2">
-          <Input
-            control={form.control}
-            name="password"
-            label="Password"
-            type="password"
-            placeholder="Create password"
-            autoComplete="new-password"
-            className={authInputClassName}
-          />
-          <Input
-            control={form.control}
-            name="confirmPassword"
-            label="Confirm password"
-            type="password"
-            placeholder="Confirm password"
-            autoComplete="new-password"
-            className={authInputClassName}
-          />
-        </div>
-
-        <div className="grid gap-5 md:grid-cols-1 sm:grid-cols-3">
-          <ImagePicker
-            control={form.control}
-            name="profileImage"
-            label="Profile photo"
-            accept="image/*"
-            variant="compact"
-          />
-          <ImagePicker
-            control={form.control}
-            name="cnicImage"
-            label="CNIC image"
-            accept="image/*"
-            variant="compact"
-          />
-          <ImagePicker
-            control={form.control}
-            name="licenseImage"
-            label="License image"
-            accept="image/*"
-            variant="compact"
-          />
-        </div>
-
-        <Checkbox
+        <Input
           control={form.control}
-          name="acceptedTerms"
-          label="I agree to the Terms & Conditions."
-          checkboxClassName="size-5 border-[#CED4DF] bg-white"
-          itemClassName="items-center"
+          name="email"
+          label="Email"
+          type="email"
+          required
+          placeholder="Enter email"
+          autoComplete="email"
+          className={authInputClassName}
+        />
+        <Input
+          control={form.control}
+          name="contactNumber"
+          label="Phone number"
+          required
+          type="tel"
+          inputMode="numeric"
+          placeholder="03001234567"
+          autoComplete="tel"
+          maxLength={11}
+          className={authInputClassName}
+        />
+        <Input
+          control={form.control}
+          name="password"
+          label="Password"
+          required
+          type="password"
+          placeholder="Create password"
+          autoComplete="new-password"
+          className={authInputClassName}
+        />
+        <Input
+          control={form.control}
+          name="confirmPassword"
+          label="Confirm password"
+          required
+          type="password"
+          placeholder="Confirm password"
+          autoComplete="new-password"
+          className={authInputClassName}
         />
 
         {apiError ? (

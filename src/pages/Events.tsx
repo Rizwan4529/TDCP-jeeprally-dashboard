@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import {
+  CalendarSearchIcon,
   ChevronDownIcon,
   Clock3Icon,
   MapPinIcon,
@@ -24,7 +25,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { EventGridSkeleton } from "@/components/common/LoadingStates";
+import { EmptyState, EventGridSkeleton } from "@/components/common/LoadingStates";
 import { Typography } from "@/components/common/Typography";
 import { cn } from "@/lib/utils";
 import { useRallyEventsQuery } from "@/hooks/api/use-rally-events";
@@ -323,28 +324,35 @@ export default function EventsPage() {
       </div>
 
       {eventsQuery.isError ? (
-        <div className="rounded-md border border-[#F2D6D6] bg-[#FFF5F5] p-4">
-          <Typography variant="body" className="text-[#8B2B2B]">
-            {eventsQuery.error?.message ??
-              "Could not load rally events. Try again later."}
-          </Typography>
-        </div>
+        <EmptyState
+          icon={CalendarSearchIcon}
+          title="Could not load events"
+          description={
+            eventsQuery.error?.message ??
+            "Something went wrong while fetching rally events. Try again later."
+          }
+          variant="error"
+          size="compact"
+        />
       ) : null}
 
       {eventsQuery.isLoading ? (
         <EventGridSkeleton count={6} />
       ) : eventsQuery.data?.success === false ? (
-        <Card className={cn(surfaceCard, "p-6")}>
-          <Typography variant="body" className="text-[#8B2B2B]">
-            {eventsQuery.data?.message ?? "Could not load events."}
-          </Typography>
-        </Card>
+        <EmptyState
+          icon={CalendarSearchIcon}
+          title="Could not load events"
+          description={eventsQuery.data?.message ?? "Could not load events."}
+          variant="error"
+          size="compact"
+        />
       ) : events.length === 0 ? (
-        <Card className={cn(surfaceCard, "p-6")}>
-          <Typography variant="body" className="text-[#6B7890]">
-            No events found for the selected filters.
-          </Typography>
-        </Card>
+        <EmptyState
+          icon={CalendarSearchIcon}
+          title="No events found"
+          description="Try adjusting your search, status, year, or sort filters."
+          variant="muted"
+        />
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {events.map((event) => {

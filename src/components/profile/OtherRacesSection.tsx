@@ -1,9 +1,9 @@
 import * as React from "react";
-import { PlusIcon } from "lucide-react";
+import { PlusIcon, TrophyIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { EditDeleteIconActions } from "@/components/common/EditDeleteIconActions";
-import { PanelBlockSkeleton } from "@/components/common/LoadingStates";
+import { EmptyState, PanelBlockSkeleton } from "@/components/common/LoadingStates";
 import { Typography } from "@/components/common/Typography";
 import { OtherRaceDialog } from "@/components/profile/OtherRaceDialog";
 import { Button } from "@/components/ui/button";
@@ -65,29 +65,30 @@ export function OtherRacesSection() {
           {query.isLoading ? (
             <PanelBlockSkeleton lines={4} />
           ) : query.isError ? (
-            <div className="rounded-[12px] border border-[#F2D6D6] bg-[#FFF5F5] px-4 py-3">
-              <Typography variant="body-sm" className="text-[#8B2B2B]">
-                {query.error.message ?? "Could not load other races."}
-              </Typography>
-            </div>
+            <EmptyState
+              icon={TrophyIcon}
+              title="Could not load other races"
+              description={query.error.message ?? "Try again later."}
+              variant="error"
+              size="compact"
+            />
           ) : entries.length === 0 ? (
-            <div className="rounded-[12px] border border-dashed border-[#DCDDE2] bg-[#FAFBFF] px-6 py-10 text-center">
-              <Typography variant="body" className="font-medium text-[#25314D]">
-                No other races yet
-              </Typography>
-              <Typography variant="body-sm" className="mt-1 text-[#6B7890]">
-                Add past rally entries to keep your profile complete.
-              </Typography>
-              <Button
-                type="button"
-                variant="primary-outline"
-                className="mt-4 rounded-[10px]"
-                onClick={openCreate}
-              >
-                <PlusIcon className="size-4" />
-                Add other race
-              </Button>
-            </div>
+            <EmptyState
+              icon={TrophyIcon}
+              title="No other races yet"
+              description="Add past rally entries to keep your profile complete."
+              action={
+                <Button
+                  type="button"
+                  variant="primary-outline"
+                  className="rounded-[10px]"
+                  onClick={openCreate}
+                >
+                  <PlusIcon className="size-4" />
+                  Add other race
+                </Button>
+              }
+            />
           ) : (
             <OtherRacesTable
               entries={entries}
