@@ -1,12 +1,12 @@
-import * as React from "react"
-import type { ReactNode } from "react"
+import * as React from "react";
+import type { ReactNode } from "react";
 import {
   type Control,
   type FieldPath,
   type FieldValues,
   type SubmitHandler,
   type UseFormReturn,
-} from "react-hook-form"
+} from "react-hook-form";
 import {
   CalendarIcon,
   CameraIcon,
@@ -17,10 +17,10 @@ import {
   ImageIcon,
   UploadIcon,
   XIcon,
-} from "lucide-react"
+} from "lucide-react";
 
-import { Typography } from "@/components/common/Typography"
-import { Button } from "@/components/ui/button"
+import { Typography } from "@/components/common/Typography";
+import { Button } from "@/components/ui/button";
 import {
   Form,
   FormControl,
@@ -29,15 +29,18 @@ import {
   FormItem,
   FormLabel,
   FormMessage,
-} from "@/components/ui/form"
-import { Input as BaseInput } from "@/components/ui/input"
-import { Checkbox as BaseCheckbox } from "@/components/ui/checkbox"
+} from "@/components/ui/form";
+import { Input as BaseInput } from "@/components/ui/input";
+import { Checkbox as BaseCheckbox } from "@/components/ui/checkbox";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from "@/components/ui/popover"
-import { RadioGroup as BaseRadioGroup, RadioGroupItem } from "@/components/ui/radio-group"
+} from "@/components/ui/popover";
+import {
+  RadioGroup as BaseRadioGroup,
+  RadioGroupItem,
+} from "@/components/ui/radio-group";
 import {
   Select as BaseSelect,
   SelectContent,
@@ -45,36 +48,36 @@ import {
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from "@/components/ui/select"
-import { Textarea as BaseTextarea } from "@/components/ui/textarea"
-import { cn } from "@/lib/utils"
+} from "@/components/ui/select";
+import { Textarea as BaseTextarea } from "@/components/ui/textarea";
+import { cn } from "@/lib/utils";
 
 type FieldOption = {
-  label: ReactNode
-  value: string
-  disabled?: boolean
-}
+  label: ReactNode;
+  value: string;
+  disabled?: boolean;
+};
 
 type SharedFieldProps<TFieldValues extends FieldValues> = {
-  control: Control<TFieldValues>
-  name: FieldPath<TFieldValues>
-  label?: ReactNode
+  control: Control<TFieldValues>;
+  name: FieldPath<TFieldValues>;
+  label?: ReactNode;
   /** When true, shows a red asterisk after the label. Omit for optional fields. */
-  required?: boolean
-  description?: ReactNode
-  placeholder?: string
-  className?: string
-  itemClassName?: string
-  disabled?: boolean
-  showMessage?: boolean
-}
+  required?: boolean;
+  description?: ReactNode;
+  placeholder?: string;
+  className?: string;
+  itemClassName?: string;
+  disabled?: boolean;
+  showMessage?: boolean;
+};
 
 type FormCommonProps<TFieldValues extends FieldValues> = {
-  form: UseFormReturn<TFieldValues>
-  onSubmit: SubmitHandler<TFieldValues>
-  children: ReactNode
-  className?: string
-}
+  form: UseFormReturn<TFieldValues>;
+  onSubmit: SubmitHandler<TFieldValues>;
+  children: ReactNode;
+  className?: string;
+};
 
 type InputProps<TFieldValues extends FieldValues> =
   SharedFieldProps<TFieldValues> &
@@ -88,7 +91,7 @@ type InputProps<TFieldValues extends FieldValues> =
       | "onChange"
       | "placeholder"
       | "value"
-    >
+    >;
 
 type TextareaProps<TFieldValues extends FieldValues> =
   SharedFieldProps<TFieldValues> &
@@ -102,62 +105,62 @@ type TextareaProps<TFieldValues extends FieldValues> =
       | "onChange"
       | "placeholder"
       | "value"
-    >
+    >;
 
 type SelectProps<TFieldValues extends FieldValues> =
   SharedFieldProps<TFieldValues> & {
-    options: FieldOption[]
-    contentClassName?: string
-  }
+    options: FieldOption[];
+    contentClassName?: string;
+  };
 
 type RadioGroupProps<TFieldValues extends FieldValues> =
   SharedFieldProps<TFieldValues> & {
-    options: FieldOption[]
-  }
+    options: FieldOption[];
+  };
 
 type CheckboxProps<TFieldValues extends FieldValues> =
   SharedFieldProps<TFieldValues> & {
-    checkboxClassName?: string
-  }
+    checkboxClassName?: string;
+  };
 
 type DatePickerProps<TFieldValues extends FieldValues> =
   SharedFieldProps<TFieldValues> & {
-    displayFormat?: "mdy" | "dmy"
+    displayFormat?: "mdy" | "dmy";
     /** Adds this many years beyond the current year to the year dropdown (e.g. license expiry). */
-    calendarYearsFuture?: number
-  }
+    calendarYearsFuture?: number;
+  };
 
 type ImagePickerProps<TFieldValues extends FieldValues> =
   SharedFieldProps<TFieldValues> & {
-    accept?: string
-    helperText?: ReactNode
-    previewClassName?: string
-    variant?: "preview" | "compact" | "avatar" | "profile-document"
+    accept?: string;
+    helperText?: ReactNode;
+    previewClassName?: string;
+    variant?: "preview" | "compact" | "avatar" | "profile-document";
     /** Shown when no new file is selected (e.g. current upload from session). */
-    existingImageUrl?: string | null
-  }
+    existingImageUrl?: string | null;
+  };
 
 type ImagePickerControlProps = Omit<
   React.ComponentProps<"div">,
   "children" | "onChange"
 > & {
-  value: unknown
-  onChange: (file: File | null) => void
-  disabled?: boolean
-  accept: string
-  className?: string
-  helperText?: ReactNode
-  previewClassName?: string
-  variant?: "preview" | "compact" | "avatar" | "profile-document"
-  existingImageUrl?: string | null
-}
+  value: unknown;
+  onChange: (file: File | null) => void;
+  disabled?: boolean;
+  accept: string;
+  className?: string;
+  helperText?: ReactNode;
+  previewClassName?: string;
+  variant?: "preview" | "compact" | "avatar" | "profile-document";
+  existingImageUrl?: string | null;
+};
 
 function FieldLabel({
   children,
   required,
 }: {
-  children: ReactNode
-  required?: boolean
+  children: ReactNode;
+  required?: boolean;
 }) {
   return (
     <Typography
@@ -173,7 +176,7 @@ function FieldLabel({
         </span>
       ) : null}
     </Typography>
-  )
+  );
 }
 
 function FieldDescription({ children }: { children: ReactNode }) {
@@ -183,79 +186,76 @@ function FieldDescription({ children }: { children: ReactNode }) {
         {children}
       </Typography>
     </FormDescription>
-  )
+  );
 }
 
-const weekDays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"]
+const weekDays = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 
 const MONTH_LABELS = Array.from({ length: 12 }, (_, index) =>
   new Intl.DateTimeFormat("en-US", { month: "long" }).format(
     new Date(2000, index, 1),
   ),
-)
+);
 
-function getYearOptionsForCalendar(
-  visibleYear: number,
-  extraFutureYears = 0,
-) {
-  const currentYear = new Date().getFullYear()
+function getYearOptionsForCalendar(visibleYear: number, extraFutureYears = 0) {
+  const currentYear = new Date().getFullYear();
   const maxYear = Math.max(
     currentYear + extraFutureYears,
     visibleYear,
     currentYear,
-  )
-  const minYear = Math.min(currentYear - 120, visibleYear)
-  const years: number[] = []
+  );
+  const minYear = Math.min(currentYear - 120, visibleYear);
+  const years: number[] = [];
   for (let y = maxYear; y >= minYear; y -= 1) {
-    years.push(y)
+    years.push(y);
   }
-  return years
+  return years;
 }
 
 const calendarSelectClassName =
-  "h-9 shrink-0 rounded-md border border-[#D7DAE1] bg-white px-2 text-sm text-[#25314D] shadow-[0_1px_2px_rgba(15,23,42,0.05)] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50"
+  "h-9 shrink-0 rounded-md border border-[#D7DAE1] bg-white px-2 text-sm text-[#25314D] shadow-[0_1px_2px_rgba(15,23,42,0.05)] outline-none focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50";
 
 function toIsoDate(date: Date) {
-  const year = date.getFullYear()
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const day = String(date.getDate()).padStart(2, "0")
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
 
-  return `${year}-${month}-${day}`
+  return `${year}-${month}-${day}`;
 }
 
 function parseDateValue(value: unknown) {
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return value
+    return value;
   }
 
   if (typeof value !== "string" || !value) {
-    return undefined
+    return undefined;
   }
 
-  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value)
+  const isoMatch = /^(\d{4})-(\d{2})-(\d{2})$/.exec(value);
   if (isoMatch) {
-    const [, year, month, day] = isoMatch
-    return new Date(Number(year), Number(month) - 1, Number(day))
+    const [, year, month, day] = isoMatch;
+    return new Date(Number(year), Number(month) - 1, Number(day));
   }
 
-  const date = new Date(value)
-  return Number.isNaN(date.getTime()) ? undefined : date
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date;
 }
 
 function formatDateValue(value: unknown, displayFormat: "mdy" | "dmy") {
-  const date = parseDateValue(value)
+  const date = parseDateValue(value);
 
   if (!date) {
-    return ""
+    return "";
   }
 
-  const day = String(date.getDate()).padStart(2, "0")
-  const month = String(date.getMonth() + 1).padStart(2, "0")
-  const year = date.getFullYear()
+  const day = String(date.getDate()).padStart(2, "0");
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const year = date.getFullYear();
 
   return displayFormat === "dmy"
     ? `${day}/${month}/${year}`
-    : `${month}/${day}/${year}`
+    : `${month}/${day}/${year}`;
 }
 
 function isSameDate(left: Date, right: Date) {
@@ -263,29 +263,29 @@ function isSameDate(left: Date, right: Date) {
     left.getFullYear() === right.getFullYear() &&
     left.getMonth() === right.getMonth() &&
     left.getDate() === right.getDate()
-  )
+  );
 }
 
 function getCalendarCells(monthDate: Date) {
-  const year = monthDate.getFullYear()
-  const month = monthDate.getMonth()
-  const firstDay = new Date(year, month, 1)
-  const daysInMonth = new Date(year, month + 1, 0).getDate()
-  const cells: Array<Date | null> = []
+  const year = monthDate.getFullYear();
+  const month = monthDate.getMonth();
+  const firstDay = new Date(year, month, 1);
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const cells: Array<Date | null> = [];
 
   for (let index = 0; index < firstDay.getDay(); index += 1) {
-    cells.push(null)
+    cells.push(null);
   }
 
   for (let day = 1; day <= daysInMonth; day += 1) {
-    cells.push(new Date(year, month, day))
+    cells.push(new Date(year, month, day));
   }
 
   while (cells.length % 7 !== 0) {
-    cells.push(null)
+    cells.push(null);
   }
 
-  return cells
+  return cells;
 }
 
 function DatePickerControl({
@@ -297,21 +297,21 @@ function DatePickerControl({
   displayFormat = "mdy",
   calendarYearsFuture = 0,
 }: {
-  value: unknown
-  onChange: (value: string) => void
-  placeholder?: string
-  disabled?: boolean
-  className?: string
-  displayFormat?: "mdy" | "dmy"
-  calendarYearsFuture?: number
+  value: unknown;
+  onChange: (value: string) => void;
+  placeholder?: string;
+  disabled?: boolean;
+  className?: string;
+  displayFormat?: "mdy" | "dmy";
+  calendarYearsFuture?: number;
 }) {
-  const selectedDate = parseDateValue(value)
-  const [open, setOpen] = React.useState(false)
+  const selectedDate = parseDateValue(value);
+  const [open, setOpen] = React.useState(false);
   const [visibleMonth, setVisibleMonth] = React.useState(
-    selectedDate ?? new Date()
-  )
-  const formattedValue = formatDateValue(value, displayFormat)
-  const calendarCells = getCalendarCells(visibleMonth)
+    selectedDate ?? new Date(),
+  );
+  const formattedValue = formatDateValue(value, displayFormat);
+  const calendarCells = getCalendarCells(visibleMonth);
   const yearOptions = React.useMemo(
     () =>
       getYearOptionsForCalendar(
@@ -319,21 +319,22 @@ function DatePickerControl({
         calendarYearsFuture,
       ),
     [visibleMonth, calendarYearsFuture],
-  )
+  );
 
   const handleOpenChange = (nextOpen: boolean) => {
     if (nextOpen) {
-      setVisibleMonth(selectedDate ?? new Date())
+      setVisibleMonth(selectedDate ?? new Date());
     }
 
-    setOpen(nextOpen)
-  }
+    setOpen(nextOpen);
+  };
 
   const moveMonth = (amount: number) => {
     setVisibleMonth(
-      (current) => new Date(current.getFullYear(), current.getMonth() + amount, 1)
-    )
-  }
+      (current) =>
+        new Date(current.getFullYear(), current.getMonth() + amount, 1),
+    );
+  };
 
   return (
     <Popover open={open} onOpenChange={handleOpenChange}>
@@ -345,7 +346,7 @@ function DatePickerControl({
             className={cn(
               "flex h-11 w-full items-center justify-between rounded-md border border-[#D7DAE1] bg-white px-4 text-left text-[15px] text-[#25314D] shadow-[0_1px_2px_rgba(15,23,42,0.05)] transition-colors outline-none hover:border-primary/45 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50",
               !formattedValue && "text-[#8B96AD]",
-              className
+              className,
             )}
           >
             <span>{formattedValue || placeholder}</span>
@@ -368,13 +369,16 @@ function DatePickerControl({
             onValueChange={(value: string) => {
               setVisibleMonth(
                 new Date(visibleMonth.getFullYear(), Number(value), 1),
-              )
+              );
             }}
           >
             <SelectTrigger
               aria-label="Month"
               size="sm"
-              className={cn(calendarSelectClassName, "min-w-0 flex-1 shadow-xs")}
+              className={cn(
+                calendarSelectClassName,
+                "min-w-0 flex-1 shadow-xs",
+              )}
             >
               <SelectValue />
             </SelectTrigger>
@@ -391,7 +395,7 @@ function DatePickerControl({
             onValueChange={(value: string) => {
               setVisibleMonth(
                 new Date(Number(value), visibleMonth.getMonth(), 1),
-              )
+              );
             }}
           >
             <SelectTrigger
@@ -399,7 +403,9 @@ function DatePickerControl({
               size="sm"
               className={cn(
                 calendarSelectClassName,
-                calendarYearsFuture > 0 ? "min-w-[5.25rem] shrink-0" : "w-[4.75rem]",
+                calendarYearsFuture > 0
+                  ? "min-w-[5.25rem] shrink-0"
+                  : "w-[4.75rem]",
                 "shadow-xs",
               )}
             >
@@ -435,26 +441,27 @@ function DatePickerControl({
             </Typography>
           ))}
           {calendarCells.map((day, index) => {
-            const selected = day && selectedDate && isSameDate(day, selectedDate)
+            const selected =
+              day && selectedDate && isSameDate(day, selectedDate);
 
             return day ? (
               <button
                 key={toIsoDate(day)}
                 type="button"
                 onClick={() => {
-                  onChange(toIsoDate(day))
-                  setOpen(false)
+                  onChange(toIsoDate(day));
+                  setOpen(false);
                 }}
                 className={cn(
                   "flex size-9 cursor-pointer items-center justify-center rounded-md text-sm text-[#25314D] hover:bg-[#F0F1F7]",
-                  selected && "bg-primary text-white hover:bg-primary"
+                  selected && "bg-primary text-white hover:bg-primary",
                 )}
               >
                 {day.getDate()}
               </button>
             ) : (
               <span key={`empty-${index}`} className="size-9" />
-            )
+            );
           })}
         </div>
 
@@ -463,8 +470,8 @@ function DatePickerControl({
             type="button"
             className="cursor-pointer text-sm font-medium text-[#6B7890] hover:text-[#25314D]"
             onClick={() => {
-              onChange("")
-              setOpen(false)
+              onChange("");
+              setOpen(false);
             }}
           >
             Clear
@@ -473,8 +480,8 @@ function DatePickerControl({
             type="button"
             className="cursor-pointer text-sm font-medium text-primary hover:text-primary/80"
             onClick={() => {
-              onChange(toIsoDate(new Date()))
-              setOpen(false)
+              onChange(toIsoDate(new Date()));
+              setOpen(false);
             }}
           >
             Today
@@ -482,7 +489,7 @@ function DatePickerControl({
         </div>
       </PopoverContent>
     </Popover>
-  )
+  );
 }
 
 function FormCommon<TFieldValues extends FieldValues>({
@@ -493,11 +500,14 @@ function FormCommon<TFieldValues extends FieldValues>({
 }: FormCommonProps<TFieldValues>) {
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className={cn("space-y-4", className)}>
+      <form
+        onSubmit={form.handleSubmit(onSubmit)}
+        className={cn("space-y-4", className)}
+      >
         {children}
       </form>
     </Form>
-  )
+  );
 }
 
 function Input<TFieldValues extends FieldValues>({
@@ -534,12 +544,14 @@ function Input<TFieldValues extends FieldValues>({
               className={className}
             />
           </FormControl>
-          {description ? <FieldDescription>{description}</FieldDescription> : null}
+          {description ? (
+            <FieldDescription>{description}</FieldDescription>
+          ) : null}
           {showMessage ? <FormMessage /> : null}
         </FormItem>
       )}
     />
-  )
+  );
 }
 
 function Textarea<TFieldValues extends FieldValues>({
@@ -576,12 +588,14 @@ function Textarea<TFieldValues extends FieldValues>({
               className={className}
             />
           </FormControl>
-          {description ? <FieldDescription>{description}</FieldDescription> : null}
+          {description ? (
+            <FieldDescription>{description}</FieldDescription>
+          ) : null}
           {showMessage ? <FormMessage /> : null}
         </FormItem>
       )}
     />
-  )
+  );
 }
 
 function Select<TFieldValues extends FieldValues>({
@@ -637,12 +651,14 @@ function Select<TFieldValues extends FieldValues>({
               </SelectGroup>
             </SelectContent>
           </BaseSelect>
-          {description ? <FieldDescription>{description}</FieldDescription> : null}
+          {description ? (
+            <FieldDescription>{description}</FieldDescription>
+          ) : null}
           {showMessage ? <FormMessage /> : null}
         </FormItem>
       )}
     />
-  )
+  );
 }
 
 function DatePicker<TFieldValues extends FieldValues>({
@@ -679,12 +695,14 @@ function DatePicker<TFieldValues extends FieldValues>({
             displayFormat={displayFormat}
             calendarYearsFuture={calendarYearsFuture}
           />
-          {description ? <FieldDescription>{description}</FieldDescription> : null}
+          {description ? (
+            <FieldDescription>{description}</FieldDescription>
+          ) : null}
           {showMessage ? <FormMessage /> : null}
         </FormItem>
       )}
     />
-  )
+  );
 }
 
 function RadioGroup<TFieldValues extends FieldValues>({
@@ -718,7 +736,7 @@ function RadioGroup<TFieldValues extends FieldValues>({
               className={className}
             >
               {options.map((option) => {
-                const id = `${name}-${option.value}`
+                const id = `${name}-${option.value}`;
 
                 return (
                   <div key={option.value} className="flex items-center gap-2">
@@ -733,7 +751,7 @@ function RadioGroup<TFieldValues extends FieldValues>({
                         "text-sm leading-none",
                         option.disabled || disabled
                           ? "cursor-not-allowed opacity-50"
-                          : "cursor-pointer"
+                          : "cursor-pointer",
                       )}
                     >
                       <Typography as="span" variant="label" color="inherit">
@@ -741,16 +759,18 @@ function RadioGroup<TFieldValues extends FieldValues>({
                       </Typography>
                     </label>
                   </div>
-                )
+                );
               })}
             </BaseRadioGroup>
           </FormControl>
-          {description ? <FieldDescription>{description}</FieldDescription> : null}
+          {description ? (
+            <FieldDescription>{description}</FieldDescription>
+          ) : null}
           {showMessage ? <FormMessage /> : null}
         </FormItem>
       )}
     />
-  )
+  );
 }
 
 function Checkbox<TFieldValues extends FieldValues>({
@@ -770,7 +790,9 @@ function Checkbox<TFieldValues extends FieldValues>({
       control={control}
       name={name}
       render={({ field }) => (
-        <FormItem className={cn("flex flex-row items-center gap-2.5", itemClassName)}>
+        <FormItem
+          className={cn("flex flex-row items-center gap-2.5", itemClassName)}
+        >
           <FormControl>
             <BaseCheckbox
               checked={!!field.value}
@@ -785,13 +807,15 @@ function Checkbox<TFieldValues extends FieldValues>({
                 <FieldLabel required={required}>{label}</FieldLabel>
               </FormLabel>
             ) : null}
-            {description ? <FieldDescription>{description}</FieldDescription> : null}
+            {description ? (
+              <FieldDescription>{description}</FieldDescription>
+            ) : null}
             {showMessage ? <FormMessage /> : null}
           </div>
         </FormItem>
       )}
     />
-  )
+  );
 }
 
 function ImagePickerControl({
@@ -806,47 +830,49 @@ function ImagePickerControl({
   existingImageUrl,
   ...rootProps
 }: ImagePickerControlProps) {
-  const inputRef = React.useRef<HTMLInputElement>(null)
-  const isNewFile =
-    typeof File !== "undefined" && value instanceof File
+  const inputRef = React.useRef<HTMLInputElement>(null);
+  const isNewFile = typeof File !== "undefined" && value instanceof File;
 
   const previewUrl = React.useMemo(() => {
     if (isNewFile && value instanceof File) {
-      return URL.createObjectURL(value)
+      return URL.createObjectURL(value);
     }
     if (typeof value === "string" && value.trim()) {
-      return value
+      return value;
     }
     if (existingImageUrl?.trim()) {
-      return existingImageUrl
+      return existingImageUrl;
     }
-    return null
-  }, [value, existingImageUrl, isNewFile])
+    return null;
+  }, [value, existingImageUrl, isNewFile]);
 
   React.useEffect(() => {
     if (isNewFile && previewUrl?.startsWith("blob:")) {
-      return () => URL.revokeObjectURL(previewUrl)
+      return () => URL.revokeObjectURL(previewUrl);
     }
-    return undefined
-  }, [previewUrl, isNewFile])
+    return undefined;
+  }, [previewUrl, isNewFile]);
 
   const handleSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0] ?? null
-    onChange(file)
-  }
+    const file = event.target.files?.[0] ?? null;
+    onChange(file);
+  };
 
   const handleRemove = (event: React.MouseEvent<HTMLButtonElement>) => {
-    event.stopPropagation()
-    onChange(null)
+    event.stopPropagation();
+    onChange(null);
 
     if (inputRef.current) {
-      inputRef.current.value = ""
+      inputRef.current.value = "";
     }
-  }
+  };
 
   if (variant === "avatar") {
     return (
-      <div {...rootProps} className={cn("flex flex-col items-start gap-2", className)}>
+      <div
+        {...rootProps}
+        className={cn("flex flex-col items-start gap-2", className)}
+      >
         <button
           type="button"
           disabled={disabled}
@@ -898,12 +924,12 @@ function ImagePickerControl({
           onChange={handleSelect}
         />
       </div>
-    )
+    );
   }
 
   if (variant === "compact") {
     const fileName =
-      typeof File !== "undefined" && value instanceof File ? value.name : ""
+      typeof File !== "undefined" && value instanceof File ? value.name : "";
 
     return (
       <div {...rootProps} className={cn("grid gap-2", className)}>
@@ -941,13 +967,13 @@ function ImagePickerControl({
           onChange={handleSelect}
         />
       </div>
-    )
+    );
   }
 
   if (variant === "profile-document") {
     const fileName =
-      typeof File !== "undefined" && value instanceof File ? value.name : ""
-    const hasOnFile = Boolean(previewUrl)
+      typeof File !== "undefined" && value instanceof File ? value.name : "";
+    const hasOnFile = Boolean(previewUrl);
     const status = isNewFile
       ? {
           label: "New upload",
@@ -964,8 +990,8 @@ function ImagePickerControl({
             label: "Required",
             className: "border-[#F3D0D0] bg-[#FFF5F5] text-[#B91C1C]",
             icon: CircleAlertIcon,
-          }
-    const StatusIcon = status.icon
+          };
+    const StatusIcon = status.icon;
 
     return (
       <div
@@ -980,7 +1006,9 @@ function ImagePickerControl({
           disabled={disabled}
           onClick={() => inputRef.current?.click()}
           className="group relative block w-full aspect-[4/3] overflow-hidden bg-[#F4F6FA] outline-none focus-visible:ring-2 focus-visible:ring-[#3FA565]/40 disabled:cursor-not-allowed disabled:opacity-60"
-          aria-label={hasOnFile ? "Replace document image" : "Upload document image"}
+          aria-label={
+            hasOnFile ? "Replace document image" : "Upload document image"
+          }
         >
           {previewUrl ? (
             <img
@@ -993,7 +1021,11 @@ function ImagePickerControl({
               <span className="flex size-12 items-center justify-center rounded-full bg-white shadow-sm">
                 <ImageIcon className="size-6 text-[#9AA6C8]" />
               </span>
-              <Typography as="span" variant="caption" className="text-[#6B7890]">
+              <Typography
+                as="span"
+                variant="caption"
+                className="text-[#6B7890]"
+              >
                 No image on file
               </Typography>
             </span>
@@ -1031,7 +1063,11 @@ function ImagePickerControl({
             {hasOnFile ? "Replace image" : "Upload image"}
           </Button>
           {helperText ? (
-            <Typography as="p" variant="caption" className="text-center text-[#8B96AD]">
+            <Typography
+              as="p"
+              variant="caption"
+              className="text-center text-[#8B96AD]"
+            >
               {helperText}
             </Typography>
           ) : null}
@@ -1046,7 +1082,7 @@ function ImagePickerControl({
           onChange={handleSelect}
         />
       </div>
-    )
+    );
   }
 
   return (
@@ -1057,7 +1093,7 @@ function ImagePickerControl({
         onClick={() => inputRef.current?.click()}
         className={cn(
           "group relative flex min-h-40 w-full items-center justify-center overflow-hidden rounded-lg border border-dashed border-input bg-background transition-colors hover:bg-muted/50 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-50",
-          previewClassName
+          previewClassName,
         )}
       >
         {previewUrl ? (
@@ -1120,7 +1156,7 @@ function ImagePickerControl({
         onChange={handleSelect}
       />
     </div>
-  )
+  );
 }
 
 function ImagePicker<TFieldValues extends FieldValues>({
@@ -1163,12 +1199,14 @@ function ImagePicker<TFieldValues extends FieldValues>({
               existingImageUrl={existingImageUrl}
             />
           </FormControl>
-          {description ? <FieldDescription>{description}</FieldDescription> : null}
+          {description ? (
+            <FieldDescription>{description}</FieldDescription>
+          ) : null}
           {showMessage ? <FormMessage /> : null}
         </FormItem>
       )}
     />
-  )
+  );
 }
 
 export {
@@ -1180,4 +1218,4 @@ export {
   RadioGroup,
   Select,
   Textarea,
-}
+};
