@@ -273,6 +273,7 @@ export const signupSchema = z
     fullName: requiredString("Enter your full name"),
     email: z.string().trim().email("Enter a valid email address"),
     contactNumber: pkMobileSchema,
+    cnic: cnicDigitsSchema,
     password: z.string().min(6, "Password must be at least 6 characters"),
     confirmPassword: requiredString("Confirm your password"),
   })

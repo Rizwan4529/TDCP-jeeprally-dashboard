@@ -14,6 +14,8 @@ import {
   ChevronLeftIcon,
   ChevronRightIcon,
   CircleAlertIcon,
+  EyeIcon,
+  EyeOffIcon,
   ImageIcon,
   UploadIcon,
   XIcon,
@@ -521,8 +523,12 @@ function Input<TFieldValues extends FieldValues>({
   itemClassName,
   disabled,
   showMessage = true,
+  type,
   ...props
 }: InputProps<TFieldValues>) {
+  const isPassword = type === "password";
+  const [showPassword, setShowPassword] = React.useState(false);
+
   return (
     <FormField
       control={control}
@@ -535,14 +541,43 @@ function Input<TFieldValues extends FieldValues>({
             </FormLabel>
           ) : null}
           <FormControl>
-            <BaseInput
-              {...props}
-              {...field}
-              value={field.value ?? ""}
-              placeholder={placeholder}
-              disabled={disabled}
-              className={className}
-            />
+            {isPassword ? (
+              <div className="relative">
+                <BaseInput
+                  {...props}
+                  {...field}
+                  type={showPassword ? "text" : "password"}
+                  value={field.value ?? ""}
+                  placeholder={placeholder}
+                  disabled={disabled}
+                  className={cn(className, "pr-11")}
+                />
+                <button
+                  type="button"
+                  tabIndex={-1}
+                  disabled={disabled}
+                  aria-label={showPassword ? "Hide password" : "Show password"}
+                  onClick={() => setShowPassword((prev) => !prev)}
+                  className="absolute top-1/2 right-3 -translate-y-1/2 text-[#8B96AD] transition-colors hover:text-[#25314D] disabled:opacity-50"
+                >
+                  {showPassword ? (
+                    <EyeOffIcon className="size-5" aria-hidden />
+                  ) : (
+                    <EyeIcon className="size-5" aria-hidden />
+                  )}
+                </button>
+              </div>
+            ) : (
+              <BaseInput
+                {...props}
+                {...field}
+                type={type}
+                value={field.value ?? ""}
+                placeholder={placeholder}
+                disabled={disabled}
+                className={className}
+              />
+            )}
           </FormControl>
           {description ? (
             <FieldDescription>{description}</FieldDescription>

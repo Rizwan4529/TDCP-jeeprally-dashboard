@@ -266,13 +266,13 @@ function ProfileScreen() {
                 rows={3}
                 className={profileFieldClassName}
               />
-              <FormInput
+              {/* <FormInput
                 control={driverForm.control}
                 name="location"
                 label="Location"
                 placeholder="e.g. Punjab"
                 className={profileFieldClassName}
-              />
+              /> */}
               <div className="grid gap-5 md:grid-cols-2">
                 <FormInput
                   control={driverForm.control}
@@ -401,7 +401,7 @@ function ProfileScreen() {
                 value={driver?.contact_number ?? "—"}
               />
               <Field label="Address" value={driver?.address ?? "—"} />
-              <Field label="Location" value={driver?.location ?? "—"} />
+              {/* <Field label="Location" value={driver?.location ?? "—"} /> */}
               <Field label="Gender" value={driver?.gender ?? "—"} />
               <Field
                 label="Age"

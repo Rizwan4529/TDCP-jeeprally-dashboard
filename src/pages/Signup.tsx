@@ -21,6 +21,7 @@ const defaultValues: SignupValues = {
   fullName: "",
   email: "",
   contactNumber: "",
+  cnic: "",
   password: "",
   confirmPassword: "",
 };
@@ -120,6 +121,7 @@ export default function SignupPage() {
         email: values.email,
         password: values.password,
         contact_number: values.contactNumber,
+        cnic: values.cnic,
       },
       {
         onSuccess: (data) => {
@@ -175,6 +177,16 @@ export default function SignupPage() {
           placeholder="03001234567"
           autoComplete="tel"
           maxLength={11}
+          className={authInputClassName}
+        />
+        <Input
+          control={form.control}
+          name="cnic"
+          label="CNIC"
+          required
+          inputMode="numeric"
+          placeholder="13-digit CNIC (no dashes)"
+          maxLength={13}
           className={authInputClassName}
         />
         <Input

@@ -43,7 +43,7 @@ export function buildUpdateProfilePayload(
     gender: values.gender.trim(),
     age: values.age.trim(),
     address: values.address.trim(),
-    location: values.location.trim(),
+    // location: values.location.trim(),
     contact_number: values.contact_number.trim(),
     license_number: values.license_number.trim(),
     license_expiry: normDateForProfile(values.license_expiry),
@@ -59,12 +59,12 @@ export function buildUpdateProfilePayload(
     setTextIfChanged(payload, "gender", next.gender, normText(previous.gender));
     setTextIfChanged(payload, "age", next.age, normText(previous.age));
     setTextIfChanged(payload, "address", next.address, normText(previous.address));
-    setTextIfChanged(
-      payload,
-      "location",
-      next.location,
-      normText(previous.location),
-    );
+    // setTextIfChanged(
+    //   payload,
+    //   "location",
+    //   next.location,
+    //   normText(previous.location),
+    // );
     setTextIfChanged(
       payload,
       "contact_number",
