@@ -47,6 +47,10 @@ import {
   formatOrdinalPosition,
   type StatCardView,
 } from "@/utils/dashboard-me";
+import {
+  SCROLL_PAGE,
+  SIDEBAR_PAGE_PADDING,
+} from "@/components/layout/pageLayout";
 
 const STAT_ICONS = {
   ranking: RankingIcon,
@@ -126,7 +130,8 @@ export default function DashboardPage() {
   );
 
   return (
-    <div className="space-y-6 pb-2">
+    <div className={cn(SCROLL_PAGE, SIDEBAR_PAGE_PADDING)}>
+      <div className="space-y-6 pb-2">
       {upcomingQuery.isLoading ? (
         <EventHeroSkeleton />
       ) : showNextEvent ? (
@@ -169,6 +174,7 @@ export default function DashboardPage() {
       />
 
       <ParticipationRankingChart enabled={token} />
+      </div>
     </div>
   );
 }

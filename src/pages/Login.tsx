@@ -95,8 +95,8 @@ export default function LoginPage() {
 
   return (
     <AuthLayout
-      title="Welcome back"
-      subtitle="Enter your login details to continue to the Jeep Rally dashboard."
+      title="Login to Driver Portal"
+      subtitle="Enter your credentials to access your rally dashboard."
     >
       <FormCommon form={form} onSubmit={onSubmit} className="space-y-5">
         {apiError ? (

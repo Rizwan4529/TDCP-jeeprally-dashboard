@@ -10,10 +10,12 @@ import LoginPage from "@/pages/Login"
 import NotFoundPage from "@/pages/NotFound"
 import PaymentCallbackPage from "@/pages/PaymentCallback"
 import ProfilePage from "@/pages/Profile"
+import ProfileEditPage from "@/pages/ProfileEditPage"
 import RegistrationPage from "@/pages/Registration"
 import TeamsPage from "@/pages/Teams"
 import SignupPage from "@/pages/Signup"
 import VehiclePage from "@/pages/Vehicle"
+import VehicleFormPage from "@/pages/VehicleFormPage"
 import { ROUTES } from "@/utils/constants"
 
 const App = () => {
@@ -33,12 +35,40 @@ const App = () => {
               element={<Navigate to={ROUTES.DASHBOARD} replace />}
             />
             <Route path="dashboard" element={<DashboardPage />} />
+            <Route
+              path={ROUTES.PROFILE_EDIT.replace(/^\//, "")}
+              element={<ProfileEditPage />}
+            />
             <Route path="profile" element={<ProfilePage />} />
             <Route
               path={ROUTES.TEAMS.replace(/^\//, "")}
               element={<TeamsPage />}
             />
-            <Route path="vehicle" element={<VehiclePage />} />
+            <Route
+              path={ROUTES.TEAMS_NEW.replace(/^\//, "")}
+              element={
+                <Navigate to={ROUTES.TEAMS} replace state={{ tab: "teams" }} />
+              }
+            />
+            <Route
+              path={ROUTES.TEAMS_EDIT.replace(/^\//, "")}
+              element={
+                <Navigate to={ROUTES.TEAMS} replace state={{ tab: "teams" }} />
+              }
+            />
+            <Route
+              path={ROUTES.VEHICLE_NEW.replace(/^\//, "")}
+              element={<VehicleFormPage />}
+            />
+            <Route
+              path={ROUTES.VEHICLE_EDIT.replace(/^\//, "")}
+              element={<VehicleFormPage />}
+            />
+            <Route
+              path={ROUTES.VEHICLE.replace(/^\//, "")}
+              element={<VehiclePage />}
+            />
+
             <Route path="events" element={<EventsPage />} />
             <Route path="registration" element={<RegistrationPage />} />
             <Route

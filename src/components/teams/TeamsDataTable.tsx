@@ -17,19 +17,18 @@ export function TeamsDataTable({
 }: {
   children: React.ReactNode;
   className?: string;
-  /** Override table min-width, e.g. min-w-[1280px] for wide roster tables */
+  /** Extra table classes (e.g. table-fixed for dense multi-column layouts) */
   tableClassName?: string;
 }) {
   return (
     <div
       className={cn(
-        "overflow-x-auto rounded-[12px] border border-[#EDEEF4]",
+        "w-full max-w-full overflow-hidden rounded-md border border-[#EDEEF4]",
+        "[&_[data-slot=table-container]]:overflow-x-hidden",
         className,
       )}
     >
-      <Table className={cn("w-full min-w-[720px]", tableClassName)}>
-        {children}
-      </Table>
+      <Table className={cn("w-full", tableClassName)}>{children}</Table>
     </div>
   );
 }

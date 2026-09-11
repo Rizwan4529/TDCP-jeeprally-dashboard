@@ -139,7 +139,7 @@ export default function PaymentCallbackPage() {
     );
 
   return (
-    <div className="flex min-h-[70vh] items-center justify-center px-4 py-10">
+    <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-10">
       <div className="w-full max-w-md space-y-5 rounded-md border border-[#E8E8E8] bg-white p-6 text-center shadow-[0_8px_22px_rgba(15,23,42,0.04)] sm:p-8">
         <div className="flex justify-center">{icon}</div>
         <Typography
@@ -161,10 +161,10 @@ export default function PaymentCallbackPage() {
 
         {state.kind === "failure" || state.kind === "error" ? (
           <div className="flex flex-col gap-3 pt-2 sm:flex-row sm:justify-center">
-            <Button asChild className="h-11 rounded-md px-6">
+            <Button asChild size="lg" className="w-full sm:w-auto">
               <Link to="/registration">Back to registration</Link>
             </Button>
-            <Button asChild variant="outline" className="h-11 rounded-md px-6">
+            <Button asChild variant="outline" size="lg" className="w-full sm:w-auto">
               <Link to={ROUTES.DASHBOARD}>Go to dashboard</Link>
             </Button>
           </div>

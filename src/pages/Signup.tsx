@@ -144,8 +144,8 @@ export default function SignupPage() {
 
   return (
     <AuthLayout
-      title="Create account"
-      subtitle="Sign up with your basic details to get started."
+      title="Join the Driver Portal"
+      subtitle="Create your account to register for Jeep Rally events."
     >
       <FormCommon form={form} onSubmit={onSubmit} className="space-y-5">
         <Input

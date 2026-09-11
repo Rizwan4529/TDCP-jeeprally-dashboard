@@ -21,47 +21,38 @@ export default function AuthLayout({
     <main className="grid h-svh overflow-hidden bg-[#FDFDFE] lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
       <section className="h-svh overflow-y-auto px-5 sm:px-8 lg:px-12">
         <div className="mx-auto flex min-h-full w-full max-w-[470px] flex-col justify-center py-8">
-          <div className="mb-8 flex items-center gap-3 sm:mb-4">
+          <div className="mb-8 flex items-center gap-3.5 sm:mb-9">
             <img
               src={Logo}
               alt="Jeep Rally"
-              className="size-14 object-contain"
+              className="size-[4.5rem] shrink-0 object-contain sm:size-20"
             />
-            <div>
-              <Typography
-                as="span"
-                variant="h6"
-                className="block leading-none text-[#00571C]"
-              >
-                Jeep Rally
-              </Typography>
-              <Typography
-                as="span"
-                variant="caption"
-                className="mt-1 block text-[#6B7890]"
-              >
-                Driver Portal
-              </Typography>
-            </div>
+            <Typography
+              as="span"
+              variant="h5"
+              className="block text-[26px] font-semibold leading-none tracking-tight text-[#00571C] sm:text-[30px]"
+            >
+              Jeep Rally
+            </Typography>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-2.5">
             <Typography
               as="h1"
               variant="h2"
-              className="text-[34px] font-semibold leading-tight text-[#1F1838] sm:text-[42px]"
+              className="text-[30px] font-semibold leading-tight text-[#1F1838] sm:text-[36px]"
             >
               {title}
             </Typography>
             <Typography
               variant="body"
-              className="max-w-[390px] text-[16px] leading-[1.6] text-[#6B7280]"
+              className="max-w-[390px] text-[15px] leading-[1.55] text-[#6B7280] sm:text-[16px]"
             >
               {subtitle}
             </Typography>
           </div>
 
-          <div className="mt-7 sm:mt-9">{children}</div>
+          <div className="mt-7 sm:mt-8">{children}</div>
         </div>
       </section>
 

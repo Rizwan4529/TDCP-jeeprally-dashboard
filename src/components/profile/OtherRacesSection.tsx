@@ -42,7 +42,7 @@ export function OtherRacesSection() {
 
   return (
     <>
-      <Card className={cn(surface, "rounded-[14px]")}>
+      <Card className={cn(surface, "rounded-md")}>
         <div className="flex flex-col gap-3 px-6 pt-6 sm:flex-row sm:items-center sm:justify-between">
           <Typography
             as="h3"
@@ -51,11 +51,7 @@ export function OtherRacesSection() {
           >
             OTHER RACES
           </Typography>
-          <Button
-            type="button"
-            className="h-10 rounded-[10px] px-4 text-[14px] font-semibold"
-            onClick={openCreate}
-          >
+          <Button type="button" onClick={openCreate}>
             <PlusIcon className="size-4" />
             Add other race
           </Button>

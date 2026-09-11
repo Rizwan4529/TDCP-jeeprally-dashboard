@@ -12,11 +12,21 @@ export const ROUTES = {
   SIGNUP: "/signup",
   DASHBOARD: "/dashboard",
   PROFILE: "/profile",
+  PROFILE_EDIT: "/profile/edit",
   TEAMS: "/teams",
+  TEAMS_NEW: "/teams/new",
+  TEAMS_EDIT: "/teams/:id/edit",
   VEHICLE: "/vehicle",
+  VEHICLE_NEW: "/vehicle/new",
+  VEHICLE_EDIT: "/vehicle/:id/edit",
+  EVENTS: "/events",
   REGISTRATION: "/registration",
   PAYMENT_CALLBACK: "/payment-callback",
 } as const;
+
+export function vehicleEditPath(id: string) {
+  return `/vehicle/${id}/edit`;
+}
 
 /** Relative API paths that may return 401 without treating the user as logged-out. */
 export const AUTH_PUBLIC_API_PATHS = ["/auth/login", "/auth/register"] as const;

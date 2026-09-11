@@ -1,20 +1,48 @@
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type SubmitHandler } from "react-hook-form";
-import { CompassIcon, PlusIcon, Trash2Icon, UserPlusIcon, UsersIcon, UsersRoundIcon } from "lucide-react";
-import { EditDeleteIconActions } from "@/components/common/EditDeleteIconActions";
-import { AddUsersToTeamDialog } from "@/components/teams/AddUsersToTeamDialog";
+import { Link, useLocation } from "react-router-dom";
+import {
+  CompassIcon,
+  PlusIcon,
+  Trash2Icon,
+  UserPlusIcon,
+  UsersIcon,
+  UsersRoundIcon,
+} from "lucide-react";
 import { toast } from "sonner";
 
 import {
+  BulkActionsMenu,
+  CrudTableToolbar,
+} from "@/components/common/CrudTableToolbar";
+import { DialogCommon } from "@/components/common/DialogCommon";
+import {
   EmptyState,
-  SelectFieldSkeleton,
   TeamsTableSkeleton,
 } from "@/components/common/LoadingStates";
-import { Typography } from "@/components/common/Typography";
-import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
+import {
+  NavigationCommon,
+  PageHeader,
+  type NavigationTabItem,
+} from "@/components/common/NavigationCommon";
+import {
+  TableActionMenuItem,
+  TableActionsMenu,
+} from "@/components/common/TableActionsMenu";
+import {
+  DatePicker,
+  FormCommon,
+  ImagePicker,
+  Input,
+  Select,
+} from "@/components/common/FormCommon";
+import {
+  PAGE_SHELL,
+  SIDEBAR_PAGE_PADDING,
+  TABLE_SECTION,
+} from "@/components/layout/pageLayout";
+import { AddUsersToTeamDialog } from "@/components/teams/AddUsersToTeamDialog";
 import {
   TeamsDataTable,
   TeamsDataTableBody,
@@ -24,14 +52,9 @@ import {
   TableCell,
   TableRow,
 } from "@/components/teams/TeamsDataTable";
-import { cn } from "@/lib/utils";
-import {
-  DatePicker,
-  FormCommon,
-  ImagePicker,
-  Input,
-  Select,
-} from "@/components/common/FormCommon";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useCategoriesQuery } from "@/hooks/api/use-categories";
 import {
   getTeamMemberErrorMessage,
@@ -48,21 +71,14 @@ import {
 } from "@/hooks/api/use-teams";
 import type { TeamMember } from "@/api/types/team-members";
 import type { Team } from "@/api/types/teams";
+import { cn } from "@/lib/utils";
+import {
+  CATEGORY_LABELS,
+  ROUTES,
+  type Category,
+} from "@/utils/constants";
 import { fetchAuthToken, toDateOnlyInputValue } from "@/utils/helpers";
-import {
-  buildCategoryMap,
-  needsNavigator,
-  needsRosterMembers,
-  validateTeamRoster,
-} from "@/utils/team-roster-rules";
-import {
-  buildCreateTeamMemberPayload,
-  buildUpdateTeamMemberPayload,
-  emptyTeamMemberFormValues,
-  teamMemberFormSchema,
-  teamMemberToFormValues,
-  type TeamMemberFormValues,
-} from "@/utils/team-member-form";
+import { buildCategoryMap } from "@/utils/team-roster-rules";
 import {
   buildCreateTeamPayload,
   buildUpdateTeamPayload,
@@ -72,13 +88,25 @@ import {
   teamToFormValues,
   type TeamFormValues,
 } from "@/utils/team-form";
-import { CATEGORY_LABELS, type Category } from "@/utils/constants";
+import {
+  buildCreateTeamMemberPayload,
+  buildUpdateTeamMemberPayload,
+  emptyTeamMemberFormValues,
+  teamMemberFormSchema,
+  teamMemberToFormValues,
+  type TeamMemberFormValues,
+} from "@/utils/team-member-form";
 
 const surface = "bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)]";
 const fieldClassName =
-  "h-11 w-full rounded-[10px] border-[#E8E8E8] bg-white px-3 text-[14px] text-[#1F1838]";
+  "h-11 w-full rounded-md border-[#E8E8E8] bg-white px-3 text-[14px] text-[#1F1838]";
 
 type PageTab = "roster" | "teams";
+
+const TEAMS_NAV: NavigationTabItem<PageTab>[] = [
+  { name: "Users", label: "roster" },
+  { name: "My teams", label: "teams" },
+];
 
 export default function TeamsPage() {
   return <TeamsScreen />;
@@ -86,71 +114,44 @@ export default function TeamsPage() {
 
 function TeamsScreen() {
   const token = React.useMemo(() => fetchAuthToken(), []);
-  const [pageTab, setPageTab] = React.useState<PageTab>("roster");
+  const location = useLocation();
+  const initialTab =
+    (location.state as { tab?: PageTab } | null)?.tab === "teams"
+      ? "teams"
+      : "roster";
+  const [pageTab, setPageTab] = React.useState<PageTab>(initialTab);
+  const activeTab =
+    TEAMS_NAV.find((t) => t.label === pageTab) ?? TEAMS_NAV[0];
+
+  React.useEffect(() => {
+    const tab = (location.state as { tab?: PageTab } | null)?.tab;
+    if (tab === "roster" || tab === "teams") {
+      setPageTab(tab);
+    }
+  }, [location.state]);
 
   return (
-    <div className="space-y-6">
-      <Card className={cn(surface, "rounded-[14px] px-6 py-6")}>
-        <Typography
-          as="h2"
-          variant="h4"
-          className="text-[28px] font-semibold leading-none text-[#1F1838]"
-        >
-          Teams
-        </Typography>
-        <Typography variant="body-sm" className="mt-2 text-[#6B7890]">
-          Manage users and build teams for rally registration.
-        </Typography>
-        <div className="mt-4 flex w-full overflow-hidden rounded-[12px] border border-[#E8E8E8] md:inline-flex md:w-auto">
-          <TabButton
-            active={pageTab === "roster"}
-            onClick={() => setPageTab("roster")}
-          >
-            Users
-          </TabButton>
-          <TabButton
-            active={pageTab === "teams"}
-            onClick={() => setPageTab("teams")}
-          >
-            My teams
-          </TabButton>
-        </div>
-      </Card>
+    <section className={cn(PAGE_SHELL, SIDEBAR_PAGE_PADDING, "gap-4")}>
+      <PageHeader
+        title="Teams"
+        description="Manage users and build teams for rally registration."
+      />
 
-      {pageTab === "roster" ? (
-        <RosterSection token={Boolean(token)} />
-      ) : (
-        <MyTeamsSection
-          token={Boolean(token)}
-          onGoToRoster={() => setPageTab("roster")}
-        />
-      )}
-    </div>
-  );
-}
+      <NavigationCommon
+        navList={TEAMS_NAV}
+        activeTab={activeTab}
+        handleActiveTab={(tab) => setPageTab(tab.label)}
+        className="shrink-0"
+      />
 
-function TabButton({
-  active,
-  onClick,
-  children,
-}: {
-  active: boolean;
-  onClick: () => void;
-  children: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      className={cn(
-        "flex-1 px-6 py-3 text-[14px] font-semibold transition-colors md:flex-none",
-        active
-          ? "bg-[#3FA565] text-white"
-          : "bg-white text-[#6B7890] hover:bg-[#F9FAFD]",
-      )}
-    >
-      {children}
-    </button>
+      <div className={cn(TABLE_SECTION, "min-h-0 overflow-y-auto")}>
+        {pageTab === "roster" ? (
+          <RosterSection token={Boolean(token)} />
+        ) : (
+          <MyTeamsSection token={Boolean(token)} />
+        )}
+      </div>
+    </section>
   );
 }
 
@@ -174,16 +175,43 @@ function RosterSection({ token }: { token: boolean }) {
 
   const rosterRoles = React.useMemo(() => buildRosterRoleMap(teams), [teams]);
 
+  const [search, setSearch] = React.useState("");
   const [selectedIds, setSelectedIds] = React.useState<Set<string>>(new Set());
   const [addToTeamOpen, setAddToTeamOpen] = React.useState(false);
   const [navigatorDialogOpen, setNavigatorDialogOpen] = React.useState(false);
 
+  const filteredMembers = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return members;
+    return members.filter((m) => {
+      const role = rosterRoles.get(m._id);
+      const teamNames = [
+        ...(role?.memberTeamNames ?? []),
+        ...(role?.navigatorTeamNames ?? []),
+      ];
+      const haystack = [
+        m.name,
+        m.email,
+        m.contact_number,
+        m.cnic,
+        m.date_of_birth,
+        role?.isNavigator ? "navigator" : "",
+        ...teamNames,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [members, search, rosterRoles]);
+
   const selectedIdList = React.useMemo(() => [...selectedIds], [selectedIds]);
   const allSelected =
-    members.length > 0 && members.every((m) => selectedIds.has(m._id));
-  const someSelected = members.some((m) => selectedIds.has(m._id));
+    filteredMembers.length > 0 &&
+    filteredMembers.every((m) => selectedIds.has(m._id));
+  const someSelected = filteredMembers.some((m) => selectedIds.has(m._id));
 
-  const [panel, setPanel] = React.useState<"none" | "new" | "edit">("none");
+  const [dialogOpen, setDialogOpen] = React.useState(false);
   const [editingId, setEditingId] = React.useState<string | null>(null);
 
   const createMutation = useCreateTeamMemberMutation();
@@ -196,36 +224,48 @@ function RosterSection({ token }: { token: boolean }) {
   });
 
   const isSaving = createMutation.isPending || updateMutation.isPending;
+  const isEdit = Boolean(editingId);
 
   const openNew = () => {
-    setPanel("new");
     setEditingId(null);
     form.reset(emptyTeamMemberFormValues);
+    setDialogOpen(true);
   };
 
   const openEdit = (m: TeamMember) => {
-    setPanel("edit");
     setEditingId(m._id);
     form.reset(teamMemberToFormValues(m));
+    setDialogOpen(true);
   };
 
-  const closePanel = () => {
-    setPanel("none");
+  const closeDialog = () => {
+    setDialogOpen(false);
     setEditingId(null);
     form.reset(emptyTeamMemberFormValues);
+  };
+
+  const handleDialogOpenChange = (open: boolean) => {
+    if (!open) {
+      closeDialog();
+      return;
+    }
+    setDialogOpen(true);
   };
 
   const clearSelection = () => setSelectedIds(new Set());
 
   const handleSelectAllChange = (checked: boolean | "indeterminate") => {
     if (checked === true) {
-      setSelectedIds(new Set(members.map((m) => m._id)));
+      setSelectedIds(new Set(filteredMembers.map((m) => m._id)));
     } else {
       clearSelection();
     }
   };
 
-  const handleSelectOneChange = (id: string, checked: boolean | "indeterminate") => {
+  const handleSelectOneChange = (
+    id: string,
+    checked: boolean | "indeterminate",
+  ) => {
     const isChecked = checked === true;
     setSelectedIds((prev) => {
       if (isChecked) {
@@ -261,12 +301,12 @@ function RosterSection({ token }: { token: boolean }) {
       );
     }
     clearSelection();
-    if (editingId && ids.includes(editingId)) closePanel();
+    if (editingId && ids.includes(editingId)) closeDialog();
   };
 
   const onSubmit: SubmitHandler<TeamMemberFormValues> = async (values) => {
     try {
-      if (panel === "edit" && editingId) {
+      if (isEdit && editingId) {
         await updateMutation.mutateAsync({
           id: editingId,
           payload: buildUpdateTeamMemberPayload(values),
@@ -276,33 +316,31 @@ function RosterSection({ token }: { token: boolean }) {
         await createMutation.mutateAsync(buildCreateTeamMemberPayload(values));
         toast.success("User added.");
       }
-      closePanel();
+      closeDialog();
     } catch (err) {
       toast.error(getTeamMemberErrorMessage(err));
     }
   };
 
   return (
-    <Card className={cn(surface, "rounded-[14px]")}>
-      <div className="flex items-center justify-between gap-4 border-b border-[#E8E8E8] px-6 pb-2">
-        <Typography
-          as="h3"
-          variant="label"
-          className="text-[14px] font-bold tracking-wide text-[#1F1838]"
-        >
-          USERS
-        </Typography>
-        <Button
-          type="button"
-          variant="primary-outline"
-          className="h-9 shrink-0 rounded-[10px] px-3"
-          onClick={openNew}
-          disabled={!token || panel !== "none"}
-        >
-          <PlusIcon className="size-4" />
-          Add user
-        </Button>
-      </div>
+    <Card className={cn(surface, "rounded-md")}>
+      <CrudTableToolbar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search users..."
+        addAction={
+          <Button
+            type="button"
+            variant="primary-outline"
+            className="shrink-0"
+            onClick={openNew}
+            disabled={!token}
+          >
+            <PlusIcon className="size-4" />
+            Add user
+          </Button>
+        }
+      />
 
       <div className="space-y-6 px-6 py-6">
         {membersQuery.isLoading ? (
@@ -315,85 +353,31 @@ function RosterSection({ token }: { token: boolean }) {
             variant="error"
             size="compact"
           />
-        ) : panel === "none" && members.length === 0 ? (
+        ) : members.length === 0 ? (
           <EmptyState
             icon={UsersIcon}
             title="No users yet"
             description="Add people you want on your teams before creating or joining a team."
             action={
-              <Button
-                type="button"
-                className="bg-[#3FA565] hover:bg-[#369A5D]"
-                onClick={openNew}
-                disabled={!token}
-              >
+              <Button type="button" onClick={openNew} disabled={!token}>
                 <PlusIcon className="size-4" />
                 Add first user
               </Button>
             }
           />
-        ) : panel === "none" ? (
+        ) : filteredMembers.length === 0 ? (
+          <EmptyState
+            icon={UsersIcon}
+            title="No matching users"
+            description="Try a different search term."
+            size="compact"
+          />
+        ) : (
           <>
-            {selectedIdList.length > 0 ? (
-              <div className="flex flex-col gap-3 rounded-[12px] border border-[#C8E6D4] bg-[#EAF6EF] px-4 py-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
-                <Typography
-                  variant="body-sm"
-                  className="font-medium text-[#1F6B43]"
-                >
-                  {selectedIdList.length} user
-                  {selectedIdList.length === 1 ? "" : "s"} selected
-                </Typography>
-                <div className="flex flex-wrap gap-2">
-                  <Button
-                    type="button"
-                    variant="primary-outline"
-                    size="sm"
-                    className="rounded-[10px] border-[#3FA565] bg-white text-[#1F6B43]"
-                    onClick={() => setAddToTeamOpen(true)}
-                  >
-                    <UserPlusIcon className="size-4" />
-                    Add to team
-                  </Button>
-                  {selectedIdList.length === 1 ? (
-                    <Button
-                      type="button"
-                      variant="primary-outline"
-                      size="sm"
-                      className="rounded-[10px] border-[#3FA565] bg-white text-[#1F6B43]"
-                      onClick={() => setNavigatorDialogOpen(true)}
-                    >
-                      <CompassIcon className="size-4" />
-                      Add as navigator
-                    </Button>
-                  ) : null}
-                  <Button
-                    type="button"
-                    variant="destructive-outline"
-                    size="sm"
-                    className="rounded-[10px]"
-                    disabled={deleteMutation.isPending}
-                    onClick={() => void handleBulkDelete()}
-                  >
-                    <Trash2Icon className="size-4" />
-                    Delete selected
-                  </Button>
-                  <Button
-                    type="button"
-                    variant="ghost"
-                    size="sm"
-                    className="rounded-[10px] text-[#6B7890]"
-                    onClick={clearSelection}
-                  >
-                    Clear
-                  </Button>
-                </div>
-              </div>
-            ) : null}
-
-            <TeamsDataTable tableClassName="min-w-[1280px]">
+            <TeamsDataTable tableClassName="table-fixed">
               <TeamsDataTableHeader>
                 <TeamsDataTableHeaderRow>
-                  <TeamsDataTableHead className="w-12">
+                  <TeamsDataTableHead className="w-10">
                     <Checkbox
                       checked={
                         allSelected
@@ -407,22 +391,53 @@ function RosterSection({ token }: { token: boolean }) {
                       className="border-white/40 data-[state=checked]:bg-white data-[state=checked]:text-[#3FA565]"
                     />
                   </TeamsDataTableHead>
-                  <TeamsDataTableHead>Name</TeamsDataTableHead>
-                  <TeamsDataTableHead>Email</TeamsDataTableHead>
-                  <TeamsDataTableHead>Contact</TeamsDataTableHead>
-                  <TeamsDataTableHead>CNIC</TeamsDataTableHead>
-                  <TeamsDataTableHead>Date of birth</TeamsDataTableHead>
-                  <TeamsDataTableHead>Navigator</TeamsDataTableHead>
-                  <TeamsDataTableHead className="min-w-[150px]">
-                    Teams
+                  <TeamsDataTableHead className="w-[12%]">Name</TeamsDataTableHead>
+                  <TeamsDataTableHead className="w-[16%]">Email</TeamsDataTableHead>
+                  <TeamsDataTableHead className="w-[11%]">Contact</TeamsDataTableHead>
+                  <TeamsDataTableHead className="w-[11%]">CNIC</TeamsDataTableHead>
+                  <TeamsDataTableHead className="w-[10%]">
+                    Date of birth
                   </TeamsDataTableHead>
-                  <TeamsDataTableHead className="min-w-[96px] text-right">
-                    Actions
+                  <TeamsDataTableHead className="w-[10%]">
+                    Navigator
+                  </TeamsDataTableHead>
+                  <TeamsDataTableHead className="w-[14%]">Teams</TeamsDataTableHead>
+                  <TeamsDataTableHead className="w-24 text-right">
+                    <div className="flex items-center justify-end gap-1">
+                      <span>Actions</span>
+                      <BulkActionsMenu
+                        enabled={selectedIdList.length > 0}
+                        triggerClassName="text-white hover:bg-white/15 hover:text-white disabled:opacity-50 disabled:text-white/50"
+                      >
+                        <TableActionMenuItem
+                          onClick={() => setAddToTeamOpen(true)}
+                        >
+                          <UserPlusIcon className="size-4" />
+                          Add to team
+                        </TableActionMenuItem>
+                        {selectedIdList.length === 1 ? (
+                          <TableActionMenuItem
+                            onClick={() => setNavigatorDialogOpen(true)}
+                          >
+                            <CompassIcon className="size-4" />
+                            Add as navigator
+                          </TableActionMenuItem>
+                        ) : null}
+                        <TableActionMenuItem
+                          destructive
+                          disabled={deleteMutation.isPending}
+                          onClick={() => void handleBulkDelete()}
+                        >
+                          <Trash2Icon className="size-4" />
+                          Delete selected
+                        </TableActionMenuItem>
+                      </BulkActionsMenu>
+                    </div>
                   </TeamsDataTableHead>
                 </TeamsDataTableHeaderRow>
               </TeamsDataTableHeader>
               <TeamsDataTableBody>
-                {members.map((m) => {
+                {filteredMembers.map((m) => {
                   const role = rosterRoles.get(m._id);
                   const isSelected = selectedIds.has(m._id);
                   return (
@@ -431,7 +446,7 @@ function RosterSection({ token }: { token: boolean }) {
                       data-state={isSelected ? "selected" : undefined}
                       className={cn(isSelected && "bg-[#EAF6EF]/50")}
                     >
-                      <TableCell className="px-4">
+                      <TableCell className="px-3">
                         <Checkbox
                           checked={isSelected}
                           onCheckedChange={(checked) =>
@@ -440,46 +455,68 @@ function RosterSection({ token }: { token: boolean }) {
                           aria-label={`Select ${m.name}`}
                         />
                       </TableCell>
-                      <TableCell className="px-4 font-semibold text-[#1F1838]">
-                        {m.name}
+                      <TableCell className="max-w-0 px-3 font-semibold text-[#1F1838]">
+                        <span className="block truncate" title={m.name}>
+                          {m.name}
+                        </span>
                       </TableCell>
-                      <TableCell className="px-4 text-[#6B7890]">
-                        {m.email}
+                      <TableCell className="max-w-0 px-3 text-[#6B7890]">
+                        <span className="block truncate" title={m.email}>
+                          {m.email}
+                        </span>
                       </TableCell>
-                      <TableCell className="px-4 text-[#6B7890]">
-                        {m.contact_number}
+                      <TableCell className="max-w-0 px-3 text-[#6B7890]">
+                        <span
+                          className="block truncate"
+                          title={m.contact_number}
+                        >
+                          {m.contact_number}
+                        </span>
                       </TableCell>
-                      <TableCell className="px-4 text-[#6B7890]">
-                        {m.cnic}
+                      <TableCell className="max-w-0 px-3 text-[#6B7890]">
+                        <span className="block truncate" title={m.cnic}>
+                          {m.cnic}
+                        </span>
                       </TableCell>
-                      <TableCell className="px-4 text-[#6B7890]">
-                        {toDateOnlyInputValue(m.date_of_birth) ||
-                          m.date_of_birth ||
-                          "—"}
+                      <TableCell className="max-w-0 px-3 text-[#6B7890]">
+                        <span className="block truncate">
+                          {toDateOnlyInputValue(m.date_of_birth) ||
+                            m.date_of_birth ||
+                            "—"}
+                        </span>
                       </TableCell>
-                      <TableCell className="px-4">
+                      <TableCell className="px-3">
                         <NavigatorStatusCell role={role} />
                       </TableCell>
-                      <TableCell className="min-w-[150px] px-4 align-top">
+                      <TableCell className="max-w-0 px-3 align-middle">
                         <UserTeamsCell role={role} />
                       </TableCell>
-                      <TableCell className="min-w-[96px] px-4 text-right align-middle whitespace-nowrap">
+                      <TableCell className="w-24 px-3 text-right align-middle whitespace-nowrap">
                         <div className="flex justify-end">
-                          <EditDeleteIconActions
-                          editLabel="Edit user"
-                          deleteLabel="Delete user"
-                          onEdit={() => openEdit(m)}
-                          deleteDisabled={deleteMutation.isPending}
-                          onDelete={async () => {
-                            try {
-                              await deleteMutation.mutateAsync(m._id);
-                              toast.success("User removed.");
-                              if (editingId === m._id) closePanel();
-                            } catch (err) {
-                              toast.error(getTeamMemberErrorMessage(err));
-                            }
-                          }}
-                          />
+                          <TableActionsMenu>
+                            <TableActionMenuItem onClick={() => openEdit(m)}>
+                              Edit
+                            </TableActionMenuItem>
+                            <TableActionMenuItem
+                              destructive
+                              disabled={deleteMutation.isPending}
+                              onClick={() => {
+                                void (async () => {
+                                  try {
+                                    await deleteMutation.mutateAsync(m._id);
+                                    toast.success("User removed.");
+                                    if (editingId === m._id) closeDialog();
+                                  } catch (err) {
+                                    toast.error(
+                                      getTeamMemberErrorMessage(err),
+                                    );
+                                  }
+                                })();
+                              }}
+                            >
+                              Delete
+                            </TableActionMenuItem>
+                          </TableActionsMenu>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -508,101 +545,100 @@ function RosterSection({ token }: { token: boolean }) {
               onSuccess={clearSelection}
             />
           </>
-        ) : null}
-
-        {panel !== "none" ? (
-          <FormCommon form={form} onSubmit={onSubmit} className="space-y-5">
-            <div className="grid gap-5 md:grid-cols-2">
-              <Input
-                control={form.control}
-                name="name"
-                label="Full name"
-                required
-                className={fieldClassName}
-              />
-              <Input
-                control={form.control}
-                name="email"
-                label="Email"
-                type="email"
-                required
-                className={fieldClassName}
-              />
-              <Input
-                control={form.control}
-                name="contact_number"
-                label="Contact number"
-                required
-                className={fieldClassName}
-              />
-              <Input
-                control={form.control}
-                name="cnic"
-                label="CNIC"
-                required
-                className={fieldClassName}
-              />
-              <DatePicker
-                control={form.control}
-                name="date_of_birth"
-                label="Date of birth"
-                placeholder="YYYY-MM-DD"
-                required
-                className={fieldClassName}
-              />
-              <Input
-                control={form.control}
-                name="occupation"
-                label="Occupation"
-                className={fieldClassName}
-              />
-              <Input
-                control={form.control}
-                name="location"
-                label="Location"
-                className={fieldClassName}
-              />
-            </div>
-            <ImagePicker
-              control={form.control}
-              name="profile_image"
-              label="Profile photo"
-              accept="image/*"
-              variant="compact"
-            />
-            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <Button
-                type="button"
-                variant="destructive-outline"
-                onClick={closePanel}
-                disabled={isSaving}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                className="bg-[#3FA565] hover:bg-[#369A5D]"
-                disabled={isSaving}
-              >
-                {panel === "edit" ? "Update user" : "Save user"}
-              </Button>
-            </div>
-          </FormCommon>
-        ) : null}
+        )}
       </div>
+
+      <DialogCommon
+        open={dialogOpen}
+        onOpenChange={handleDialogOpenChange}
+        headerTitle={isEdit ? "Edit user" : "Add user"}
+        headerDescription={
+          isEdit
+            ? "Update this team member’s details."
+            : "Add a person you can assign to your teams."
+        }
+        className="sm:max-w-[640px]"
+      >
+        <FormCommon form={form} onSubmit={onSubmit} className="space-y-5">
+          <div className="grid gap-5 md:grid-cols-2">
+            <Input
+              control={form.control}
+              name="name"
+              label="Full name"
+              required
+              className={fieldClassName}
+            />
+            <Input
+              control={form.control}
+              name="email"
+              label="Email"
+              type="email"
+              required
+              className={fieldClassName}
+            />
+            <Input
+              control={form.control}
+              name="contact_number"
+              label="Contact number"
+              required
+              className={fieldClassName}
+            />
+            <Input
+              control={form.control}
+              name="cnic"
+              label="CNIC"
+              required
+              className={fieldClassName}
+            />
+            <DatePicker
+              control={form.control}
+              name="date_of_birth"
+              label="Date of birth"
+              placeholder="YYYY-MM-DD"
+              required
+              className={fieldClassName}
+            />
+            <Input
+              control={form.control}
+              name="occupation"
+              label="Occupation"
+              className={fieldClassName}
+            />
+            <Input
+              control={form.control}
+              name="location"
+              label="Location"
+              className={fieldClassName}
+            />
+          </div>
+          <ImagePicker
+            control={form.control}
+            name="profile_image"
+            label="Profile photo"
+            accept="image/*"
+            variant="compact"
+          />
+          <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
+            <Button
+              type="button"
+              variant="destructive-outline"
+              onClick={closeDialog}
+              disabled={isSaving}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSaving}>
+              {isEdit ? "Update user" : "Save user"}
+            </Button>
+          </div>
+        </FormCommon>
+      </DialogCommon>
     </Card>
   );
 }
 
-function MyTeamsSection({
-  token,
-  onGoToRoster,
-}: {
-  token: boolean;
-  onGoToRoster: () => void;
-}) {
+function MyTeamsSection({ token }: { token: boolean }) {
   const categoriesQuery = useCategoriesQuery(token);
-  const membersQuery = useTeamMembersQuery(token);
   const teamsQuery = useMyTeamsQuery(token);
 
   const categories = React.useMemo(
@@ -625,214 +661,123 @@ function MyTeamsSection({
     [categories],
   );
 
-  const members = Array.isArray(membersQuery.data?.data)
-    ? membersQuery.data.data
-    : [];
   const teams = Array.isArray(teamsQuery.data?.data)
     ? teamsQuery.data.data
     : [];
 
-  const [panel, setPanel] = React.useState<"none" | "new" | "edit">("none");
-  const [editingId, setEditingId] = React.useState<string | null>(null);
-
-  const [selectedMemberIds, setSelectedMemberIds] = React.useState<string[]>(
-    [],
-  );
-  const [navigatorId, setNavigatorId] = React.useState("");
-
-  /** Roster at open-edit time — restored when user switches back to that category. */
-  const editRosterSnapshotRef = React.useRef<{
-    category: string;
-    memberIds: string[];
-    navigatorId: string;
-  } | null>(null);
-
   const createMutation = useCreateTeamMutation();
   const updateMutation = useUpdateTeamMutation();
   const deleteMutation = useDeleteTeamMutation();
+
+  const isLoading = categoriesQuery.isLoading || teamsQuery.isLoading;
+  const [search, setSearch] = React.useState("");
+  const [dialogOpen, setDialogOpen] = React.useState(false);
+  const [editingTeam, setEditingTeam] = React.useState<Team | null>(null);
 
   const form = useForm<TeamFormValues>({
     resolver: zodResolver(teamFormSchema),
     defaultValues: emptyTeamFormValues,
   });
 
-  const watchedCategory = form.watch("category");
-  const selectedCategory = categoryByKey.get(watchedCategory);
-  const showRosterPicker = needsRosterMembers(selectedCategory);
-  const showNavigatorPicker = needsNavigator(selectedCategory);
-
-  const prevCategoryRef = React.useRef<string | undefined>(undefined);
-  React.useEffect(() => {
-    if (panel === "none") {
-      prevCategoryRef.current = undefined;
-      return;
-    }
-    const prev = prevCategoryRef.current;
-    prevCategoryRef.current = watchedCategory;
-    if (prev === undefined || prev === watchedCategory) return;
-
-    const snapshot = editRosterSnapshotRef.current;
-    if (
-      panel === "edit" &&
-      snapshot &&
-      watchedCategory === snapshot.category
-    ) {
-      setSelectedMemberIds([...snapshot.memberIds]);
-      setNavigatorId(snapshot.navigatorId);
-      return;
-    }
-
-    const cat = categoryByKey.get(watchedCategory);
-    if (!needsRosterMembers(cat)) {
-      setSelectedMemberIds([]);
-      setNavigatorId("");
-      return;
-    }
-
-    const max = cat?.max_members ?? 0;
-    setSelectedMemberIds((ids) => {
-      const nextIds =
-        max > 0 && ids.length > max ? ids.slice(0, max) : ids;
-      if (!needsNavigator(cat)) {
-        setNavigatorId("");
-      } else {
-        setNavigatorId((navId) =>
-          navId && nextIds.includes(navId) ? navId : "",
-        );
-      }
-      return nextIds;
-    });
-  }, [panel, watchedCategory, categoryByKey]);
-
+  const isEdit = Boolean(editingTeam);
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
+  const filteredTeams = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return teams;
+    return teams.filter((t) => {
+      const catTitle =
+        categoryByKey.get(t.category)?.title ??
+        CATEGORY_LABELS[t.category as Category] ??
+        t.category;
+      const haystack = [
+        t.team_name,
+        String(t.team_number),
+        t.category,
+        catTitle,
+        t.navigator_id?.name,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase();
+      return haystack.includes(q);
+    });
+  }, [teams, search, categoryByKey]);
+
   const openNew = () => {
-    setPanel("new");
-    setEditingId(null);
-    editRosterSnapshotRef.current = null;
-    setSelectedMemberIds([]);
-    setNavigatorId("");
-    const initialCategory = categories[0]?.key ?? "";
-    prevCategoryRef.current = initialCategory;
+    setEditingTeam(null);
     form.reset({
       ...emptyTeamFormValues,
-      category: initialCategory,
+      category: categories[0]?.key ?? "",
     });
+    setDialogOpen(true);
   };
 
-  const openEdit = (t: Team) => {
-    const { memberIds, navigatorId: navId } = selectedMembersForTeamForm(t);
-    editRosterSnapshotRef.current = {
-      category: t.category,
-      memberIds: [...memberIds],
-      navigatorId: navId,
-    };
-    setPanel("edit");
-    setEditingId(t._id);
-    prevCategoryRef.current = t.category;
-    form.reset(teamToFormValues(t));
-    setSelectedMemberIds(memberIds);
-    setNavigatorId(navId);
+  const openEdit = (team: Team) => {
+    setEditingTeam(team);
+    form.reset(teamToFormValues(team));
+    setDialogOpen(true);
   };
 
-  const closePanel = () => {
-    setPanel("none");
-    setEditingId(null);
-    editRosterSnapshotRef.current = null;
-    setSelectedMemberIds([]);
-    setNavigatorId("");
-    prevCategoryRef.current = undefined;
+  const closeDialog = () => {
+    setDialogOpen(false);
+    setEditingTeam(null);
     form.reset(emptyTeamFormValues);
   };
 
-  const handleMemberCheckedChange = (
-    id: string,
-    checked: boolean | "indeterminate",
-  ) => {
-    const isChecked = checked === true;
-    const max = selectedCategory?.max_members ?? 0;
-
-    if (isChecked) {
-      setSelectedMemberIds((prev) => {
-        if (prev.includes(id)) return prev;
-        if (max === 1) return [id];
-        if (max > 0 && prev.length >= max) return prev;
-        return [...prev, id];
-      });
-      if (max === 1 && showNavigatorPicker) setNavigatorId(id);
+  const handleDialogOpenChange = (open: boolean) => {
+    if (!open) {
+      closeDialog();
       return;
     }
-
-    setSelectedMemberIds((prev) => {
-      if (!prev.includes(id)) return prev;
-      return prev.filter((x) => x !== id);
-    });
-    setNavigatorId((prev) => (prev === id ? "" : prev));
+    setDialogOpen(true);
   };
 
-  const onSubmit: SubmitHandler<TeamFormValues> = async (values) => {
-    const cat = categoryByKey.get(values.category);
-    const validation = validateTeamRoster(
-      cat,
-      selectedMemberIds,
-      showNavigatorPicker ? navigatorId : undefined,
-    );
-    if (!validation.ok) {
-      toast.error(validation.message);
-      return;
-    }
-
+  const onSubmitTeam: SubmitHandler<TeamFormValues> = async (values) => {
     try {
-      if (panel === "edit" && editingId) {
+      if (isEdit && editingTeam) {
+        const { memberIds, navigatorId } =
+          selectedMembersForTeamForm(editingTeam);
         await updateMutation.mutateAsync({
-          id: editingId,
+          id: editingTeam._id,
           payload: buildUpdateTeamPayload(
             values,
-            selectedMemberIds,
-            showNavigatorPicker ? navigatorId : null,
+            memberIds,
+            navigatorId || null,
           ),
         });
         toast.success("Team updated.");
       } else {
         await createMutation.mutateAsync(
-          buildCreateTeamPayload(
-            values,
-            selectedMemberIds,
-            showNavigatorPicker ? navigatorId : undefined,
-          ),
+          buildCreateTeamPayload(values, [], undefined),
         );
-        toast.success("Team created.");
+        toast.success("Team created. Add members from the Users tab.");
       }
-      closePanel();
+      closeDialog();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not save team.");
     }
   };
 
-  const isLoading =
-    categoriesQuery.isLoading || membersQuery.isLoading || teamsQuery.isLoading;
-
   return (
-    <Card className={cn(surface, "rounded-[14px]")}>
-      <div className="flex items-center justify-between gap-4 border-b border-[#E8E8E8] px-6 pb-2">
-        <Typography
-          as="h3"
-          variant="label"
-          className="text-[14px] font-bold tracking-wide text-[#1F1838]"
-        >
-          MY TEAMS
-        </Typography>
-        <Button
-          type="button"
-          variant="primary-outline"
-          className="h-9 shrink-0 rounded-[10px] px-3"
-          onClick={openNew}
-          disabled={!token || panel !== "none" || categories.length === 0}
-        >
-          <PlusIcon className="size-4" />
-          Add team
-        </Button>
-      </div>
+    <Card className={cn(surface, "rounded-md")}>
+      <CrudTableToolbar
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Search teams..."
+        addAction={
+          <Button
+            type="button"
+            variant="primary-outline"
+            className="shrink-0"
+            onClick={openNew}
+            disabled={!token || categories.length === 0}
+          >
+            <PlusIcon className="size-4" />
+            Add team
+          </Button>
+        }
+      />
 
       <div className="space-y-6 px-6 py-6">
         {isLoading ? (
@@ -845,7 +790,7 @@ function MyTeamsSection({
             variant="error"
             size="compact"
           />
-        ) : panel === "none" && teams.length === 0 ? (
+        ) : teams.length === 0 ? (
           <EmptyState
             icon={UsersRoundIcon}
             title="No teams yet"
@@ -853,7 +798,6 @@ function MyTeamsSection({
             action={
               <Button
                 type="button"
-                className="bg-[#3FA565] hover:bg-[#369A5D]"
                 onClick={openNew}
                 disabled={!token || categories.length === 0}
               >
@@ -862,7 +806,14 @@ function MyTeamsSection({
               </Button>
             }
           />
-        ) : panel === "none" ? (
+        ) : filteredTeams.length === 0 ? (
+          <EmptyState
+            icon={UsersRoundIcon}
+            title="No matching teams"
+            description="Try a different search term."
+            size="compact"
+          />
+        ) : (
           <TeamsDataTable>
             <TeamsDataTableHeader>
               <TeamsDataTableHeaderRow>
@@ -877,7 +828,7 @@ function MyTeamsSection({
               </TeamsDataTableHeaderRow>
             </TeamsDataTableHeader>
             <TeamsDataTableBody>
-              {teams.map((t) => {
+              {filteredTeams.map((t) => {
                 const catTitle =
                   categoryByKey.get(t.category)?.title ??
                   CATEGORY_LABELS[t.category as Category] ??
@@ -915,17 +866,23 @@ function MyTeamsSection({
                     </TableCell>
                     <TableCell className="min-w-[96px] px-4 text-right align-middle whitespace-nowrap">
                       <div className="flex justify-end">
-                        <EditDeleteIconActions
-                          editLabel="Edit team"
-                          deleteLabel="Delete team"
-                          onEdit={() => openEdit(t)}
-                          deleteDisabled={deleteMutation.isPending}
-                          onDelete={async () => {
-                            await deleteMutation.mutateAsync(t._id);
-                            toast.success("Team deleted.");
-                            if (editingId === t._id) closePanel();
-                          }}
-                        />
+                        <TableActionsMenu>
+                          <TableActionMenuItem onClick={() => openEdit(t)}>
+                            Edit
+                          </TableActionMenuItem>
+                          <TableActionMenuItem
+                            destructive
+                            disabled={deleteMutation.isPending}
+                            onClick={() => {
+                              void (async () => {
+                                await deleteMutation.mutateAsync(t._id);
+                                toast.success("Team deleted.");
+                              })();
+                            }}
+                          >
+                            Delete
+                          </TableActionMenuItem>
+                        </TableActionsMenu>
                       </div>
                     </TableCell>
                   </TableRow>
@@ -933,160 +890,63 @@ function MyTeamsSection({
               })}
             </TeamsDataTableBody>
           </TeamsDataTable>
-        ) : null}
-
-        {panel !== "none" ? (
-          <FormCommon form={form} onSubmit={onSubmit} className="space-y-5">
-            <div className="grid gap-5 md:grid-cols-2">
-              <Input
-                control={form.control}
-                name="team_name"
-                label="Team name"
-                required
-                className={fieldClassName}
-              />
-              <Input
-                control={form.control}
-                name="team_number"
-                label="Team number"
-                required
-                className={fieldClassName}
-              />
-              {categoriesQuery.isLoading ? (
-                <SelectFieldSkeleton />
-              ) : categoryOptions.length > 0 ? (
-                <Select
-                  control={form.control}
-                  name="category"
-                  label="Category"
-                  placeholder="Select category"
-                  required
-                  options={categoryOptions}
-                  className={fieldClassName}
-                />
-              ) : (
-                <Typography variant="body-sm" className="text-[#6B7890]">
-                  No categories available.
-                </Typography>
-              )}
-            </div>
-
-            {showRosterPicker ? (
-              <div className="space-y-3">
-                <Typography variant="body-sm" className="text-[#6B7890]">
-                  Team members
-                  {selectedCategory
-                    ? ` (select up to ${selectedCategory.max_members})`
-                    : ""}
-                </Typography>
-                {members.length === 0 ? (
-                  <div className="rounded-[12px] border border-[#E8E8E8] bg-[#F9FAFD] p-4">
-                    <Typography variant="body-sm" className="text-[#6B7890]">
-                      Add users first.
-                    </Typography>
-                    <Button
-                      type="button"
-                      variant="primary-outline"
-                      className="mt-3"
-                      onClick={onGoToRoster}
-                    >
-                      Go to Users
-                    </Button>
-                  </div>
-                ) : (
-                  <TeamsDataTable>
-                    <TeamsDataTableHeader>
-                      <TeamsDataTableHeaderRow>
-                        <TeamsDataTableHead>Select</TeamsDataTableHead>
-                        <TeamsDataTableHead>Name</TeamsDataTableHead>
-                        <TeamsDataTableHead>Email</TeamsDataTableHead>
-                        <TeamsDataTableHead>Navigator</TeamsDataTableHead>
-                      </TeamsDataTableHeaderRow>
-                    </TeamsDataTableHeader>
-                    <TeamsDataTableBody>
-                      {members.map((m) => {
-                        const selected = selectedMemberIds.includes(m._id);
-                        const isNav = navigatorId === m._id;
-                        return (
-                          <TableRow
-                            key={m._id}
-                            data-state={selected ? "selected" : undefined}
-                            className={cn(selected && "bg-[#EAF6EF]/60")}
-                          >
-                            <TableCell className="px-4">
-                              <Checkbox
-                                checked={selected}
-                                onCheckedChange={(checked) =>
-                                  handleMemberCheckedChange(m._id, checked)
-                                }
-                                aria-label={`Select ${m.name}`}
-                              />
-                            </TableCell>
-                            <TableCell className="px-4 font-medium text-[#1F1838]">
-                              {m.name}
-                            </TableCell>
-                            <TableCell className="px-4 text-[#6B7890]">
-                              {m.email}
-                            </TableCell>
-                            <TableCell className="px-4">
-                              {isNav ? (
-                                <NavigatorBadge />
-                              ) : selected && showNavigatorPicker ? (
-                                <button
-                                  type="button"
-                                  className="text-[12px] font-medium text-[#3FA565] underline-offset-2 hover:underline"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setNavigatorId(m._id);
-                                  }}
-                                >
-                                  Set as navigator
-                                </button>
-                              ) : (
-                                <span className="text-[#9AA6C8]">—</span>
-                              )}
-                            </TableCell>
-                          </TableRow>
-                        );
-                      })}
-                    </TeamsDataTableBody>
-                  </TeamsDataTable>
-                )}
-              </div>
-            ) : null}
-
-            {showNavigatorPicker && navigatorId ? (
-              <div className="flex flex-wrap items-center gap-2 rounded-[10px] border border-[#C8E6D4] bg-[#EAF6EF] px-4 py-3">
-                <Typography variant="body-sm" className="text-[#1F6B43]">
-                  Navigator for this team:
-                </Typography>
-                <NavigatorBadge />
-                <span className="font-semibold text-[#1F6B43]">
-                  {members.find((m) => m._id === navigatorId)?.name ?? "—"}
-                </span>
-              </div>
-            ) : null}
-
-            <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-              <Button
-                type="button"
-                variant="destructive-outline"
-                onClick={closePanel}
-                disabled={isSaving}
-              >
-                Cancel
-              </Button>
-              <Button
-                type="submit"
-                className="bg-[#3FA565] hover:bg-[#369A5D]"
-                disabled={isSaving}
-              >
-                {panel === "edit" ? "Update team" : "Save team"}
-              </Button>
-            </div>
-          </FormCommon>
-        ) : null}
+        )}
       </div>
+
+      <DialogCommon
+        open={dialogOpen}
+        onOpenChange={handleDialogOpenChange}
+        headerTitle={isEdit ? "Edit team" : "Add team"}
+        headerDescription={
+          isEdit
+            ? "Update this team’s name, number, and category."
+            : "Create a team, then add members from the Users tab."
+        }
+        className="sm:max-w-[520px]"
+      >
+        <FormCommon form={form} onSubmit={onSubmitTeam} className="space-y-5">
+          <Input
+            control={form.control}
+            name="team_name"
+            label="Team name"
+            required
+            className={fieldClassName}
+          />
+          <Input
+            control={form.control}
+            name="team_number"
+            label="Team number"
+            required
+            className={fieldClassName}
+          />
+          {categoryOptions.length > 0 ? (
+            <Select
+              control={form.control}
+              name="category"
+              label="Category"
+              placeholder="Select category"
+              required
+              options={categoryOptions}
+              className={fieldClassName}
+            />
+          ) : (
+            <p className="text-sm text-[#6B7890]">No categories available.</p>
+          )}
+          <div className="flex justify-end gap-2 pt-1">
+            <Button
+              type="button"
+              variant="outline"
+              onClick={closeDialog}
+              disabled={isSaving}
+            >
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isSaving || categoryOptions.length === 0}>
+              {isEdit ? "Update team" : "Save team"}
+            </Button>
+          </div>
+        </FormCommon>
+      </DialogCommon>
     </Card>
   );
 }
@@ -1162,18 +1022,10 @@ function UserTeamsCell({ role }: { role: RosterRoleInfo | undefined }) {
     return <span className="text-[#9AA6C8]">—</span>;
   }
 
+  const label = teams.join(", ");
   return (
-    <div
-      className="flex flex-col gap-0.5 text-[13px] leading-snug text-[#1F1838]"
-      title={teams.join(", ")}
-    >
-      <span>
-        {teams[0]}
-        {teams.length > 1 ? "," : ""}
-      </span>
-      {teams.slice(1).map((name, index) => (
-        <span key={`${name}-${index}`}>{name}</span>
-      ))}
-    </div>
+    <span className="block truncate text-[13px] text-[#1F1838]" title={label}>
+      {label}
+    </span>
   );
 }

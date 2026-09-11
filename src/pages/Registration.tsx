@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type SubmitHandler } from "react-hook-form";
@@ -23,21 +23,25 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import {
   AlertCircleIcon,
+  CalendarOffIcon,
   CameraIcon,
   CarIcon,
+  CheckIcon,
   LayoutGridIcon,
   UserIcon,
   UsersRoundIcon,
 } from "lucide-react";
-import { EditDeleteIconActions } from "@/components/common/EditDeleteIconActions";
 import { ActiveRallySummary } from "@/components/registration/ActiveRallySummary";
 import { CategoryConsentContent } from "@/components/registration/CategoryConsentContent";
+import {
+  SCROLL_PAGE,
+  SIDEBAR_PAGE_PADDING,
+} from "@/components/layout/pageLayout";
 import { useMyTeamsQuery } from "@/hooks/api/use-teams";
 import { useRallyPricingQuery } from "@/hooks/api/use-rally-pricing";
 import { useSessionUser } from "@/hooks/api/use-session-user";
 import {
   useCreateVehicleMutation,
-  useDeleteVehicleMutation,
   useMyVehicleQuery,
   useUpdateVehicleMutation,
   useUploadVehicleImageMutation,
@@ -48,7 +52,11 @@ import type { CreateRegistrationPayload } from "@/api/types/registrations";
 import type { TeamCategory } from "@/api/types/teams";
 import type { Vehicle } from "@/api/types/vehicles";
 import { fetchAuthToken, toPublicFileUrl } from "@/utils/helpers";
-import { resolveActiveEventId } from "@/utils/rally-event";
+import {
+  getRegistrationWindow,
+  getRegistrationWindowMessage,
+  resolveActiveEventId,
+} from "@/utils/rally-event";
 import {
   findPricingByCategoryKey,
   formatRallyAmount,
@@ -149,7 +157,11 @@ function StepPill({
               : "bg-[#D7DAE1] text-white",
         )}
       >
-        {isDone ? "✓" : "•"}
+        {isDone ? (
+          <CheckIcon className="size-3" strokeWidth={3} aria-hidden />
+        ) : (
+          <span className="size-1.5 rounded-full bg-white" aria-hidden />
+        )}
       </span>
       <span className="font-medium">{label}</span>
     </div>
@@ -180,6 +192,19 @@ export default function RegistrationPage() {
   const activeRallyQuery = useActiveRallyQuery(Boolean(token));
   const activeRally = activeRallyQuery.data?.data ?? null;
   const activeRallyEventId = resolveActiveEventId(activeRally);
+  const registrationWindow = useMemo(
+    () => getRegistrationWindow(activeRally),
+    [activeRally],
+  );
+  const registrationClosedMessage = useMemo(
+    () => getRegistrationWindowMessage(registrationWindow, activeRally?.name),
+    [registrationWindow, activeRally?.name],
+  );
+  const canRegisterNow =
+    !activeRallyQuery.isLoading &&
+    Boolean(activeRallyEventId) &&
+    !activeRallyQuery.isError &&
+    registrationWindow.isOpen;
 
   const pricingQuery = useRallyPricingQuery(
     activeRallyEventId,
@@ -318,7 +343,6 @@ export default function RegistrationPage() {
 
   const createVehicleMutation = useCreateVehicleMutation();
   const updateVehicleMutation = useUpdateVehicleMutation();
-  const deleteVehicleMutation = useDeleteVehicleMutation();
   const uploadImageMutation = useUploadVehicleImageMutation();
 
   const isSavingVehicle =
@@ -328,7 +352,6 @@ export default function RegistrationPage() {
   const vehicleError =
     createVehicleMutation.error ??
     updateVehicleMutation.error ??
-    deleteVehicleMutation.error ??
     uploadImageMutation.error ??
     null;
 
@@ -421,10 +444,32 @@ export default function RegistrationPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- reset acceptance when category changes
   }, [category]);
 
+  useEffect(() => {
+    if (
+      !activeRallyQuery.isLoading &&
+      activeRally &&
+      !registrationWindow.isOpen &&
+      step !== 1
+    ) {
+      setStep(1);
+      setCategory(null);
+    }
+  }, [
+    activeRally,
+    activeRallyQuery.isLoading,
+    registrationWindow.isOpen,
+    step,
+  ]);
+
   const [isSubmittingRegistration, setIsSubmittingRegistration] =
     useState(false);
 
   const onSubmitConsent: SubmitHandler<ConsentFormValues> = async () => {
+    if (!registrationWindow.isOpen) {
+      toast.error(registrationClosedMessage.description);
+      return;
+    }
+
     if (!category || !categoryRecord?._id) {
       toast.error("Select a category to continue.");
       return;
@@ -530,7 +575,7 @@ export default function RegistrationPage() {
         throw new Error("Payment URL not found in response");
       }
 
-      toast.message("Redirecting to secure payment…");
+      toast.message("Redirecting to secure payment...");
       window.location.assign(paymentUrl);
     } catch (err) {
       const msg =
@@ -543,9 +588,10 @@ export default function RegistrationPage() {
   };
 
   return (
-    <div className="space-y-5 sm:space-y-8">
+    <div className={cn(SCROLL_PAGE, SIDEBAR_PAGE_PADDING)}>
+    <div className="space-y-5 sm:space-y-6">
       <div className="rounded-md border border-[#E8E8E8] bg-white shadow-[0_8px_22px_rgba(15,23,42,0.04)]">
-        <div className="border-b border-[#E8E8E8] px-4 py-4 sm:px-6 lg:px-8 lg:py-6">
+        <div className="border-b border-[#E8E8E8] px-4 py-4 sm:px-6 lg:px-8 lg:py-5">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <Typography
               as="h2"
@@ -607,6 +653,12 @@ export default function RegistrationPage() {
                     "An active rally is required before you can choose a category. Please check back later."
                   }
                   variant="error"
+                />
+              ) : !registrationWindow.isOpen ? (
+                <DashboardPanelEmptyState
+                  icon={CalendarOffIcon}
+                  title={registrationClosedMessage.title}
+                  description={registrationClosedMessage.description}
                 />
               ) : pricingQuery.isError ? (
                 <DashboardPanelEmptyState
@@ -708,7 +760,7 @@ export default function RegistrationPage() {
                                 : "border-[#D7DAE1] bg-white text-transparent group-hover:text-[#D7DAE1]",
                             )}
                           >
-                            ✓
+                            <CheckIcon className="size-3" strokeWidth={3} aria-hidden />
                           </span>
                         </div>
                       </button>
@@ -749,26 +801,29 @@ export default function RegistrationPage() {
                   ) : null}
                 </div>
               ) : null}
+              {registrationWindow.isOpen ? (
               <div className="flex items-center justify-between flex-row-reverse">
                 <div className="flex flex-col-reverse items-stretch justify-end gap-3 pt-2 sm:flex-row sm:items-center sm:gap-4">
                   <Button
                     type="button"
                     variant="destructive-outline"
-                    className="h-[46px] w-full rounded-md px-8 text-[16px] font-medium sm:w-auto sm:text-[17px]"
+                    className="w-full sm:w-auto"
                     onClick={() => {
                       setCategory(null);
                       setProfileGateVisible(false);
                     }}
                   >
-                    <Typography as="span" variant="body" color="inherit">
-                      Reset
-                    </Typography>
+                    Reset
                   </Button>
                   <Button
                     type="button"
-                    className="h-[46px] w-full rounded-md px-6 text-[16px] font-medium sm:w-auto  sm:px-8 sm:text-[17px]"
-                    disabled={!category || !categoriesReady}
+                    className="w-full sm:w-auto"
+                    disabled={!category || !categoriesReady || !canRegisterNow}
                     onClick={() => {
+                      if (!registrationWindow.isOpen) {
+                        toast.error(registrationClosedMessage.description);
+                        return;
+                      }
                       if (!categoriesReady) {
                         toast.error(
                           pricingQuery.isError || activeRallyQuery.isError
@@ -788,9 +843,7 @@ export default function RegistrationPage() {
                       setStep(2);
                     }}
                   >
-                    <Typography as="span" variant="body" color="inherit">
-                      Continue
-                    </Typography>
+                    Continue
                   </Button>
                 </div>
 
@@ -816,6 +869,7 @@ export default function RegistrationPage() {
                   </Typography>
                 )}
               </div>
+              ) : null}
             </div>
           ) : step === 2 ? (
             <div className="space-y-6">
@@ -844,7 +898,7 @@ export default function RegistrationPage() {
                 <Button
                   type="button"
                   variant="primary-outline"
-                  className="h-[44px] w-full rounded-md px-6 text-[15px] font-medium sm:w-auto"
+                  className="w-full sm:w-auto"
                   onClick={() => setStep(1)}
                 >
                   Back
@@ -854,7 +908,7 @@ export default function RegistrationPage() {
               {!token ? (
                 <div className="rounded-md border border-[#F2D6D6] bg-[#FFF5F5] p-4">
                   <Typography variant="body" className="text-[#8B2B2B]">
-                    You’re not logged in. Please login first so we can fetch
+                    You're not logged in. Please login first so we can fetch
                     your teams.
                   </Typography>
                 </div>
@@ -891,8 +945,8 @@ export default function RegistrationPage() {
                     const memberNames =
                       t.member_ids?.length > 0
                         ? t.member_ids.map((m) => m.name).join(", ")
-                        : "—";
-                    const navName = t.navigator_id?.name ?? "—";
+                        : "-";
+                    const navName = t.navigator_id?.name ?? "-";
                     const teamValidation = categoryRecord
                       ? validateTeamForRegistration(
                           categoryRecord,
@@ -978,7 +1032,7 @@ export default function RegistrationPage() {
                             )}
                             aria-hidden
                           >
-                            ✓
+                            <CheckIcon className="size-3" strokeWidth={3} aria-hidden />
                           </span>
                         </div>
                       </button>
@@ -1028,7 +1082,7 @@ export default function RegistrationPage() {
                 <div className="flex flex-col items-stretch justify-end gap-3 pt-2 sm:flex-row sm:items-center sm:gap-4">
                   <Button
                     type="button"
-                    className="h-[46px] w-full rounded-md px-6 text-[16px] font-medium sm:w-auto sm:px-8 sm:text-[17px]"
+                    className="w-full sm:w-auto"
                     disabled={!canContinueStep2}
                     onClick={() => {
                       if (!canContinueStep2) {
@@ -1043,9 +1097,7 @@ export default function RegistrationPage() {
                       setStep(3);
                     }}
                   >
-                    <Typography as="span" variant="body" color="inherit">
-                      Continue
-                    </Typography>
+                    Continue
                   </Button>
                 </div>
               ) : null}
@@ -1070,7 +1122,7 @@ export default function RegistrationPage() {
                 <Button
                   type="button"
                   variant="primary-outline"
-                  className="h-[44px] w-full rounded-md px-6 text-[15px] font-medium sm:w-auto"
+                  className="w-full sm:w-auto"
                   onClick={() => setStep(3)}
                 >
                   Back
@@ -1142,7 +1194,7 @@ export default function RegistrationPage() {
                         <span className="font-semibold">
                           {registrationSummary.team
                             ? `${registrationSummary.team.team_name} · #${registrationSummary.team.team_number}`
-                            : "—"}
+                            : "-"}
                         </span>
                       </Typography>
                       <Typography
@@ -1153,7 +1205,7 @@ export default function RegistrationPage() {
                         <span className="font-semibold">
                           {registrationSummary.vehicle
                             ? `${registrationSummary.vehicle.model} · ${registrationSummary.vehicle.engine}`
-                            : "—"}
+                            : "-"}
                         </span>
                       </Typography>
                       {selectedPricing ? (
@@ -1174,7 +1226,7 @@ export default function RegistrationPage() {
                         >
                           Navigator:{" "}
                           <span className="font-semibold">
-                            {registrationSummary.navigatorName ?? "—"}
+                            {registrationSummary.navigatorName ?? "-"}
                           </span>
                         </Typography>
                       ) : null}
@@ -1212,7 +1264,7 @@ export default function RegistrationPage() {
                 <div className="flex flex-col-reverse items-stretch justify-end gap-3 pb-2 sm:flex-row sm:items-center sm:gap-4">
                   <Button
                     type="submit"
-                    className="h-[46px] w-full rounded-md px-6 text-[16px] font-medium sm:w-auto sm:min-w-[210px] sm:px-8 sm:text-[17px]"
+                    className="w-full sm:w-auto sm:min-w-[210px]"
                     disabled={
                       isSubmittingRegistration ||
                       !activeRallyEventId ||
@@ -1232,13 +1284,11 @@ export default function RegistrationPage() {
                       )
                     }
                   >
-                    <Typography as="span" variant="body" color="inherit">
-                      {isSubmittingRegistration
-                        ? "Starting payment…"
-                        : selectedPricing
-                          ? `Pay now · ${formatRallyAmount(selectedPricing.amount)}`
-                          : "Pay now"}
-                    </Typography>
+                    {isSubmittingRegistration
+                      ? "Starting payment..."
+                      : selectedPricing
+                        ? `Pay now · ${formatRallyAmount(selectedPricing.amount)}`
+                        : "Pay now"}
                   </Button>
                 </div>
               </FormCommon>
@@ -1271,7 +1321,7 @@ export default function RegistrationPage() {
                 <Button
                   type="button"
                   variant="primary-outline"
-                  className="h-[44px] w-full rounded-md px-6 text-[15px] font-medium sm:w-auto"
+                  className="w-full sm:w-auto"
                   onClick={() => setStep(2)}
                 >
                   Back
@@ -1281,7 +1331,7 @@ export default function RegistrationPage() {
               {!token ? (
                 <div className="rounded-md border border-[#F2D6D6] bg-[#FFF5F5] p-4">
                   <Typography variant="body" className="text-[#8B2B2B]">
-                    You’re not logged in. Please login first so we can fetch
+                    You're not logged in. Please login first so we can fetch
                     your vehicle.
                   </Typography>
                 </div>
@@ -1390,41 +1440,6 @@ export default function RegistrationPage() {
                                 {v.class ? ` · ${v.class}` : ""}
                                 {v.power != null ? ` · Power ${v.power}` : ""}
                               </Typography>
-                              <div
-                                className="mt-2"
-                                onClick={(e) => e.stopPropagation()}
-                                onKeyDown={(e) => e.stopPropagation()}
-                              >
-                                <EditDeleteIconActions
-                                  editLabel="Edit vehicle"
-                                  deleteLabel="Delete vehicle"
-                                  onEdit={() => {
-                                    setEditingVehicleId(v._id);
-                                    setVehicleMode("edit");
-                                    vehicleForm.reset(vehicleToFormValues(v));
-                                  }}
-                                  deleteDisabled={
-                                    deleteVehicleMutation.isPending
-                                  }
-                                  onDelete={async () => {
-                                    await deleteVehicleMutation.mutateAsync(
-                                      v._id,
-                                    );
-                                    if (
-                                      selectedRegistrationVehicleId === v._id
-                                    ) {
-                                      setSelectedRegistrationVehicleId("");
-                                    }
-                                    if (editingVehicleId === v._id) {
-                                      setEditingVehicleId(null);
-                                      setVehicleMode("list");
-                                      vehicleForm.reset(
-                                        defaultVehicleFormValues,
-                                      );
-                                    }
-                                  }}
-                                />
-                              </div>
                             </div>
                             <span
                               className={cn(
@@ -1435,7 +1450,7 @@ export default function RegistrationPage() {
                               )}
                               aria-hidden
                             >
-                              ✓
+                              <CheckIcon className="size-3" strokeWidth={3} aria-hidden />
                             </span>
                           </div>
                         </button>
@@ -1585,7 +1600,7 @@ export default function RegistrationPage() {
                     <Button
                       type="button"
                       variant="destructive-outline"
-                      className="h-[46px] w-full rounded-md px-8 text-[16px] font-medium sm:w-auto sm:min-w-[150px] sm:text-[17px]"
+                      className="w-full sm:w-auto sm:min-w-[150px]"
                       onClick={(e) => {
                         e.preventDefault();
                         setVehicleMode("list");
@@ -1594,18 +1609,14 @@ export default function RegistrationPage() {
                       }}
                       disabled={isSavingVehicle}
                     >
-                      <Typography as="span" variant="body" color="inherit">
-                        Cancel
-                      </Typography>
+                      Cancel
                     </Button>
                     <Button
                       type="submit"
-                      className="h-[46px] w-full rounded-md px-6 text-[16px] font-medium sm:w-auto sm:min-w-[210px] sm:px-8 sm:text-[17px]"
+                      className="w-full sm:w-auto sm:min-w-[210px]"
                       disabled={isSavingVehicle}
                     >
-                      <Typography as="span" variant="body" color="inherit">
-                        Update vehicle
-                      </Typography>
+                      Update vehicle
                     </Button>
                   </div>
                 </FormCommon>
@@ -1615,7 +1626,7 @@ export default function RegistrationPage() {
                 <div className="flex flex-col items-stretch justify-end gap-3 pt-2 sm:flex-row sm:items-center sm:gap-4">
                   <Button
                     type="button"
-                    className="h-[46px] w-full rounded-md px-6 text-[16px] font-medium sm:w-auto sm:px-8 sm:text-[17px]"
+                    className="w-full sm:w-auto"
                     disabled={
                       !selectedRegistrationVehicleId ||
                       !vehiclesForRegistration.some(
@@ -1624,9 +1635,7 @@ export default function RegistrationPage() {
                     }
                     onClick={() => setStep(4)}
                   >
-                    <Typography as="span" variant="body" color="inherit">
-                      Continue
-                    </Typography>
+                    Continue
                   </Button>
                 </div>
               )}
@@ -1655,8 +1664,9 @@ import {
   type SubmitHandler,
 } from "react-hookform";
 
-// (old code continues…)
+// (old code continues...)
       */}
+    </div>
     </div>
   );
 }

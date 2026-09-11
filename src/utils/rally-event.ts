@@ -73,3 +73,161 @@ export function getRallyEventCategoryTitle(
   if (typeof event?.category === "string") return event.category;
   return null;
 }
+
+function parseRallyDate(value?: string | null): Date | null {
+  if (!value?.trim()) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+}
+
+function startOfUtcDay(d: Date): Date {
+  return new Date(
+    Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()),
+  );
+}
+
+function endOfUtcDay(d: Date): Date {
+  return new Date(
+    Date.UTC(
+      d.getUTCFullYear(),
+      d.getUTCMonth(),
+      d.getUTCDate(),
+      23,
+      59,
+      59,
+      999,
+    ),
+  );
+}
+
+export function formatRegistrationDate(iso: string): string {
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return iso;
+  return d.toLocaleDateString(undefined, {
+    timeZone: "UTC",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+}
+
+export type RegistrationWindow =
+  | {
+      status: "open";
+      isOpen: true;
+      startIso: string | null;
+      endIso: string | null;
+    }
+  | {
+      status: "not_started";
+      isOpen: false;
+      startIso: string;
+      endIso: string | null;
+    }
+  | {
+      status: "closed";
+      isOpen: false;
+      startIso: string | null;
+      endIso: string;
+    }
+  | {
+      status: "unavailable";
+      isOpen: false;
+      startIso: null;
+      endIso: null;
+    };
+
+/**
+ * Registration is allowed only between registration_start_date and
+ * registration_end_date (inclusive calendar days in UTC).
+ * If both dates are missing, registration is treated as unavailable.
+ */
+export function getRegistrationWindow(
+  event: RallyEvent | null | undefined,
+  now = new Date(),
+): RegistrationWindow {
+  if (!event) {
+    return {
+      status: "unavailable",
+      isOpen: false,
+      startIso: null,
+      endIso: null,
+    };
+  }
+
+  const startIso = event.registration_start_date?.trim() || null;
+  const endIso = event.registration_end_date?.trim() || null;
+  const start = parseRallyDate(startIso);
+  const end = parseRallyDate(endIso);
+
+  if (!start && !end) {
+    return {
+      status: "unavailable",
+      isOpen: false,
+      startIso: null,
+      endIso: null,
+    };
+  }
+
+  const nowMs = now.getTime();
+  const opensAt = start ? startOfUtcDay(start).getTime() : null;
+  const closesAt = end ? endOfUtcDay(end).getTime() : null;
+
+  if (opensAt != null && nowMs < opensAt) {
+    return {
+      status: "not_started",
+      isOpen: false,
+      startIso: startIso!,
+      endIso,
+    };
+  }
+
+  if (closesAt != null && nowMs > closesAt) {
+    return {
+      status: "closed",
+      isOpen: false,
+      startIso,
+      endIso: endIso!,
+    };
+  }
+
+  return {
+    status: "open",
+    isOpen: true,
+    startIso,
+    endIso,
+  };
+}
+
+export function getRegistrationWindowMessage(
+  window: RegistrationWindow,
+  eventName?: string | null,
+): { title: string; description: string } {
+  const rallyLabel = eventName?.trim() || "this rally";
+
+  if (window.status === "not_started") {
+    const opens = formatRegistrationDate(window.startIso);
+    const closes = window.endIso
+      ? formatRegistrationDate(window.endIso)
+      : null;
+    return {
+      title: "Registration has not opened yet",
+      description: closes
+        ? `Registration for ${rallyLabel} opens on ${opens} and closes on ${closes}. Please check back once the registration window begins.`
+        : `Registration for ${rallyLabel} opens on ${opens}. Please check back once the registration window begins.`,
+    };
+  }
+
+  if (window.status === "closed") {
+    const closes = formatRegistrationDate(window.endIso);
+    return {
+      title: "Registration is closed",
+      description: `The registration window for ${rallyLabel} ended on ${closes}. New registrations are no longer accepted for this event.`,
+    };
+  }
+
+  return {
+    title: "Registration unavailable",
+    description: `Registration dates for ${rallyLabel} are not available yet. Please check back later or contact support.`,
+  };
+}

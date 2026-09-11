@@ -1,7 +1,20 @@
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
+import {
+  CalendarDaysIcon,
+  CarIcon,
+  ChevronsUpIcon,
+  ClipboardListIcon,
+  LayoutGridIcon,
+  LogOutIcon,
+  UserIcon,
+  UsersIcon,
+} from "lucide-react";
+
 import {
   Sidebar,
   SidebarContent,
+  SidebarFooter,
   SidebarGroup,
   SidebarGroupContent,
   SidebarHeader,
@@ -11,16 +24,17 @@ import {
   useSidebar,
 } from "@/components/ui/sidebar";
 import {
-  CalendarDaysIcon,
-  CarIcon,
-  ClipboardListIcon,
-  LayoutGridIcon,
-  UserIcon,
-  UsersIcon,
-} from "lucide-react";
-import { ROUTES } from "@/utils/constants";
-
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Typography } from "@/components/common/Typography";
+import { useSessionUser } from "@/hooks/api/use-session-user";
+import { ROUTES } from "@/utils/constants";
+import { removeAuthToken, toPublicFileUrl } from "@/utils/helpers";
 import Logo from "@/assets/icons/logo.png";
 
 type SidebarNavItem = {
@@ -30,27 +44,57 @@ type SidebarNavItem = {
 };
 
 const NAV_ITEMS: SidebarNavItem[] = [
-  { label: "Dashboard", to: "/dashboard", icon: LayoutGridIcon },
-  { label: "Profile", to: "/profile", icon: UserIcon },
+  { label: "Dashboard", to: ROUTES.DASHBOARD, icon: LayoutGridIcon },
+  { label: "Profile", to: ROUTES.PROFILE, icon: UserIcon },
   { label: "Teams", to: ROUTES.TEAMS, icon: UsersIcon },
-  { label: "Vehicle", to: "/vehicle", icon: CarIcon },
-  { label: "Events", to: "/events", icon: CalendarDaysIcon },
-  { label: "Registration", to: "/registration", icon: ClipboardListIcon },
+  { label: "Vehicle", to: ROUTES.VEHICLE, icon: CarIcon },
+  { label: "Events", to: ROUTES.EVENTS, icon: CalendarDaysIcon },
+  { label: "Registration", to: ROUTES.REGISTRATION, icon: ClipboardListIcon },
 ];
+
+function initialsFromName(name: string | undefined) {
+  if (!name?.trim()) return "JR";
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((p) => p[0]?.toUpperCase())
+    .join("");
+}
 
 export default function SidebarCommon() {
   const location = useLocation();
-  const { state } = useSidebar();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const { state, setOpenMobile, isMobile } = useSidebar();
   const isCollapsed = state === "collapsed";
+  const { data: sessionUser } = useSessionUser();
+  const profileImageUrl = toPublicFileUrl(sessionUser?.profile_image);
+
+  const closeMobileSidebar = () => {
+    if (isMobile) setOpenMobile(false);
+  };
+
+  const handleLogout = () => {
+    removeAuthToken();
+    void queryClient.clear();
+    navigate(ROUTES.LOGIN, { replace: true });
+  };
+
+  const isNavActive = (to: string) => {
+    if (to === ROUTES.DASHBOARD) return location.pathname === to;
+    return location.pathname === to || location.pathname.startsWith(`${to}/`);
+  };
 
   return (
     <Sidebar className="h-full" collapsible="icon">
-      <SidebarHeader>
+      <SidebarHeader className="pt-3 pb-1">
         <SidebarGroup>
           <SidebarMenu className="!gap-4">
             <SidebarMenuItem>
               <Link
-                to="/dashboard"
+                to={ROUTES.DASHBOARD}
+                onClick={closeMobileSidebar}
                 className="flex items-center gap-3 px-2 py-2"
               >
                 <img
@@ -76,30 +120,20 @@ export default function SidebarCommon() {
       <SidebarContent>
         <SidebarGroup>
           <SidebarGroupContent>
-            <SidebarMenu className="!gap-3">
+            <SidebarMenu className="!gap-1">
               {NAV_ITEMS.map((item) => {
-                const isActive = location.pathname === item.to;
                 const Icon = item.icon;
-
+                const active = isNavActive(item.to);
                 return (
                   <SidebarMenuItem key={item.to}>
                     <SidebarMenuButton
                       asChild
-                      isActive={isActive}
-                      className="h-12!"
+                      isActive={active}
+                      className="!h-12 !px-4"
                     >
-                      <Link to={item.to}>
-                        <span className="h-full! flex items-center justify-center">
-                          <Icon />
-                        </span>
-                        <Typography
-                          as="span"
-                          variant="label"
-                          color="inherit"
-                          className="h-full! flex items-center justify-center"
-                        >
-                          {item.label}
-                        </Typography>
+                      <Link to={item.to} onClick={closeMobileSidebar}>
+                        <Icon className="size-5" />
+                        <span>{item.label}</span>
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>
@@ -109,6 +143,72 @@ export default function SidebarCommon() {
           </SidebarGroupContent>
         </SidebarGroup>
       </SidebarContent>
+
+      <SidebarFooter>
+        <SidebarMenu>
+          <SidebarMenuItem>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <SidebarMenuButton
+                  className={`cursor-pointer !h-14 ${
+                    isCollapsed
+                      ? "justify-center"
+                      : "!border !border-[#C8E6D4] !bg-[#EAF6EF] !text-[#1F6B43] hover:!bg-[#DFF0E6] hover:!text-[#1F6B43]"
+                  }`}
+                >
+                  <Avatar className="size-7">
+                    {profileImageUrl ? (
+                      <AvatarImage
+                        src={profileImageUrl}
+                        alt={sessionUser?.name ?? "Profile"}
+                      />
+                    ) : null}
+                    <AvatarFallback className="bg-primary text-xs font-semibold text-primary-foreground">
+                      {initialsFromName(sessionUser?.name)}
+                    </AvatarFallback>
+                  </Avatar>
+                  {!isCollapsed ? (
+                    <span className="min-w-0 flex-1 text-left">
+                      <span className="block truncate text-sm font-medium text-[#1F1838]">
+                        {sessionUser?.name ?? "Account"}
+                      </span>
+                      <span className="block truncate text-xs text-[#1F6B43]/80">
+                        {sessionUser?.email ?? "Signed in"}
+                      </span>
+                    </span>
+                  ) : null}
+                  {!isCollapsed ? (
+                    <ChevronsUpIcon className="ml-auto size-4 text-[#3FA565]" />
+                  ) : null}
+                </SidebarMenuButton>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent side="top" align="start" className="w-56">
+                <DropdownMenuGroup className="space-y-1">
+                  <DropdownMenuItem
+                    onClick={() => {
+                      closeMobileSidebar();
+                      navigate(ROUTES.PROFILE);
+                    }}
+                  >
+                    <UserIcon className="size-4" />
+                    Profile
+                  </DropdownMenuItem>
+                  <DropdownMenuItem
+                    className="text-destructive focus:text-destructive"
+                    onClick={() => {
+                      closeMobileSidebar();
+                      handleLogout();
+                    }}
+                  >
+                    <LogOutIcon className="size-4" />
+                    Log out
+                  </DropdownMenuItem>
+                </DropdownMenuGroup>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </SidebarMenuItem>
+        </SidebarMenu>
+      </SidebarFooter>
     </Sidebar>
   );
 }

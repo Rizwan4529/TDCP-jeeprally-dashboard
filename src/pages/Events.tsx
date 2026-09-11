@@ -27,6 +27,10 @@ import {
 } from "@/components/ui/select";
 import { EmptyState, EventGridSkeleton } from "@/components/common/LoadingStates";
 import { Typography } from "@/components/common/Typography";
+import {
+  SCROLL_PAGE,
+  SIDEBAR_PAGE_PADDING,
+} from "@/components/layout/pageLayout";
 import { cn } from "@/lib/utils";
 import { useRallyEventsQuery } from "@/hooks/api/use-rally-events";
 import type {
@@ -177,7 +181,8 @@ export default function EventsPage() {
   };
 
   return (
-    <div className="space-y-5 pb-3 pt-8">
+    <div className={cn(SCROLL_PAGE, SIDEBAR_PAGE_PADDING)}>
+    <div className="space-y-5 pb-3">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <Typography
           as="h1"
@@ -361,7 +366,7 @@ export default function EventsPage() {
             return (
               <Card
                 key={event._id}
-                className={cn(surfaceCard, "overflow-hidden rounded-[14px]")}
+                className={cn(surfaceCard, "overflow-hidden rounded-md")}
               >
                 <div className="flex gap-4 p-4">
                   <div className="flex size-[52px] shrink-0 flex-col items-center justify-center rounded-[4px] bg-dashboard-icon-bg text-[#319F60]">
@@ -424,6 +429,7 @@ export default function EventsPage() {
           })}
         </div>
       )}
+    </div>
     </div>
   );
 }
