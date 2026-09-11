@@ -33,7 +33,7 @@ import { EditDeleteIconActions } from "@/components/common/EditDeleteIconActions
 import { ActiveRallySummary } from "@/components/registration/ActiveRallySummary";
 import { CategoryConsentContent } from "@/components/registration/CategoryConsentContent";
 import { useMyTeamsQuery } from "@/hooks/api/use-teams";
-import { useCategoriesQuery } from "@/hooks/api/use-categories";
+import { useRallyPricingQuery } from "@/hooks/api/use-rally-pricing";
 import { useSessionUser } from "@/hooks/api/use-session-user";
 import {
   useCreateVehicleMutation,
@@ -43,12 +43,23 @@ import {
   useUploadVehicleImageMutation,
 } from "@/hooks/api/use-vehicles";
 import { getRallyChallenges } from "@/api/services/rally";
-import { createRegistration } from "@/api/services/registrations";
+import { createPaymentSession } from "@/api/services/payments";
 import type { CreateRegistrationPayload } from "@/api/types/registrations";
 import type { TeamCategory } from "@/api/types/teams";
 import type { Vehicle } from "@/api/types/vehicles";
 import { fetchAuthToken, toPublicFileUrl } from "@/utils/helpers";
 import { resolveActiveEventId } from "@/utils/rally-event";
+import {
+  findPricingByCategoryKey,
+  formatRallyAmount,
+  pricingToCategoryRecords,
+} from "@/utils/rally-pricing";
+import {
+  buildJeepRallyOrderDescription,
+  buildPaymentReturnUrl,
+  createJeepRallyOrderId,
+  savePendingRegistrationPayment,
+} from "@/utils/pending-registration-payment";
 import { useActiveRallyQuery } from "@/hooks/api/use-active-rally";
 import {
   buildCategorySelectOptions,
@@ -86,6 +97,7 @@ type CategoryOption = {
   hint: string;
   imageUrl?: string | null;
   rosterHint?: string;
+  amount: number;
 };
 
 const CATEGORY_HINTS: Record<TeamCategory, string> = {
@@ -164,37 +176,72 @@ export default function RegistrationPage() {
     [sessionUser],
   );
   const profileComplete = isCompetitorProfileComplete(sessionUser ?? null);
-  const categoriesQuery = useCategoriesQuery(Boolean(token));
+
+  const activeRallyQuery = useActiveRallyQuery(Boolean(token));
+  const activeRally = activeRallyQuery.data?.data ?? null;
+  const activeRallyEventId = resolveActiveEventId(activeRally);
+
+  const pricingQuery = useRallyPricingQuery(
+    activeRallyEventId,
+    Boolean(token) && Boolean(activeRallyEventId),
+  );
+  const pricingRows = pricingQuery.data?.data;
+  const categoryRecords = useMemo(
+    () => pricingToCategoryRecords(pricingRows),
+    [pricingRows],
+  );
   const categoryByKey = useMemo(
-    () => buildCategoryMap(categoriesQuery.data?.data ?? []),
-    [categoriesQuery.data?.data],
+    () => buildCategoryMap(categoryRecords),
+    [categoryRecords],
   );
   const categoryRecord = category ? categoryByKey.get(category) : undefined;
+  const selectedPricing = useMemo(
+    () => findPricingByCategoryKey(pricingRows, category),
+    [pricingRows, category],
+  );
   const requiresNavigator = needsNavigator(categoryRecord);
   const categoryConsentHtml = categoryRecord?.consent?.trim() ?? "";
 
   const categoryOptions = useMemo((): CategoryOption[] => {
-    const fromApi = categoriesQuery.data?.data;
-    if (!fromApi?.length) return [];
-    return fromApi.map((c) => ({
-      key: c.title,
-      value: c.key as TeamCategory,
-      hint:
-        c.description?.trim() || CATEGORY_HINTS[c.key as TeamCategory] || "",
-      imageUrl: toPublicFileUrl(c.image ?? null),
-      rosterHint: categoryRegistrationHint(c),
-    }));
-  }, [categoriesQuery.data?.data]);
+    if (!pricingRows?.length) return [];
+    return pricingRows
+      .filter((row) => row.category_id?.key)
+      .map((row) => {
+        const c = row.category_id;
+        return {
+          key: c.title,
+          value: c.key as TeamCategory,
+          hint:
+            c.description?.trim() ||
+            CATEGORY_HINTS[c.key as TeamCategory] ||
+            "",
+          imageUrl: toPublicFileUrl(c.image ?? null),
+          rosterHint: categoryRegistrationHint({
+            _id: c._id,
+            title: c.title,
+            key: c.key,
+            max_members: c.max_members ?? 0,
+            navigator_allowed: Boolean(c.navigator_allowed),
+            consent: c.consent,
+          }),
+          amount: row.amount,
+        };
+      });
+  }, [pricingRows]);
 
   const vehicleCategoryOptions = useMemo(
-    () => buildCategorySelectOptions(categoriesQuery.data?.data),
-    [categoriesQuery.data?.data],
+    () => buildCategorySelectOptions(categoryRecords),
+    [categoryRecords],
   );
 
-  const categoriesLoading = categoriesQuery.isLoading;
+  const categoriesLoading =
+    activeRallyQuery.isLoading ||
+    (Boolean(activeRallyEventId) && pricingQuery.isLoading);
   const categoriesReady =
     !categoriesLoading &&
-    !categoriesQuery.isError &&
+    !pricingQuery.isError &&
+    !activeRallyQuery.isError &&
+    Boolean(activeRallyEventId) &&
     categoryOptions.length > 0;
 
   const canQueryTeam = Boolean(token) && step >= 2;
@@ -213,10 +260,6 @@ export default function RegistrationPage() {
       category_id: categoryRecord?._id ?? "",
     };
   }, [categoryRecord?._id]);
-
-  const activeRallyQuery = useActiveRallyQuery(Boolean(token));
-  const activeRally = activeRallyQuery.data?.data ?? null;
-  const activeRallyEventId = resolveActiveEventId(activeRally);
 
   const teamsForCategory = useMemo(() => {
     if (!category) return [];
@@ -400,6 +443,12 @@ export default function RegistrationPage() {
       return;
     }
 
+    const amount = selectedPricing?.amount;
+    if (!(typeof amount === "number" && amount > 0)) {
+      toast.error("Registration fee is not available for this category.");
+      return;
+    }
+
     const selectedTeam = teams.find(
       (t) => t._id === selectedRegistrationTeamId,
     );
@@ -452,15 +501,43 @@ export default function RegistrationPage() {
       };
       if (challengeId) payload.challenge_id = challengeId;
 
-      await createRegistration(payload);
-      toast.success("Registration submitted.");
+      const orderId = createJeepRallyOrderId();
+      const orderDescription = buildJeepRallyOrderDescription([
+        categoryRecord.title,
+        selectedTeam.team_name,
+        selectedVehicle.model,
+        activeRally?.name,
+      ]);
+
+      savePendingRegistrationPayment({
+        orderId,
+        amount,
+        payload,
+        orderDescription,
+        createdAt: Date.now(),
+      });
+
+      const session = await createPaymentSession({
+        amount,
+        orderId,
+        returnUrl: buildPaymentReturnUrl(orderId),
+        source: "jeeprally",
+        orderDescription,
+      });
+
+      const paymentUrl = session?.data?.paymentUrl;
+      if (!paymentUrl) {
+        throw new Error("Payment URL not found in response");
+      }
+
+      toast.message("Redirecting to secure payment…");
+      window.location.assign(paymentUrl);
     } catch (err) {
       const msg =
         err instanceof Error
           ? err.message
-          : "Registration could not be submitted.";
+          : "Could not start payment. Please try again.";
       toast.error(msg);
-    } finally {
       setIsSubmittingRegistration(false);
     }
   };
@@ -521,13 +598,23 @@ export default function RegistrationPage() {
 
               {categoriesLoading ? (
                 <RegistrationCategoryGridSkeleton count={6} />
-              ) : categoriesQuery.isError ? (
+              ) : !activeRallyEventId || activeRallyQuery.isError ? (
+                <DashboardPanelEmptyState
+                  icon={AlertCircleIcon}
+                  title="No active rally"
+                  description={
+                    activeRallyQuery.error?.message ??
+                    "An active rally is required before you can choose a category. Please check back later."
+                  }
+                  variant="error"
+                />
+              ) : pricingQuery.isError ? (
                 <DashboardPanelEmptyState
                   icon={AlertCircleIcon}
                   title="Could not load categories"
                   description={
-                    categoriesQuery.error?.message ??
-                    "Registration categories could not be loaded. Refresh the page or try again later."
+                    pricingQuery.error?.message ??
+                    "Registration pricing could not be loaded. Refresh the page or try again later."
                   }
                   variant="error"
                 />
@@ -535,7 +622,7 @@ export default function RegistrationPage() {
                 <DashboardPanelEmptyState
                   icon={LayoutGridIcon}
                   title="No categories available"
-                  description="There are no registration categories to choose from right now. Please check back later or contact support."
+                  description="There are no priced categories for this rally right now. Please check back later or contact support."
                 />
               ) : (
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
@@ -576,6 +663,15 @@ export default function RegistrationPage() {
                               )}
                             >
                               {c.key}
+                            </Typography>
+                            <Typography
+                              variant="body-sm"
+                              className={cn(
+                                "text-[14px] font-semibold leading-none",
+                                isActive ? "text-[#1F6B43]" : "text-[#25314D]",
+                              )}
+                            >
+                              {formatRallyAmount(c.amount)}
                             </Typography>
                             {c.rosterHint ? (
                               <Typography
@@ -675,7 +771,7 @@ export default function RegistrationPage() {
                     onClick={() => {
                       if (!categoriesReady) {
                         toast.error(
-                          categoriesQuery.isError
+                          pricingQuery.isError || activeRallyQuery.isError
                             ? "Categories could not be loaded."
                             : "Select a category to continue.",
                         );
@@ -999,17 +1095,30 @@ export default function RegistrationPage() {
                   </Typography>
 
                   {category ? (
-                    <Typography
-                      variant="body-sm"
-                      className="mt-2 text-[#25314D]"
-                    >
-                      Category:{" "}
-                      <span className="font-semibold">
-                        {categoryRecord?.title ??
-                          CATEGORY_LABELS[category as Category] ??
-                          category}
-                      </span>
-                    </Typography>
+                    <>
+                      <Typography
+                        variant="body-sm"
+                        className="mt-2 text-[#25314D]"
+                      >
+                        Category:{" "}
+                        <span className="font-semibold">
+                          {categoryRecord?.title ??
+                            CATEGORY_LABELS[category as Category] ??
+                            category}
+                        </span>
+                      </Typography>
+                      {selectedPricing ? (
+                        <Typography
+                          variant="body-sm"
+                          className="mt-1 text-[#25314D]"
+                        >
+                          Fee:{" "}
+                          <span className="font-semibold">
+                            {formatRallyAmount(selectedPricing.amount)}
+                          </span>
+                        </Typography>
+                      ) : null}
+                    </>
                   ) : null}
 
                   <div className="mt-4 space-y-4">
@@ -1047,6 +1156,17 @@ export default function RegistrationPage() {
                             : "—"}
                         </span>
                       </Typography>
+                      {selectedPricing ? (
+                        <Typography
+                          variant="body-sm"
+                          className="mt-1 text-[#25314D]"
+                        >
+                          Fee:{" "}
+                          <span className="font-semibold">
+                            {formatRallyAmount(selectedPricing.amount)}
+                          </span>
+                        </Typography>
+                      ) : null}
                       {requiresNavigator ? (
                         <Typography
                           variant="body-sm"
@@ -1100,6 +1220,10 @@ export default function RegistrationPage() {
                       !selectedRegistrationTeamId ||
                       !selectedRegistrationVehicleId ||
                       !selectedTeamValidation?.ok ||
+                      !(
+                        typeof selectedPricing?.amount === "number" &&
+                        selectedPricing.amount > 0
+                      ) ||
                       !teamsForCategory.some(
                         (t) => t._id === selectedRegistrationTeamId,
                       ) ||
@@ -1110,8 +1234,10 @@ export default function RegistrationPage() {
                   >
                     <Typography as="span" variant="body" color="inherit">
                       {isSubmittingRegistration
-                        ? "Submitting…"
-                        : "Submit registration"}
+                        ? "Starting payment…"
+                        : selectedPricing
+                          ? `Pay now · ${formatRallyAmount(selectedPricing.amount)}`
+                          : "Pay now"}
                     </Typography>
                   </Button>
                 </div>

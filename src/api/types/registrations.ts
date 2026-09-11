@@ -1,4 +1,4 @@
-/** POST /registrations — send the category document `_id` from GET /categories. */
+/** POST /registrations — send the category document `_id` from GET /rally/:eventId/pricing. */
 export type CreateRegistrationPayload = {
   team_id: string;
   event_id: string;

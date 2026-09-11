@@ -74,3 +74,34 @@ export type GetRallyEventsQuery = {
 };
 
 export type GetRallyEventsResponse = ApiResponse<RallyEvent[]>;
+
+/** Nested category document returned by GET /rally/:eventId/pricing. */
+export type RallyPricingCategory = {
+  _id: string;
+  title: string;
+  key: string;
+  image?: string | null;
+  description?: string | null;
+  max_members: number;
+  navigator_allowed: boolean;
+  consent?: string | null;
+  consent_document?: string | null;
+  isSigned?: boolean;
+  route_id?: string | null;
+  members?: unknown[];
+  created_at?: string;
+  updated_at?: string;
+  __v?: number;
+};
+
+export type RallyPricingRecord = {
+  _id: string;
+  event_id: string;
+  category_id: RallyPricingCategory;
+  amount: number;
+  created_at?: string;
+  updated_at?: string;
+  __v?: number;
+};
+
+export type GetRallyPricingResponse = ApiResponse<RallyPricingRecord[]>;

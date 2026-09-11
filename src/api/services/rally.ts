@@ -5,6 +5,7 @@ import type {
   GetChallengesResponse,
   GetRallyEventsQuery,
   GetRallyEventsResponse,
+  GetRallyPricingResponse,
 } from "@/api/types/rally";
 
 export async function getActiveRally(): Promise<GetActiveRallyResponse> {
@@ -19,6 +20,23 @@ export async function getRallyChallenges(
     `/rally/${eventId}/challenges`,
   );
   return data;
+}
+
+function normalizePricingResponse(raw: unknown): GetRallyPricingResponse {
+  if (!raw || typeof raw !== "object") {
+    return { success: false, message: "Invalid response", data: [] };
+  }
+  const r = raw as GetRallyPricingResponse;
+  return Array.isArray(r.data) ? r : { ...r, data: [] };
+}
+
+export async function getRallyPricing(
+  eventId: string,
+): Promise<GetRallyPricingResponse> {
+  const { data } = await apiClient.get<unknown>(
+    `/rally/${eventId}/pricing`,
+  );
+  return normalizePricingResponse(data);
 }
 
 export async function getRallyEvents(

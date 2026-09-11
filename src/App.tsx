@@ -8,6 +8,7 @@ import DashboardPage from "@/pages/Dashboard"
 import EventsPage from "@/pages/Events"
 import LoginPage from "@/pages/Login"
 import NotFoundPage from "@/pages/NotFound"
+import PaymentCallbackPage from "@/pages/PaymentCallback"
 import ProfilePage from "@/pages/Profile"
 import RegistrationPage from "@/pages/Registration"
 import TeamsPage from "@/pages/Teams"
@@ -40,6 +41,10 @@ const App = () => {
             <Route path="vehicle" element={<VehiclePage />} />
             <Route path="events" element={<EventsPage />} />
             <Route path="registration" element={<RegistrationPage />} />
+            <Route
+              path={ROUTES.PAYMENT_CALLBACK.replace(/^\//, "")}
+              element={<PaymentCallbackPage />}
+            />
           </Route>
           <Route path="*" element={<NotFoundPage />} />
         </Route>

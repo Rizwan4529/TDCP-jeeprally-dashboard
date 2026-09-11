@@ -14,6 +14,8 @@ export const ROUTES = {
   PROFILE: "/profile",
   TEAMS: "/teams",
   VEHICLE: "/vehicle",
+  REGISTRATION: "/registration",
+  PAYMENT_CALLBACK: "/payment-callback",
 } as const;
 
 /** Relative API paths that may return 401 without treating the user as logged-out. */
