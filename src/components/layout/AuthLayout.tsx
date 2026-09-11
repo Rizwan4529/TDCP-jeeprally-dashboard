@@ -2,9 +2,8 @@ import type { ReactNode } from "react";
 
 import { Typography } from "@/components/common/Typography";
 import Logo from "@/assets/icons/logo.png";
-import AUTH_IMAGE_URL from "@/assets/images/auth-layout-img-left.png";
-// const AUTH_IMAGE_URL =
-//   "https://images.unsplash.com/photo-1503376780353-7e6692767b70?auto=format&fit=crop&w=1600&q=85"
+import AUTH_HERO_WEBP from "@/assets/images/auth-layout-hero.webp";
+import AUTH_HERO_JPG from "@/assets/images/auth-layout-hero.jpg";
 
 type AuthLayoutProps = {
   title: string;
@@ -56,12 +55,28 @@ export default function AuthLayout({
         </div>
       </section>
 
-      <section className="relative hidden h-svh overflow-hidden lg:block">
-        <img
-          src={AUTH_IMAGE_URL}
-          alt="Rally vehicle on the road"
-          className="h-full w-full object-cover"
-        />
+      <section className="relative hidden h-svh overflow-hidden bg-[#06140D] lg:block">
+        <picture>
+          <source
+            media="(min-width: 1024px)"
+            srcSet={AUTH_HERO_WEBP}
+            type="image/webp"
+          />
+          <source
+            media="(min-width: 1024px)"
+            srcSet={AUTH_HERO_JPG}
+            type="image/jpeg"
+          />
+          {/* No default src — avoids downloading the hero on mobile where this panel is hidden */}
+          <img
+            alt="Rally vehicle on the road"
+            width={2048}
+            height={1090}
+            decoding="async"
+            fetchPriority="high"
+            className="h-full w-full object-cover"
+          />
+        </picture>
         <div className="absolute inset-0 bg-gradient-to-tr from-[#06140D]/75 via-[#06140D]/25 to-transparent" />
         <div className="absolute bottom-10 left-10 max-w-[520px]">
           <Typography as="span" variant="overline" className="text-white/75">

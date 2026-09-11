@@ -1,7 +1,7 @@
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type SubmitHandler } from "react-hook-form";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import {
   CompassIcon,
   PlusIcon,
@@ -74,7 +74,6 @@ import type { Team } from "@/api/types/teams";
 import { cn } from "@/lib/utils";
 import {
   CATEGORY_LABELS,
-  ROUTES,
   type Category,
 } from "@/utils/constants";
 import { fetchAuthToken, toDateOnlyInputValue } from "@/utils/helpers";
