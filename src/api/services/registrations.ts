@@ -3,6 +3,7 @@ import type {
   CreateRegistrationPayload,
   CreateRegistrationResponse,
   GetEventRegistrationsResponse,
+  GetMyRegistrationsResponse,
   GetRegistrationByIdResponse,
   UpdateRegistrationPayload,
   UpdateRegistrationResponse,
@@ -31,14 +32,22 @@ export async function updateRegistration(
   registrationId: string,
   payload: UpdateRegistrationPayload,
 ): Promise<UpdateRegistrationResponse> {
-  const { data } = await apiClient.put<UpdateRegistrationResponse>(
+  const { data } = await apiClient.patch<UpdateRegistrationResponse>(
     `/registrations/${encodeURIComponent(registrationId)}`,
     payload,
   );
   return data;
 }
 
-/** GET /rally/:eventId/registrations — own entries for the active rally. */
+/** GET /registrations/my-registrations — all of the driver's registrations. */
+export async function getMyRegistrations(): Promise<GetMyRegistrationsResponse> {
+  const { data } = await apiClient.get<GetMyRegistrationsResponse>(
+    "/registrations/my-registrations",
+  );
+  return data;
+}
+
+/** @deprecated Prefer getMyRegistrations + client-side event filter. */
 export async function getEventRegistrations(
   eventId: string,
 ): Promise<GetEventRegistrationsResponse> {

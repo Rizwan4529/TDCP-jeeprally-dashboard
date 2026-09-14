@@ -6,6 +6,10 @@ import type {
   RegisterResponse,
   UpdateProfilePayload,
   UpdateProfileResponse,
+  ForgotPasswordRequest,
+  ForgotPasswordResponse,
+  ResetPasswordRequest,
+  ResetPasswordResponse,
 } from "@/api/types/auth";
 import {
   appendUpdateProfileToFormData,
@@ -71,6 +75,26 @@ export async function loginUser(
 ): Promise<LoginResponse> {
   const { data } = await apiClient.post<LoginResponse>(
     "/auth/login",
+    payload,
+  );
+  return data;
+}
+
+export async function forgotPassword(
+  payload: ForgotPasswordRequest,
+): Promise<ForgotPasswordResponse> {
+  const { data } = await apiClient.post<ForgotPasswordResponse>(
+    "/auth/forgot-password",
+    payload,
+  );
+  return data;
+}
+
+export async function resetPassword(
+  payload: ResetPasswordRequest,
+): Promise<ResetPasswordResponse> {
+  const { data } = await apiClient.post<ResetPasswordResponse>(
+    "/auth/reset-password",
     payload,
   );
   return data;

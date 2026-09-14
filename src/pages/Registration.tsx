@@ -46,7 +46,6 @@ import {
   useUpdateVehicleMutation,
   useUploadVehicleImageMutation,
 } from "@/hooks/api/use-vehicles";
-import { getRallyChallenges } from "@/api/services/rally";
 import { createPaymentSession } from "@/api/services/payments";
 import type {
   CreateRegistrationPayload,
@@ -56,7 +55,7 @@ import type {
 import type { TeamCategory } from "@/api/types/teams";
 import type { Vehicle } from "@/api/types/vehicles";
 import {
-  useEventRegistrationsQuery,
+  useMyRegistrationsQuery,
   useUpdateRegistrationMutation,
 } from "@/hooks/api/use-registrations";
 import { fetchAuthToken, toPublicFileUrl } from "@/utils/helpers";
@@ -108,6 +107,7 @@ import {
   getRegistrationCategory,
   getRegistrationTeamId,
   getRegistrationVehicleId,
+  hasActiveRegistrationForCategory,
 } from "@/utils/registration-entries";
 import { buildCategoryMap, needsNavigator } from "@/utils/team-roster-rules";
 
@@ -116,10 +116,12 @@ type Step = 1 | 2 | 3 | 4;
 type CategoryOption = {
   key: string;
   value: TeamCategory;
+  categoryId: string;
   hint: string;
   imageUrl?: string | null;
   rosterHint?: string;
   amount: number;
+  alreadyRegistered: boolean;
 };
 
 const CATEGORY_HINTS: Record<TeamCategory, string> = {
@@ -235,29 +237,28 @@ export default function RegistrationPage() {
     activeRallyEventId,
     Boolean(token) && Boolean(activeRallyEventId),
   );
-  const editRegistrationsQuery = useEventRegistrationsQuery(
-    activeRallyEventId,
-    Boolean(token) && isEditMode && Boolean(activeRallyEventId),
-  );
+  const myRegistrationsQuery = useMyRegistrationsQuery(Boolean(token));
+  const myRegistrations = Array.isArray(myRegistrationsQuery.data?.data)
+    ? myRegistrationsQuery.data.data
+    : [];
   const editRegistration = useMemo((): DriverRegistration | null => {
     if (!isEditMode || !editRegistrationId) return null;
     if (locationEditRegistration?._id === editRegistrationId) {
       return locationEditRegistration;
     }
-    const list = Array.isArray(editRegistrationsQuery.data?.data)
-      ? editRegistrationsQuery.data.data
-      : [];
-    return list.find((row) => row._id === editRegistrationId) ?? null;
+    return (
+      myRegistrations.find((row) => row._id === editRegistrationId) ?? null
+    );
   }, [
     isEditMode,
     editRegistrationId,
     locationEditRegistration,
-    editRegistrationsQuery.data,
+    myRegistrations,
   ]);
   const editRegistrationLoading =
     isEditMode &&
     !editRegistration &&
-    (activeRallyQuery.isLoading || editRegistrationsQuery.isLoading);
+    (activeRallyQuery.isLoading || myRegistrationsQuery.isLoading);
   const pricingRows = pricingQuery.data?.data;
   const categoryRecords = useMemo(
     () => pricingToCategoryRecords(pricingRows),
@@ -281,9 +282,11 @@ export default function RegistrationPage() {
       .filter((row) => row.category_id?.key)
       .map((row) => {
         const c = row.category_id;
+        const value = c.key as TeamCategory;
         return {
           key: c.title,
-          value: c.key as TeamCategory,
+          value,
+          categoryId: c._id,
           hint:
             c.description?.trim() ||
             CATEGORY_HINTS[c.key as TeamCategory] ||
@@ -298,9 +301,15 @@ export default function RegistrationPage() {
             consent: c.consent,
           }),
           amount: row.amount,
+          alreadyRegistered: hasActiveRegistrationForCategory({
+            registrations: myRegistrations,
+            eventId: activeRallyEventId,
+            categoryKey: value,
+            categoryId: c._id,
+          }),
         };
       });
-  }, [pricingRows]);
+  }, [pricingRows, myRegistrations, activeRallyEventId]);
 
   const vehicleCategoryOptions = useMemo(
     () => buildCategorySelectOptions(categoryRecords),
@@ -366,14 +375,50 @@ export default function RegistrationPage() {
     ? myVehicleQuery.data.data
     : [];
 
+  const registeredVehicleId = useMemo(() => {
+    if (!isEditMode || !editRegistration) return "";
+    return getRegistrationVehicleId(editRegistration);
+  }, [isEditMode, editRegistration]);
+
   const vehiclesForRegistration = useMemo(() => {
-    if (!category || !selectedRegistrationTeamId) return [];
-    return vehicles.filter(
-      (v) =>
-        getVehicleCategoryKey(v) === category &&
-        (!v.team_id || v.team_id === selectedRegistrationTeamId),
-    );
-  }, [vehicles, category, selectedRegistrationTeamId]);
+    if (!category) return [];
+
+    const matchesCategoryAndTeam = (v: Vehicle) => {
+      if (getVehicleCategoryKey(v) !== category) return false;
+      // Unassigned vehicles (team_id null) are eligible for any team in this category.
+      if (!v.team_id) return true;
+      if (!selectedRegistrationTeamId) return isEditMode;
+      return v.team_id === selectedRegistrationTeamId;
+    };
+
+    let filtered = vehicles.filter(matchesCategoryAndTeam);
+
+    // Edit: always include the registration's vehicle once it appears in GET /vehicles.
+    if (registeredVehicleId) {
+      const registered = vehicles.find((v) => v._id === registeredVehicleId);
+      if (registered) {
+        filtered = [
+          registered,
+          ...filtered.filter((v) => v._id !== registeredVehicleId),
+        ];
+      }
+    }
+
+    return filtered;
+  }, [
+    vehicles,
+    category,
+    selectedRegistrationTeamId,
+    isEditMode,
+    registeredVehicleId,
+  ]);
+
+  /** Prefer the registration vehicle_id in edit until state catches up. */
+  const preselectedVehicleId =
+    isEditMode && registeredVehicleId
+      ? registeredVehicleId
+      : selectedRegistrationVehicleId;
+  const activeVehicleId = selectedRegistrationVehicleId || preselectedVehicleId;
 
   const editingVehicle =
     vehicleMode === "edit" && editingVehicleId
@@ -441,22 +486,25 @@ export default function RegistrationPage() {
     const team =
       teams.find((t) => t._id === selectedRegistrationTeamId) ?? null;
     const vehicle =
-      vehicles.find((v) => v._id === selectedRegistrationVehicleId) ?? null;
+      vehicles.find((v) => v._id === activeVehicleId) ?? null;
     const navigatorName = team?.navigator_id?.name ?? null;
     return { team, vehicle, navigatorName };
   }, [
     teams,
     vehicles,
     selectedRegistrationTeamId,
-    selectedRegistrationVehicleId,
+    activeVehicleId,
   ]);
 
   useEffect(() => {
+    // Create flow only: clearing category resets team/vehicle picks.
+    // Edit keeps locked team + registered vehicle_id.
+    if (isEditMode) return;
     if (!category) {
       setSelectedRegistrationTeamId("");
       setSelectedRegistrationVehicleId("");
     }
-  }, [category]);
+  }, [category, isEditMode]);
 
   useEffect(() => {
     if (step === 1) {
@@ -465,18 +513,21 @@ export default function RegistrationPage() {
   }, [step, category]);
 
   useEffect(() => {
+    if (isEditMode) return;
     if (!selectedRegistrationTeamId) return;
     if (myTeamQuery.isLoading) return;
     if (!teamsForCategory.some((t) => t._id === selectedRegistrationTeamId)) {
       setSelectedRegistrationTeamId("");
     }
   }, [
+    isEditMode,
     teamsForCategory,
     selectedRegistrationTeamId,
     myTeamQuery.isLoading,
   ]);
 
   useEffect(() => {
+    if (isEditMode) return;
     if (!selectedRegistrationVehicleId || !category) return;
     if (myVehicleQuery.isLoading) return;
     if (
@@ -487,10 +538,38 @@ export default function RegistrationPage() {
       setSelectedRegistrationVehicleId("");
     }
   }, [
+    isEditMode,
     vehiclesForRegistration,
     selectedRegistrationVehicleId,
     category,
     myVehicleQuery.isLoading,
+  ]);
+
+  // Edit: match registration.vehicle_id against GET /vehicles and preselect it.
+  useEffect(() => {
+    if (!isEditMode || !registeredVehicleId) return;
+    if (myVehicleQuery.isLoading) return;
+    const matched = vehicles.find((v) => v._id === registeredVehicleId);
+    if (!matched) return;
+
+    // Already on the registered vehicle.
+    if (selectedRegistrationVehicleId === registeredVehicleId) return;
+
+    // Keep a different valid user selection; otherwise force the registered vehicle.
+    if (
+      selectedRegistrationVehicleId &&
+      vehicles.some((v) => v._id === selectedRegistrationVehicleId)
+    ) {
+      return;
+    }
+
+    setSelectedRegistrationVehicleId(registeredVehicleId);
+  }, [
+    isEditMode,
+    registeredVehicleId,
+    vehicles,
+    myVehicleQuery.isLoading,
+    selectedRegistrationVehicleId,
   ]);
 
   const consentForm = useForm<ConsentFormValues>({
@@ -564,7 +643,7 @@ export default function RegistrationPage() {
     setSelectedRegistrationVehicleId(
       getRegistrationVehicleId(editRegistration),
     );
-    setStep(2);
+    setStep(3);
     hydratedEditIdRef.current = editRegistration._id;
   }, [
     isEditMode,
@@ -596,7 +675,7 @@ export default function RegistrationPage() {
     if (
       !activeRallyEventId ||
       !selectedRegistrationTeamId ||
-      !selectedRegistrationVehicleId
+      !activeVehicleId
     ) {
       toast.error(
         activeRallyQuery.isError
@@ -612,6 +691,20 @@ export default function RegistrationPage() {
         toast.error("Registration fee is not available for this category.");
         return;
       }
+
+      if (
+        hasActiveRegistrationForCategory({
+          registrations: myRegistrations,
+          eventId: activeRallyEventId,
+          categoryKey: category,
+          categoryId: categoryRecord._id,
+        })
+      ) {
+        toast.error(
+          `You already have an active registration for ${categoryRecord.title} in this rally.`,
+        );
+        return;
+      }
     }
 
     const selectedTeam = teams.find(
@@ -622,9 +715,7 @@ export default function RegistrationPage() {
       return;
     }
 
-    const selectedVehicle = vehicles.find(
-      (v) => v._id === selectedRegistrationVehicleId,
-    );
+    const selectedVehicle = vehicles.find((v) => v._id === activeVehicleId);
     if (
       !selectedVehicle ||
       getVehicleCategoryKey(selectedVehicle) !== category
@@ -646,24 +737,12 @@ export default function RegistrationPage() {
 
     setIsSubmittingRegistration(true);
     try {
-      let challengeId: string | undefined;
-      try {
-        const challenges = await getRallyChallenges(activeRallyEventId);
-        const list = challenges?.data ?? [];
-        const match =
-          list.find((c) => c.category === categoryRecord._id) ??
-          list.find((c) => c.category === category);
-        if (match?._id) challengeId = match._id;
-      } catch {
-        // challenge_id is optional
-      }
-
       if (isEditMode) {
         const updatePayload: UpdateRegistrationPayload = {
-          team_id: selectedRegistrationTeamId,
-          vehicle_id: selectedRegistrationVehicleId,
+          vehicle_id: activeVehicleId,
         };
-        if (challengeId) updatePayload.challenge_id = challengeId;
+        const navigatorId = selectedTeam.navigator_id?._id;
+        if (navigatorId) updatePayload.navigator_id = navigatorId;
 
         await updateRegistrationMutation.mutateAsync({
           registrationId: editRegistrationId,
@@ -682,9 +761,18 @@ export default function RegistrationPage() {
         team_id: selectedRegistrationTeamId,
         event_id: activeRallyEventId,
         category_id: categoryRecord._id,
-        vehicle_id: selectedRegistrationVehicleId,
+        vehicle_id: activeVehicleId,
       };
-      if (challengeId) payload.challenge_id = challengeId;
+      const navigatorId = selectedTeam.navigator_id?._id;
+      if (navigatorId) {
+        payload.navigator_id = navigatorId;
+      } else if (requiresNavigator) {
+        toast.error(
+          "Selected team must have a navigator assigned before registering.",
+        );
+        setIsSubmittingRegistration(false);
+        return;
+      }
 
       const orderId = createJeepRallyOrderId();
       const orderDescription = buildJeepRallyOrderDescription([
@@ -749,7 +837,11 @@ export default function RegistrationPage() {
                 isDone={isEditMode || step > 1}
                 label="Category"
               />
-              <StepPill isActive={step === 2} isDone={step > 2} label="Team" />
+              <StepPill
+                isActive={!isEditMode && step === 2}
+                isDone={isEditMode || step > 2}
+                label="Team"
+              />
               <StepPill
                 isActive={isVehicleStep}
                 isDone={step > 3}
@@ -827,19 +919,29 @@ export default function RegistrationPage() {
                 <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
                   {categoryOptions.map((c) => {
                     const isActive = c.value === category;
+                    const isBlocked = c.alreadyRegistered;
                     return (
                       <button
                         key={c.value}
                         type="button"
+                        aria-disabled={isBlocked}
                         onClick={() => {
+                          if (isBlocked) {
+                            toast.error(
+                              `You already have an active registration for ${c.key} in this rally. Choose a different category.`,
+                            );
+                            return;
+                          }
                           setCategory(c.value);
                           setProfileGateVisible(false);
                         }}
                         className={cn(
                           "group overflow-hidden rounded-md border text-left transition-colors",
-                          isActive
-                            ? "border-[#43AA72] bg-[#EAF6EF]"
-                            : "border-[#E8E8E8] bg-white hover:bg-[#F9FAFD]",
+                          isBlocked
+                            ? "cursor-not-allowed border-[#E8E8E8] bg-[#F4F5F8] opacity-60"
+                            : isActive
+                              ? "border-[#43AA72] bg-[#EAF6EF]"
+                              : "border-[#E8E8E8] bg-white hover:bg-[#F9FAFD]",
                         )}
                       >
                         {c.imageUrl ? (
@@ -858,7 +960,11 @@ export default function RegistrationPage() {
                               variant="body-lg"
                               className={cn(
                                 "text-[16px] font-semibold leading-none",
-                                isActive ? "text-[#1F6B43]" : "text-[#25314D]",
+                                isBlocked
+                                  ? "text-[#6B7890]"
+                                  : isActive
+                                    ? "text-[#1F6B43]"
+                                    : "text-[#25314D]",
                               )}
                             >
                               {c.key}
@@ -867,19 +973,33 @@ export default function RegistrationPage() {
                               variant="body-sm"
                               className={cn(
                                 "text-[14px] font-semibold leading-none",
-                                isActive ? "text-[#1F6B43]" : "text-[#25314D]",
+                                isBlocked
+                                  ? "text-[#6B7890]"
+                                  : isActive
+                                    ? "text-[#1F6B43]"
+                                    : "text-[#25314D]",
                               )}
                             >
                               {formatRallyAmount(c.amount)}
                             </Typography>
+                            {isBlocked ? (
+                              <Typography
+                                variant="body-sm"
+                                className="text-[12px] font-medium leading-[1.45] text-[#9A6B00]"
+                              >
+                                Already registered for this event
+                              </Typography>
+                            ) : null}
                             {c.rosterHint ? (
                               <Typography
                                 variant="body-sm"
                                 className={cn(
                                   "text-[12px] font-medium leading-[1.45]",
-                                  isActive
-                                    ? "text-[#1F6B43]/90"
-                                    : "text-[#6B7890]",
+                                  isBlocked
+                                    ? "text-[#8B96AD]"
+                                    : isActive
+                                      ? "text-[#1F6B43]/90"
+                                      : "text-[#6B7890]",
                                 )}
                               >
                                 {c.rosterHint}
@@ -890,9 +1010,11 @@ export default function RegistrationPage() {
                                 variant="body-sm"
                                 className={cn(
                                   "text-[14px] leading-[1.45]",
-                                  isActive
-                                    ? "text-[#1F6B43]"
-                                    : "text-[#8B96AD]",
+                                  isBlocked
+                                    ? "text-[#8B96AD]"
+                                    : isActive
+                                      ? "text-[#1F6B43]"
+                                      : "text-[#8B96AD]",
                                 )}
                               >
                                 {c.hint}
@@ -902,9 +1024,11 @@ export default function RegistrationPage() {
                           <span
                             className={cn(
                               "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border text-[12px] font-semibold",
-                              isActive
-                                ? "border-[#43AA72] bg-[#43AA72] text-white"
-                                : "border-[#D7DAE1] bg-white text-transparent group-hover:text-[#D7DAE1]",
+                              isBlocked
+                                ? "border-[#D7DAE1] bg-[#E8E8E8] text-transparent"
+                                : isActive
+                                  ? "border-[#43AA72] bg-[#43AA72] text-white"
+                                  : "border-[#D7DAE1] bg-white text-transparent group-hover:text-[#D7DAE1]",
                             )}
                           >
                             <CheckIcon className="size-3" strokeWidth={3} aria-hidden />
@@ -979,6 +1103,20 @@ export default function RegistrationPage() {
                         );
                         return;
                       }
+                      if (
+                        category &&
+                        hasActiveRegistrationForCategory({
+                          registrations: myRegistrations,
+                          eventId: activeRallyEventId,
+                          categoryKey: category,
+                          categoryId: categoryRecord?._id,
+                        })
+                      ) {
+                        toast.error(
+                          `You already have an active registration for ${categoryRecord?.title ?? category} in this rally. Choose a different category.`,
+                        );
+                        return;
+                      }
                       if (!profileComplete) {
                         setProfileGateVisible(true);
                         toast.error(
@@ -1018,7 +1156,7 @@ export default function RegistrationPage() {
               </div>
               ) : null}
             </div>
-          ) : step === 2 ? (
+          ) : step === 2 && !isEditMode ? (
             <div className="space-y-6">
               <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                 <div className="space-y-1">
@@ -1030,20 +1168,15 @@ export default function RegistrationPage() {
                     Select team
                   </Typography>
                   <Typography variant="body-sm" className="text-[#8B96AD]">
-                    {isEditMode
-                      ? "Category is locked for this entry. Choose a team in the same category."
-                      : "Choose a team for this category. Manage teams and users on the "}
-                    {!isEditMode ? (
-                      <>
-                        <Link
-                          to={ROUTES.TEAMS}
-                          className="font-medium text-[#1F6B43] underline"
-                        >
-                          Teams
-                        </Link>{" "}
-                        page.
-                      </>
-                    ) : null}
+                    Choose a team for this category. Manage teams and users on
+                    the{" "}
+                    <Link
+                      to={ROUTES.TEAMS}
+                      className="font-medium text-[#1F6B43] underline"
+                    >
+                      Teams
+                    </Link>{" "}
+                    page.
                   </Typography>
                 </div>
 
@@ -1051,15 +1184,9 @@ export default function RegistrationPage() {
                   type="button"
                   variant="primary-outline"
                   className="w-full sm:w-auto"
-                  onClick={() => {
-                    if (isEditMode) {
-                      void navigate(ROUTES.MY_REGISTRATIONS);
-                      return;
-                    }
-                    setStep(1);
-                  }}
+                  onClick={() => setStep(1)}
                 >
-                  {isEditMode ? "Cancel" : "Back"}
+                  Back
                 </Button>
               </div>
 
@@ -1368,6 +1495,9 @@ export default function RegistrationPage() {
                             ? `${registrationSummary.team.team_name} · #${registrationSummary.team.team_number}`
                             : "-"}
                         </span>
+                        {isEditMode ? (
+                          <span className="ml-2 text-[#8B96AD]">(locked)</span>
+                        ) : null}
                       </Typography>
                       <Typography
                         variant="body-sm"
@@ -1452,19 +1582,18 @@ export default function RegistrationPage() {
                       !activeRallyEventId ||
                       !categoryConsentHtml ||
                       !selectedRegistrationTeamId ||
-                      !selectedRegistrationVehicleId ||
-                      !selectedTeamValidation?.ok ||
+                      !activeVehicleId ||
+                      (!isEditMode && !selectedTeamValidation?.ok) ||
                       (!isEditMode &&
                         !(
                           typeof selectedPricing?.amount === "number" &&
                           selectedPricing.amount > 0
                         )) ||
-                      !teamsForCategory.some(
-                        (t) => t._id === selectedRegistrationTeamId,
-                      ) ||
-                      !vehicles.some(
-                        (v) => v._id === selectedRegistrationVehicleId,
-                      )
+                      (!isEditMode &&
+                        !teamsForCategory.some(
+                          (t) => t._id === selectedRegistrationTeamId,
+                        )) ||
+                      !vehicles.some((v) => v._id === activeVehicleId)
                     }
                   >
                     {isSubmittingRegistration
@@ -1493,15 +1622,20 @@ export default function RegistrationPage() {
                     Vehicle details
                   </Typography>
                   <Typography variant="body-sm" className="text-[#8B96AD]">
-                    Select a vehicle for your category and team. Manage vehicles
-                    on the{" "}
-                    <Link
-                      to={ROUTES.VEHICLE}
-                      className="font-medium text-[#1F6B43] underline"
-                    >
-                      Vehicle
-                    </Link>{" "}
-                    page.
+                    {isEditMode
+                      ? "Team and category are locked for this entry. Choose or update a vehicle only."
+                      : "Select a vehicle for your category and team. Manage vehicles on the "}
+                    {!isEditMode ? (
+                      <>
+                        <Link
+                          to={ROUTES.VEHICLE}
+                          className="font-medium text-[#1F6B43] underline"
+                        >
+                          Vehicle
+                        </Link>{" "}
+                        page.
+                      </>
+                    ) : null}
                   </Typography>
                 </div>
 
@@ -1509,9 +1643,15 @@ export default function RegistrationPage() {
                   type="button"
                   variant="primary-outline"
                   className="w-full sm:w-auto"
-                  onClick={() => setStep(2)}
+                  onClick={() => {
+                    if (isEditMode) {
+                      void navigate(ROUTES.MY_REGISTRATIONS);
+                      return;
+                    }
+                    setStep(2);
+                  }}
                 >
-                  Back
+                  {isEditMode ? "Cancel" : "Back"}
                 </Button>
               </div>
 
@@ -1542,7 +1682,7 @@ export default function RegistrationPage() {
                   <div className="grid gap-3 sm:grid-cols-2">
                     {vehiclesForRegistration.map((v: Vehicle) => {
                       const imgUrl = toPublicFileUrl(v.image);
-                      const isSel = selectedRegistrationVehicleId === v._id;
+                      const isSel = activeVehicleId === v._id;
                       return (
                         <button
                           key={v._id}
@@ -1815,9 +1955,9 @@ export default function RegistrationPage() {
                     type="button"
                     className="w-full sm:w-auto"
                     disabled={
-                      !selectedRegistrationVehicleId ||
+                      !activeVehicleId ||
                       !vehiclesForRegistration.some(
-                        (v) => v._id === selectedRegistrationVehicleId,
+                        (v) => v._id === activeVehicleId,
                       )
                     }
                     onClick={() => setStep(4)}

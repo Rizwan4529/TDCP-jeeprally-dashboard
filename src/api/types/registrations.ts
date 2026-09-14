@@ -1,17 +1,16 @@
-/** POST /registrations — send the category document `_id` from GET /rally/:eventId/pricing. */
+/** POST /registrations — keys match the registration API body. */
 export type CreateRegistrationPayload = {
   team_id: string;
   event_id: string;
   category_id: string;
   vehicle_id: string;
-  challenge_id?: string;
+  navigator_id?: string;
 };
 
-/** PUT /registrations/:id — category and event stay locked; no payment. */
+/** PUT /registrations/:id — team, category, and event stay locked; no payment. */
 export type UpdateRegistrationPayload = {
-  team_id: string;
   vehicle_id: string;
-  challenge_id?: string;
+  navigator_id?: string;
 };
 
 export type ApiResponse<T> = {
@@ -87,3 +86,4 @@ export type DriverRegistration = {
 };
 
 export type GetEventRegistrationsResponse = ApiResponse<DriverRegistration[]>;
+export type GetMyRegistrationsResponse = ApiResponse<DriverRegistration[]>;

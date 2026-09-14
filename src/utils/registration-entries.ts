@@ -2,10 +2,10 @@ import type {
   DriverRegistration,
   RegistrationCategory,
   RegistrationPerson,
-  RegistrationStatus,
   RegistrationTeam,
 } from "@/api/types/registrations";
 import type { RallyEvent } from "@/api/types/rally";
+import type { Team } from "@/api/types/teams";
 import { getRegistrationWindow } from "@/utils/rally-event";
 import { CATEGORY_LABELS, type Category } from "@/utils/constants";
 import { toDateOnlyInputValue } from "@/utils/helpers";
@@ -15,6 +15,88 @@ export function getRegistrationTeam(
 ): RegistrationTeam | null {
   const team = registration.team_id;
   if (team && typeof team === "object" && "_id" in team) return team;
+  return null;
+}
+
+/** Prefer populated `team_id`; otherwise match `/teams/my-teams` by id. */
+export function resolveRegistrationTeam(
+  registration: DriverRegistration,
+  teams: Team[],
+): RegistrationTeam | null {
+  const populated = getRegistrationTeam(registration);
+  if (populated) return populated;
+
+  const teamId = getRegistrationTeamId(registration);
+  if (!teamId) return null;
+
+  const team = teams.find((t) => t._id === teamId);
+  if (!team) return null;
+
+  return {
+    _id: team._id,
+    team_name: team.team_name,
+    team_number: team.team_number,
+    category: team.category,
+    driver_id: team.driver_id
+      ? toRegistrationPerson(team.driver_id)
+      : null,
+    navigator_id: team.navigator_id
+      ? toRegistrationPerson(team.navigator_id)
+      : null,
+    member_ids: team.member_ids.map(toRegistrationPerson),
+  };
+}
+
+function toRegistrationPerson(person: {
+  _id: string;
+  name: string;
+  email?: string | null;
+  contact_number?: string | null;
+  cnic?: string | null;
+  date_of_birth?: string | null;
+  occupation?: string | null;
+  location?: string | null;
+  profile_image?: string | null;
+}): RegistrationPerson {
+  return {
+    _id: person._id,
+    name: person.name,
+    email: person.email ?? undefined,
+    contact_number: person.contact_number ?? undefined,
+    cnic: person.cnic ?? undefined,
+    date_of_birth: person.date_of_birth ?? undefined,
+    occupation: person.occupation ?? undefined,
+    location: person.location ?? undefined,
+    profile_image: person.profile_image ?? null,
+  };
+}
+
+/** Prefer team navigator; fall back to registration `navigator_id` on the roster. */
+export function resolveRegistrationNavigator(
+  registration: DriverRegistration,
+  team: RegistrationTeam | null,
+): RegistrationPerson | null {
+  if (team?.navigator_id && typeof team.navigator_id === "object") {
+    return team.navigator_id;
+  }
+
+  const nav = registration.navigator_id;
+  if (nav && typeof nav === "object" && "_id" in nav) return nav;
+
+  const navId = typeof nav === "string" ? nav : "";
+  if (!navId || !team) return null;
+
+  const fromMembers = team.member_ids?.find((m) => m._id === navId);
+  if (fromMembers) return fromMembers;
+
+  if (
+    team.navigator_id &&
+    typeof team.navigator_id === "object" &&
+    team.navigator_id._id === navId
+  ) {
+    return team.navigator_id;
+  }
+
   return null;
 }
 
@@ -38,12 +120,78 @@ export function getRegistrationTeamId(
   return "";
 }
 
+export function getRegistrationEventId(
+  registration: DriverRegistration,
+): string {
+  const event = registration.event_id;
+  if (!event) return "";
+  if (typeof event === "string") return event;
+  if (typeof event === "object" && "_id" in event) return event._id;
+  return "";
+}
+
 export function getRegistrationCategory(
   registration: DriverRegistration,
 ): RegistrationCategory | null {
   const cat = registration.category_id;
   if (cat && typeof cat === "object" && "_id" in cat) return cat;
   return null;
+}
+
+export function getRegistrationCategoryId(
+  registration: DriverRegistration,
+): string {
+  const cat = registration.category_id;
+  if (!cat) return "";
+  if (typeof cat === "string") return cat;
+  if (typeof cat === "object" && "_id" in cat) return cat._id;
+  return "";
+}
+
+export function getRegistrationCategoryKey(
+  registration: DriverRegistration,
+): string {
+  const cat = getRegistrationCategory(registration);
+  return cat?.key?.trim() ?? "";
+}
+
+/** Pending / approved count as an active entry that blocks re-registering. */
+export function isActiveRegistrationStatus(
+  status: string | undefined,
+): boolean {
+  const normalized = (status ?? "").toLowerCase();
+  return normalized === "pending" || normalized === "approved";
+}
+
+/**
+ * True when the driver already has an active registration for the same
+ * event + category (matched by category key and/or category id).
+ */
+export function hasActiveRegistrationForCategory(args: {
+  registrations: DriverRegistration[];
+  eventId: string | null | undefined;
+  categoryKey?: string | null;
+  categoryId?: string | null;
+}): boolean {
+  const eventId = args.eventId?.trim() ?? "";
+  const categoryKey = args.categoryKey?.trim() ?? "";
+  const categoryId = args.categoryId?.trim() ?? "";
+  if (!eventId || (!categoryKey && !categoryId)) return false;
+
+  return args.registrations.some((registration) => {
+    if (!isActiveRegistrationStatus(registration.status)) return false;
+    if (getRegistrationEventId(registration) !== eventId) return false;
+
+    if (categoryKey) {
+      const key = getRegistrationCategoryKey(registration);
+      if (key && key === categoryKey) return true;
+    }
+    if (categoryId) {
+      const id = getRegistrationCategoryId(registration);
+      if (id && id === categoryId) return true;
+    }
+    return false;
+  });
 }
 
 export function getRegistrationCategoryLabel(
@@ -93,20 +241,24 @@ export function formatMemberDob(iso: string | undefined): string {
 }
 
 /**
- * Drivers may update only while status is pending and the active rally
- * registration window is open.
+ * Drivers may update while the rally registration window is open.
+ * Pending and approved entries are both allowed; only the registration
+ * end-date / window gate blocks updates.
  */
 export function canUpdateRegistration(
   registration: DriverRegistration,
   activeRally: RallyEvent | null | undefined,
 ): { ok: true } | { ok: false; reason: string } {
-  const status = (registration.status ?? "").toLowerCase() as RegistrationStatus | string;
-  if (status !== "pending") {
-    return {
-      ok: false,
-      reason: `Only pending entries can be updated. This entry is ${formatRegistrationStatus(String(registration.status))}.`,
-    };
-  }
+  // Allow updates for pending and approved (and any other status).
+  // Re-enable this if only pending entries should be editable:
+  // const status = (registration.status ?? "").toLowerCase();
+  // if (status !== "pending") {
+  //   return {
+  //     ok: false,
+  //     reason: `Only pending entries can be updated. This entry is ${formatRegistrationStatus(String(registration.status))}.`,
+  //   };
+  // }
+  void registration.status;
 
   const window = getRegistrationWindow(activeRally);
   if (!window.isOpen) {

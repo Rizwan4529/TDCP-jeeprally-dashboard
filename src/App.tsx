@@ -7,6 +7,8 @@ import SidebarLayout from "@/components/layout/SidebarLayout"
 import DashboardPage from "@/pages/Dashboard"
 import EventsPage from "@/pages/Events"
 import LoginPage from "@/pages/Login"
+import ForgotPasswordPage from "@/pages/ForgotPassword"
+import ResetPasswordPage from "@/pages/ResetPassword"
 import NotFoundPage from "@/pages/NotFound"
 import PaymentCallbackPage from "@/pages/PaymentCallback"
 import ProfilePage from "@/pages/Profile"
@@ -27,6 +29,11 @@ const App = () => {
         <Route element={<GuestRoute />}>
           <Route path={ROUTES.LOGIN} element={<LoginPage />} />
           <Route path={ROUTES.SIGNUP} element={<SignupPage />} />
+          <Route
+            path={ROUTES.FORGOT_PASSWORD}
+            element={<ForgotPasswordPage />}
+          />
+          <Route path={ROUTES.RESET_PASSWORD} element={<ResetPasswordPage />} />
         </Route>
 
         <Route path="/" element={<ProtectedRoute />}>

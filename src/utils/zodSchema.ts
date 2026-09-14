@@ -222,6 +222,30 @@ export const loginSchema = z.object({
 
 export type LoginValues = z.infer<typeof loginSchema>
 
+export const forgotPasswordSchema = z.object({
+  email: z.string().trim().email("Enter a valid email address"),
+})
+
+export type ForgotPasswordValues = z.infer<typeof forgotPasswordSchema>
+
+export const resetPasswordSchema = z
+  .object({
+    token: z
+      .string()
+      .trim()
+      .min(4, "Enter the OTP sent to your email")
+      .max(12, "OTP looks too long")
+      .regex(/^\d+$/, "OTP must contain digits only"),
+    password: z.string().min(6, "Password must be at least 6 characters"),
+    confirmPassword: requiredString("Confirm your password"),
+  })
+  .refine((value) => value.password === value.confirmPassword, {
+    message: "Passwords do not match",
+    path: ["confirmPassword"],
+  })
+
+export type ResetPasswordValues = z.infer<typeof resetPasswordSchema>
+
 const signupDateOfBirthSchema = z
   .string()
   .trim()

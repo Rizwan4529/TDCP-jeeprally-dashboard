@@ -33,6 +33,10 @@ export const queryKeys = {
     registration: (registrationId: string) =>
       [...queryKeys.rally.all, "registration", registrationId] as const,
   },
+  registrations: {
+    all: ["registrations"] as const,
+    my: () => [...queryKeys.registrations.all, "my"] as const,
+  },
   dashboard: {
     all: ["dashboard"] as const,
     me: () => [...queryKeys.dashboard.all, "me"] as const,

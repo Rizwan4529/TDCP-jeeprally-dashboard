@@ -10,6 +10,8 @@ export const ENUMS = {
 export const ROUTES = {
   LOGIN: "/login",
   SIGNUP: "/signup",
+  FORGOT_PASSWORD: "/forgot-password",
+  RESET_PASSWORD: "/reset-password",
   DASHBOARD: "/dashboard",
   PROFILE: "/profile",
   PROFILE_EDIT: "/profile/edit",
@@ -32,7 +34,12 @@ export function vehicleEditPath(id: string) {
 }
 
 /** Relative API paths that may return 401 without treating the user as logged-out. */
-export const AUTH_PUBLIC_API_PATHS = ["/auth/login", "/auth/register"] as const;
+export const AUTH_PUBLIC_API_PATHS = [
+  "/auth/login",
+  "/auth/register",
+  "/auth/forgot-password",
+  "/auth/reset-password",
+] as const;
 
 export const CATEGORY = {
   STOCK_PREPAID: "stock_prepaid",

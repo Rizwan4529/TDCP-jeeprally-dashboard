@@ -32,26 +32,41 @@ import {
 } from "@/components/teams/TeamsDataTable";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import type { DriverRegistration } from "@/api/types/registrations";
+import type { RallyEvent } from "@/api/types/rally";
 import {
   useActiveEventId,
   useActiveRallyQuery,
 } from "@/hooks/api/use-active-rally";
-import { useEventRegistrationsQuery } from "@/hooks/api/use-registrations";
+import { useRallyEventsQuery } from "@/hooks/api/use-rally-events";
+import { useMyRegistrationsQuery } from "@/hooks/api/use-registrations";
+import { useMyTeamsQuery } from "@/hooks/api/use-teams";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/utils/constants";
 import { fetchAuthToken } from "@/utils/helpers";
+import { getRallyEventId } from "@/utils/rally-event";
 import {
   canUpdateRegistration,
   formatRegisteredAt,
   formatRegistrationStatus,
   getPersonName,
   getRegistrationCategoryLabel,
-  getRegistrationTeam,
+  getRegistrationEventId,
+  resolveRegistrationNavigator,
+  resolveRegistrationTeam,
   registrationStatusTone,
 } from "@/utils/registration-entries";
+import type { Team } from "@/api/types/teams";
 
 const surface = "bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)]";
+const EVENT_FILTER_ALL = "all";
 
 export default function MyRegistrationsPage() {
   return <MyRegistrationsScreen />;
@@ -62,31 +77,69 @@ function MyRegistrationsScreen() {
   const token = useMemo(() => fetchAuthToken(), []);
   const [search, setSearch] = useState("");
   const [detail, setDetail] = useState<DriverRegistration | null>(null);
+  /** null = follow default (active event when available). */
+  const [eventFilter, setEventFilter] = useState<string | null>(null);
 
   const activeRallyQuery = useActiveRallyQuery(Boolean(token));
   const activeRally = activeRallyQuery.data?.data ?? null;
-  const eventId = useActiveEventId(Boolean(token));
+  const activeEventId = useActiveEventId(Boolean(token));
 
-  const registrationsQuery = useEventRegistrationsQuery(
-    eventId,
-    Boolean(token) && Boolean(eventId),
+  const eventsQuery = useRallyEventsQuery(
+    { sort: "date_desc" },
+    { enabled: Boolean(token) },
   );
+  const events = Array.isArray(eventsQuery.data?.data)
+    ? eventsQuery.data.data
+    : [];
 
+  const registrationsQuery = useMyRegistrationsQuery(Boolean(token));
   const registrations = Array.isArray(registrationsQuery.data?.data)
     ? registrationsQuery.data.data
     : [];
 
+  const teamsQuery = useMyTeamsQuery(Boolean(token));
+  const teams = Array.isArray(teamsQuery.data?.data)
+    ? teamsQuery.data.data
+    : [];
+
+  const resolvedEventFilter =
+    eventFilter ?? (activeEventId?.trim() || EVENT_FILTER_ALL);
+
+  const selectedEventName = useMemo(() => {
+    if (resolvedEventFilter === EVENT_FILTER_ALL) return "all events";
+    if (activeEventId && resolvedEventFilter === activeEventId) {
+      return activeRally?.name ?? "the active rally";
+    }
+    return (
+      events.find((e) => getRallyEventId(e) === resolvedEventFilter)?.name ??
+      "this event"
+    );
+  }, [
+    resolvedEventFilter,
+    activeEventId,
+    activeRally?.name,
+    events,
+  ]);
+
   const filtered = useMemo(() => {
+    const byEvent =
+      resolvedEventFilter === EVENT_FILTER_ALL
+        ? registrations
+        : registrations.filter(
+            (r) => getRegistrationEventId(r) === resolvedEventFilter,
+          );
+
     const q = search.trim().toLowerCase();
-    if (!q) return registrations;
-    return registrations.filter((r) => {
-      const team = getRegistrationTeam(r);
+    if (!q) return byEvent;
+    return byEvent.filter((r) => {
+      const team = resolveRegistrationTeam(r, teams);
+      const navigator = resolveRegistrationNavigator(r, team);
       const haystack = [
         team?.team_name,
         team?.team_number,
         getRegistrationCategoryLabel(r),
         r.status,
-        getPersonName(team?.navigator_id),
+        getPersonName(navigator),
         formatRegisteredAt(r.registered_at),
       ]
         .filter(Boolean)
@@ -94,20 +147,35 @@ function MyRegistrationsScreen() {
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [registrations, search]);
+  }, [registrations, resolvedEventFilter, search, teams]);
 
-  const description = activeRallyQuery.isLoading
+  const description = registrationsQuery.isLoading
     ? undefined
-    : !eventId
-      ? "No active rally right now."
-      : registrationsQuery.isLoading
-        ? undefined
-        : registrations.length === 0
-          ? "You have no entries for the active rally yet."
-          : `${registrations.length} entr${registrations.length === 1 ? "y" : "ies"} for ${activeRally?.name ?? "the active rally"}.`;
+    : registrations.length === 0
+      ? "You have no rally registrations yet."
+      : resolvedEventFilter === EVENT_FILTER_ALL
+        ? `${registrations.length} entr${registrations.length === 1 ? "y" : "ies"} across all events.`
+        : `${filtered.length} entr${filtered.length === 1 ? "y" : "ies"} for ${selectedEventName}.`;
+
+  const resolveRallyForRegistration = (
+    registration: DriverRegistration,
+  ): RallyEvent | null => {
+    const registrationEventId = getRegistrationEventId(registration);
+    if (
+      activeEventId &&
+      registrationEventId === activeEventId &&
+      activeRally
+    ) {
+      return activeRally;
+    }
+    return (
+      events.find((e) => getRallyEventId(e) === registrationEventId) ?? null
+    );
+  };
 
   const handleUpdateClick = (registration: DriverRegistration) => {
-    const gate = canUpdateRegistration(registration, activeRally);
+    const rally = resolveRallyForRegistration(registration);
+    const gate = canUpdateRegistration(registration, rally);
     if (!gate.ok) {
       toast.error(gate.reason);
       return;
@@ -117,6 +185,12 @@ function MyRegistrationsScreen() {
       { state: { editRegistration: registration } },
     );
   };
+
+  const isLoading =
+    registrationsQuery.isLoading ||
+    teamsQuery.isLoading ||
+    eventsQuery.isLoading ||
+    activeRallyQuery.isLoading;
 
   return (
     <div className={cn(PAGE_SHELL, SIDEBAR_PAGE_PADDING, "gap-4")}>
@@ -128,6 +202,33 @@ function MyRegistrationsScreen() {
             search={search}
             onSearchChange={setSearch}
             searchPlaceholder="Search entries..."
+            filters={
+              <Select
+                value={resolvedEventFilter}
+                onValueChange={(value) => setEventFilter(value)}
+              >
+                <SelectTrigger
+                  aria-label="Filter by event"
+                  className="h-11 w-full min-w-[200px] rounded-md border-[#E8E8E8] bg-white sm:w-[260px]"
+                >
+                  <SelectValue placeholder="Select event" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value={EVENT_FILTER_ALL}>All events</SelectItem>
+                  {events.map((event) => {
+                    const id = getRallyEventId(event);
+                    if (!id) return null;
+                    const isActive = Boolean(activeEventId && id === activeEventId);
+                    return (
+                      <SelectItem key={id} value={id}>
+                        {event.name}
+                        {isActive ? " (Active)" : ""}
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            }
             addAction={
               <Button asChild variant="primary-outline" className="shrink-0">
                 <Link to={ROUTES.REGISTRATION}>
@@ -139,20 +240,8 @@ function MyRegistrationsScreen() {
           />
 
           <div className="space-y-6 px-6 py-6">
-            {activeRallyQuery.isLoading ||
-            (Boolean(eventId) && registrationsQuery.isLoading) ? (
+            {isLoading ? (
               <TeamsTableSkeleton rows={5} />
-            ) : !eventId || activeRallyQuery.isError ? (
-              <EmptyState
-                icon={ClipboardListIcon}
-                title="No active rally"
-                description={
-                  activeRallyQuery.error?.message ??
-                  "An active rally is required to view your entries."
-                }
-                variant="error"
-                size="compact"
-              />
             ) : registrationsQuery.isError ? (
               <EmptyState
                 icon={ClipboardListIcon}
@@ -168,7 +257,7 @@ function MyRegistrationsScreen() {
               <EmptyState
                 icon={ClipboardListIcon}
                 title="No entries yet"
-                description="Register for the active rally to see your entry here."
+                description="Register for a rally to see your entry here."
                 action={
                   <Button asChild>
                     <Link to={ROUTES.REGISTRATION}>
@@ -182,7 +271,11 @@ function MyRegistrationsScreen() {
               <EmptyState
                 icon={ClipboardListIcon}
                 title="No matching entries"
-                description="Try a different search term."
+                description={
+                  search.trim()
+                    ? "Try a different search term or event filter."
+                    : `You have no entries for ${selectedEventName}.`
+                }
                 size="compact"
               />
             ) : (
@@ -214,8 +307,10 @@ function MyRegistrationsScreen() {
                 </TeamsDataTableHeader>
                 <TeamsDataTableBody>
                   {filtered.map((r) => {
-                    const team = getRegistrationTeam(r);
-                    const updateGate = canUpdateRegistration(r, activeRally);
+                    const team = resolveRegistrationTeam(r, teams);
+                    const navigator = resolveRegistrationNavigator(r, team);
+                    const rally = resolveRallyForRegistration(r);
+                    const updateGate = canUpdateRegistration(r, rally);
                     return (
                       <TableRow key={r._id}>
                         <TableCell className="max-w-0 px-3 font-semibold text-[#1F1838]">
@@ -236,7 +331,7 @@ function MyRegistrationsScreen() {
                         </TableCell>
                         <TableCell className="max-w-0 px-3 text-[#6B7890]">
                           <span className="block truncate">
-                            {getPersonName(team?.navigator_id)}
+                            {getPersonName(navigator)}
                           </span>
                         </TableCell>
                         <TableCell className="px-3">
@@ -294,6 +389,7 @@ function MyRegistrationsScreen() {
 
       <RegistrationDetailDialog
         registration={detail}
+        teams={teams}
         open={Boolean(detail)}
         onOpenChange={(open) => {
           if (!open) setDetail(null);
@@ -305,10 +401,12 @@ function MyRegistrationsScreen() {
 
 function RegistrationDetailDialog({
   registration,
+  teams,
   open,
   onOpenChange,
 }: {
   registration: DriverRegistration | null;
+  teams: Team[];
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }) {
@@ -326,7 +424,8 @@ function RegistrationDetailDialog({
     );
   }
 
-  const team = getRegistrationTeam(registration);
+  const team = resolveRegistrationTeam(registration, teams);
+  const navigator = resolveRegistrationNavigator(registration, team);
   const members = team?.member_ids ?? [];
 
   return (
@@ -356,7 +455,7 @@ function RegistrationDetailDialog({
           {getRegistrationCategoryLabel(registration)}
         </DetailRow>
         <DetailRow label="Navigator">
-          {getPersonName(team?.navigator_id)}
+          {getPersonName(navigator)}
         </DetailRow>
         <DetailRow label="Registered">
           {formatRegisteredAt(registration.registered_at)}

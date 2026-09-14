@@ -75,3 +75,28 @@ export type LoginResponse = {
   message: string
   data: LoginData
 }
+
+export type ForgotPasswordRequest = {
+  email: string
+}
+
+export type ForgotPasswordResponse = {
+  success: boolean
+  message: string
+  data?: {
+    message?: string
+  }
+}
+
+export type ResetPasswordRequest = {
+  token: string
+  password: string
+}
+
+export type ResetPasswordResponse = {
+  success: boolean
+  message: string
+  data?: {
+    message?: string
+  }
+}

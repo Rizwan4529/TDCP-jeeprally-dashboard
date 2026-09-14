@@ -20,6 +20,8 @@ type CrudTableToolbarProps = {
   search: string;
   onSearchChange: (value: string) => void;
   searchPlaceholder?: string;
+  /** Optional controls between search and primary actions (e.g. event filter). */
+  filters?: ReactNode;
   addAction?: ReactNode;
   /** Bulk menu content (Add to team, Delete selected, …). Shown when provided. */
   bulkMenu?: ReactNode;
@@ -34,6 +36,7 @@ export function CrudTableToolbar({
   search,
   onSearchChange,
   searchPlaceholder = "Search…",
+  filters,
   addAction,
   bulkMenu,
   selectionCount = 0,
@@ -48,16 +51,21 @@ export function CrudTableToolbar({
         className,
       )}
     >
-      <div className="relative min-w-0 flex-1 sm:max-w-sm">
-        <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[#8A95B5]" />
-        <Input
-          type="search"
-          value={search}
-          onChange={(e) => onSearchChange(e.target.value)}
-          placeholder={searchPlaceholder}
-          aria-label={searchPlaceholder}
-          className="h-11 rounded-md border-[#E8E8E8] bg-white pl-9 text-[15px] placeholder:text-[#8A95B5]"
-        />
+      <div className="flex min-w-0 flex-1 flex-col gap-3 sm:flex-row sm:items-center">
+        <div className="relative min-w-0 flex-1 sm:max-w-sm">
+          <SearchIcon className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-[#8A95B5]" />
+          <Input
+            type="search"
+            value={search}
+            onChange={(e) => onSearchChange(e.target.value)}
+            placeholder={searchPlaceholder}
+            aria-label={searchPlaceholder}
+            className="h-11 rounded-md border-[#E8E8E8] bg-white pl-9 text-[15px] placeholder:text-[#8A95B5]"
+          />
+        </div>
+        {filters ? (
+          <div className="flex shrink-0 items-center gap-2">{filters}</div>
+        ) : null}
       </div>
 
       <div className="flex shrink-0 items-center justify-end gap-2">

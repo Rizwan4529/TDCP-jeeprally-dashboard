@@ -124,6 +124,15 @@ export default function LoginPage() {
           className={authInputClassName}
         />
 
+        <div className="-mt-2 flex justify-end">
+          <Link
+            to={ROUTES.FORGOT_PASSWORD}
+            className="text-sm font-medium text-primary hover:underline"
+          >
+            Forgot password?
+          </Link>
+        </div>
+
         <Button
           type="submit"
           disabled={loginMutation.isPending}
