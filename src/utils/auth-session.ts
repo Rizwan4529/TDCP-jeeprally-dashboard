@@ -14,10 +14,9 @@ export function isUnauthorizedError(error: unknown): boolean {
     return false;
   }
 
-  const status = error.response?.status;
-  return (
-    status === StatusCodes.UNAUTHORIZED || status === StatusCodes.FORBIDDEN
-  );
+  // Only 401 means the session is invalid. 403 is "authenticated but not allowed"
+  // for a specific resource — logging out on 403 breaks flows like edit registration.
+  return error.response?.status === StatusCodes.UNAUTHORIZED;
 }
 
 /** Clears session and hard-redirects to login (used by axios + React Query). */

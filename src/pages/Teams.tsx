@@ -37,6 +37,7 @@ import {
   Input,
   Select,
 } from "@/components/common/FormCommon";
+import { Typography } from "@/components/common/Typography";
 import {
   PAGE_SHELL,
   SIDEBAR_PAGE_PADDING,
@@ -77,7 +78,7 @@ import {
   type Category,
 } from "@/utils/constants";
 import { fetchAuthToken, toDateOnlyInputValue } from "@/utils/helpers";
-import { buildCategoryMap } from "@/utils/team-roster-rules";
+import { buildCategoryMap, needsNavigator } from "@/utils/team-roster-rules";
 import {
   buildCreateTeamPayload,
   buildUpdateTeamPayload,
@@ -639,6 +640,7 @@ function RosterSection({ token }: { token: boolean }) {
 function MyTeamsSection({ token }: { token: boolean }) {
   const categoriesQuery = useCategoriesQuery(token);
   const teamsQuery = useMyTeamsQuery(token);
+  const membersQuery = useTeamMembersQuery(token);
 
   const categories = React.useMemo(
     () =>
@@ -663,6 +665,17 @@ function MyTeamsSection({ token }: { token: boolean }) {
   const teams = Array.isArray(teamsQuery.data?.data)
     ? teamsQuery.data.data
     : [];
+  const members = Array.isArray(membersQuery.data?.data)
+    ? membersQuery.data.data
+    : [];
+  const navigatorOptions = React.useMemo(
+    () =>
+      members.map((m) => ({
+        label: m.name?.trim() || m.email || "User",
+        value: m._id,
+      })),
+    [members],
+  );
 
   const createMutation = useCreateTeamMutation();
   const updateMutation = useUpdateTeamMutation();
@@ -677,6 +690,11 @@ function MyTeamsSection({ token }: { token: boolean }) {
     resolver: zodResolver(teamFormSchema),
     defaultValues: emptyTeamFormValues,
   });
+
+  const selectedCategoryKey = form.watch("category");
+  const selectedCategory = categoryByKey.get(selectedCategoryKey);
+  const showNavigatorField = needsNavigator(selectedCategory);
+  const watchedNavigatorId = form.watch("navigator_id") ?? "";
 
   const isEdit = Boolean(editingTeam);
   const isSaving = createMutation.isPending || updateMutation.isPending;
@@ -703,11 +721,23 @@ function MyTeamsSection({ token }: { token: boolean }) {
     });
   }, [teams, search, categoryByKey]);
 
+  React.useEffect(() => {
+    if (!dialogOpen) return;
+    if (!showNavigatorField) {
+      form.setValue("navigator_id", "");
+      return;
+    }
+    const current = form.getValues("navigator_id") ?? "";
+    if (current && navigatorOptions.some((o) => o.value === current)) return;
+    form.setValue("navigator_id", navigatorOptions[0]?.value ?? "");
+  }, [dialogOpen, showNavigatorField, navigatorOptions, form]);
+
   const openNew = () => {
     setEditingTeam(null);
     form.reset({
       ...emptyTeamFormValues,
       category: categories[0]?.key ?? "",
+      navigator_id: "",
     });
     setDialogOpen(true);
   };
@@ -733,24 +763,64 @@ function MyTeamsSection({ token }: { token: boolean }) {
   };
 
   const onSubmitTeam: SubmitHandler<TeamFormValues> = async (values) => {
+    const cat = categoryByKey.get(values.category);
+    const requiresNavigator = needsNavigator(cat);
+    const navigatorId = values.navigator_id?.trim() || "";
+
+    if (requiresNavigator) {
+      if (!navigatorId) {
+        toast.error(
+          members.length === 0
+            ? "Add a user on the Users tab first, then select them as navigator."
+            : "Select a navigator for this category.",
+        );
+        return;
+      }
+      if (!members.some((m) => m._id === navigatorId)) {
+        toast.error("Selected navigator is invalid.");
+        return;
+      }
+    }
+
     try {
       if (isEdit && editingTeam) {
-        const { memberIds, navigatorId } =
-          selectedMembersForTeamForm(editingTeam);
+        const { memberIds } = selectedMembersForTeamForm(editingTeam);
+        const maxMembers = cat?.max_members ?? 0;
+        let nextMembers = [...memberIds];
+        let nextNavigator: string | null = null;
+
+        if (requiresNavigator) {
+          nextNavigator = navigatorId;
+          if (!nextMembers.includes(navigatorId)) {
+            if (nextMembers.length >= maxMembers) {
+              toast.error(
+                `This team already has the maximum of ${maxMembers} member${maxMembers === 1 ? "" : "s"}. Remove a member before assigning a different navigator.`,
+              );
+              return;
+            }
+            nextMembers = [...nextMembers, navigatorId];
+          }
+        }
+
         await updateMutation.mutateAsync({
           id: editingTeam._id,
-          payload: buildUpdateTeamPayload(
-            values,
-            memberIds,
-            navigatorId || null,
-          ),
+          payload: buildUpdateTeamPayload(values, nextMembers, nextNavigator),
         });
         toast.success("Team updated.");
       } else {
+        const memberIds = requiresNavigator ? [navigatorId] : [];
         await createMutation.mutateAsync(
-          buildCreateTeamPayload(values, [], undefined),
+          buildCreateTeamPayload(
+            values,
+            memberIds,
+            requiresNavigator ? navigatorId : undefined,
+          ),
         );
-        toast.success("Team created. Add members from the Users tab.");
+        toast.success(
+          requiresNavigator
+            ? "Team created with navigator. Add more members from the Users tab if needed."
+            : "Team created. Add members from the Users tab.",
+        );
       }
       closeDialog();
     } catch (err) {
@@ -898,8 +968,8 @@ function MyTeamsSection({ token }: { token: boolean }) {
         headerTitle={isEdit ? "Edit team" : "Add team"}
         headerDescription={
           isEdit
-            ? "Update this team’s name, number, and category."
-            : "Create a team, then add members from the Users tab."
+            ? "Update this team’s name, number, category, and navigator when required."
+            : "Create a team. Categories that require a navigator will ask you to pick one from your users."
         }
         className="sm:max-w-[520px]"
       >
@@ -931,6 +1001,34 @@ function MyTeamsSection({ token }: { token: boolean }) {
           ) : (
             <p className="text-sm text-[#6B7890]">No categories available.</p>
           )}
+
+          {showNavigatorField ? (
+            navigatorOptions.length > 0 ? (
+              <div className="space-y-1.5">
+                <Select
+                  control={form.control}
+                  name="navigator_id"
+                  label="Navigator"
+                  placeholder="Select navigator"
+                  required
+                  options={navigatorOptions}
+                  className={fieldClassName}
+                />
+                <Typography variant="body-sm" className="text-[#6B7890]">
+                  Required for this category. The navigator is also added as a
+                  team member.
+                </Typography>
+              </div>
+            ) : (
+              <div className="rounded-md border border-[#F0DFA8] bg-[#FFF8E8] p-3">
+                <Typography variant="body-sm" className="text-[#9A6B00]">
+                  This category requires a navigator. Add a user on the Users
+                  tab first, then create the team.
+                </Typography>
+              </div>
+            )
+          ) : null}
+
           <div className="flex justify-end gap-2 pt-1">
             <Button
               type="button"
@@ -940,7 +1038,15 @@ function MyTeamsSection({ token }: { token: boolean }) {
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSaving || categoryOptions.length === 0}>
+            <Button
+              type="submit"
+              disabled={
+                isSaving ||
+                categoryOptions.length === 0 ||
+                (showNavigatorField &&
+                  (navigatorOptions.length === 0 || !watchedNavigatorId))
+              }
+            >
               {isEdit ? "Update team" : "Save team"}
             </Button>
           </div>

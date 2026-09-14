@@ -1,5 +1,5 @@
-﻿import { useEffect, useMemo, useState } from "react";
-import { Link } from "react-router-dom";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type SubmitHandler } from "react-hook-form";
 import { z } from "zod";
@@ -48,9 +48,17 @@ import {
 } from "@/hooks/api/use-vehicles";
 import { getRallyChallenges } from "@/api/services/rally";
 import { createPaymentSession } from "@/api/services/payments";
-import type { CreateRegistrationPayload } from "@/api/types/registrations";
+import type {
+  CreateRegistrationPayload,
+  DriverRegistration,
+  UpdateRegistrationPayload,
+} from "@/api/types/registrations";
 import type { TeamCategory } from "@/api/types/teams";
 import type { Vehicle } from "@/api/types/vehicles";
+import {
+  useEventRegistrationsQuery,
+  useUpdateRegistrationMutation,
+} from "@/hooks/api/use-registrations";
 import { fetchAuthToken, toPublicFileUrl } from "@/utils/helpers";
 import {
   getRegistrationWindow,
@@ -95,6 +103,12 @@ import {
   isCompetitorProfileComplete,
   validateTeamForRegistration,
 } from "@/utils/registration-eligibility";
+import {
+  canUpdateRegistration,
+  getRegistrationCategory,
+  getRegistrationTeamId,
+  getRegistrationVehicleId,
+} from "@/utils/registration-entries";
 import { buildCategoryMap, needsNavigator } from "@/utils/team-roster-rules";
 
 type Step = 1 | 2 | 3 | 4;
@@ -169,6 +183,16 @@ function StepPill({
 }
 
 export default function RegistrationPage() {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const [searchParams] = useSearchParams();
+  const editRegistrationId = searchParams.get("edit")?.trim() ?? "";
+  const isEditMode = Boolean(editRegistrationId);
+  const hydratedEditIdRef = useRef<string | null>(null);
+  const locationEditRegistration =
+    (location.state as { editRegistration?: DriverRegistration } | null)
+      ?.editRegistration ?? null;
+
   const [step, setStep] = useState<Step>(1);
   const [category, setCategory] = useState<TeamCategory | null>(null);
   const [vehicleMode, setVehicleMode] = useState<"list" | "edit" | "new">(
@@ -183,6 +207,7 @@ export default function RegistrationPage() {
 
   const token = useMemo(() => fetchAuthToken(), []);
   const { data: sessionUser } = useSessionUser();
+  const updateRegistrationMutation = useUpdateRegistrationMutation();
   const profileGaps = useMemo(
     () => (sessionUser ? getCompetitorProfileGaps(sessionUser) : []),
     [sessionUser],
@@ -210,6 +235,29 @@ export default function RegistrationPage() {
     activeRallyEventId,
     Boolean(token) && Boolean(activeRallyEventId),
   );
+  const editRegistrationsQuery = useEventRegistrationsQuery(
+    activeRallyEventId,
+    Boolean(token) && isEditMode && Boolean(activeRallyEventId),
+  );
+  const editRegistration = useMemo((): DriverRegistration | null => {
+    if (!isEditMode || !editRegistrationId) return null;
+    if (locationEditRegistration?._id === editRegistrationId) {
+      return locationEditRegistration;
+    }
+    const list = Array.isArray(editRegistrationsQuery.data?.data)
+      ? editRegistrationsQuery.data.data
+      : [];
+    return list.find((row) => row._id === editRegistrationId) ?? null;
+  }, [
+    isEditMode,
+    editRegistrationId,
+    locationEditRegistration,
+    editRegistrationsQuery.data,
+  ]);
+  const editRegistrationLoading =
+    isEditMode &&
+    !editRegistration &&
+    (activeRallyQuery.isLoading || editRegistrationsQuery.isLoading);
   const pricingRows = pricingQuery.data?.data;
   const categoryRecords = useMemo(
     () => pricingToCategoryRecords(pricingRows),
@@ -269,8 +317,8 @@ export default function RegistrationPage() {
     Boolean(activeRallyEventId) &&
     categoryOptions.length > 0;
 
-  const canQueryTeam = Boolean(token) && step >= 2;
-  const canQueryVehicle = Boolean(token) && step >= 3;
+  const canQueryTeam = Boolean(token) && (isEditMode || step >= 2);
+  const canQueryVehicle = Boolean(token) && (isEditMode || step >= 3);
 
   const myTeamQuery = useMyTeamsQuery(canQueryTeam);
   const teams = Array.isArray(myTeamQuery.data?.data)
@@ -418,13 +466,19 @@ export default function RegistrationPage() {
 
   useEffect(() => {
     if (!selectedRegistrationTeamId) return;
+    if (myTeamQuery.isLoading) return;
     if (!teamsForCategory.some((t) => t._id === selectedRegistrationTeamId)) {
       setSelectedRegistrationTeamId("");
     }
-  }, [teamsForCategory, selectedRegistrationTeamId]);
+  }, [
+    teamsForCategory,
+    selectedRegistrationTeamId,
+    myTeamQuery.isLoading,
+  ]);
 
   useEffect(() => {
     if (!selectedRegistrationVehicleId || !category) return;
+    if (myVehicleQuery.isLoading) return;
     if (
       !vehiclesForRegistration.some(
         (v) => v._id === selectedRegistrationVehicleId,
@@ -432,7 +486,12 @@ export default function RegistrationPage() {
     ) {
       setSelectedRegistrationVehicleId("");
     }
-  }, [vehiclesForRegistration, selectedRegistrationVehicleId, category]);
+  }, [
+    vehiclesForRegistration,
+    selectedRegistrationVehicleId,
+    category,
+    myVehicleQuery.isLoading,
+  ]);
 
   const consentForm = useForm<ConsentFormValues>({
     resolver: zodResolver(consentSchema),
@@ -449,7 +508,8 @@ export default function RegistrationPage() {
       !activeRallyQuery.isLoading &&
       activeRally &&
       !registrationWindow.isOpen &&
-      step !== 1
+      step !== 1 &&
+      !isEditMode
     ) {
       setStep(1);
       setCategory(null);
@@ -459,6 +519,60 @@ export default function RegistrationPage() {
     activeRallyQuery.isLoading,
     registrationWindow.isOpen,
     step,
+    isEditMode,
+  ]);
+
+  useEffect(() => {
+    if (!isEditMode) {
+      hydratedEditIdRef.current = null;
+      return;
+    }
+
+    if (activeRallyQuery.isLoading || editRegistrationLoading) return;
+
+    if (!editRegistration) {
+      toast.error("Could not load this registration for editing.");
+      void navigate(ROUTES.MY_REGISTRATIONS, { replace: true });
+      return;
+    }
+
+    if (hydratedEditIdRef.current === editRegistration._id) return;
+
+    const gate = canUpdateRegistration(editRegistration, activeRally);
+    if (!gate.ok) {
+      toast.error(gate.reason);
+      void navigate(ROUTES.MY_REGISTRATIONS, { replace: true });
+      return;
+    }
+
+    const cat = getRegistrationCategory(editRegistration);
+    const teamCategoryKey =
+      typeof editRegistration.team_id === "object" &&
+      editRegistration.team_id &&
+      "category" in editRegistration.team_id
+        ? editRegistration.team_id.category
+        : null;
+    const categoryKey = cat?.key ?? teamCategoryKey;
+    if (!categoryKey) {
+      toast.error("This registration has no category and cannot be edited.");
+      void navigate(ROUTES.MY_REGISTRATIONS, { replace: true });
+      return;
+    }
+
+    setCategory(categoryKey as TeamCategory);
+    setSelectedRegistrationTeamId(getRegistrationTeamId(editRegistration));
+    setSelectedRegistrationVehicleId(
+      getRegistrationVehicleId(editRegistration),
+    );
+    setStep(2);
+    hydratedEditIdRef.current = editRegistration._id;
+  }, [
+    isEditMode,
+    editRegistration,
+    editRegistrationLoading,
+    activeRally,
+    activeRallyQuery.isLoading,
+    navigate,
   ]);
 
   const [isSubmittingRegistration, setIsSubmittingRegistration] =
@@ -471,7 +585,11 @@ export default function RegistrationPage() {
     }
 
     if (!category || !categoryRecord?._id) {
-      toast.error("Select a category to continue.");
+      toast.error(
+        isEditMode
+          ? "Registration category is missing."
+          : "Select a category to continue.",
+      );
       return;
     }
 
@@ -488,10 +606,12 @@ export default function RegistrationPage() {
       return;
     }
 
-    const amount = selectedPricing?.amount;
-    if (!(typeof amount === "number" && amount > 0)) {
-      toast.error("Registration fee is not available for this category.");
-      return;
+    if (!isEditMode) {
+      const amount = selectedPricing?.amount;
+      if (!(typeof amount === "number" && amount > 0)) {
+        toast.error("Registration fee is not available for this category.");
+        return;
+      }
     }
 
     const selectedTeam = teams.find(
@@ -538,6 +658,26 @@ export default function RegistrationPage() {
         // challenge_id is optional
       }
 
+      if (isEditMode) {
+        const updatePayload: UpdateRegistrationPayload = {
+          team_id: selectedRegistrationTeamId,
+          vehicle_id: selectedRegistrationVehicleId,
+        };
+        if (challengeId) updatePayload.challenge_id = challengeId;
+
+        await updateRegistrationMutation.mutateAsync({
+          registrationId: editRegistrationId,
+          payload: updatePayload,
+        });
+
+        toast.success("Registration updated", {
+          description: "Your entry changes have been saved.",
+        });
+        void navigate(ROUTES.MY_REGISTRATIONS, { replace: true });
+        return;
+      }
+
+      const amount = selectedPricing!.amount;
       const payload: CreateRegistrationPayload = {
         team_id: selectedRegistrationTeamId,
         event_id: activeRallyEventId,
@@ -581,7 +721,9 @@ export default function RegistrationPage() {
       const msg =
         err instanceof Error
           ? err.message
-          : "Could not start payment. Please try again.";
+          : isEditMode
+            ? "Could not update registration. Please try again."
+            : "Could not start payment. Please try again.";
       toast.error(msg);
       setIsSubmittingRegistration(false);
     }
@@ -598,13 +740,13 @@ export default function RegistrationPage() {
               variant="h5"
               className="text-[18px] font-semibold uppercase leading-none text-[#4A4A4A] sm:text-[20px]"
             >
-              Registration
+              {isEditMode ? "Update registration" : "Registration"}
             </Typography>
 
             <div className="flex flex-wrap items-center gap-2">
               <StepPill
-                isActive={step === 1}
-                isDone={step > 1}
+                isActive={!isEditMode && step === 1}
+                isDone={isEditMode || step > 1}
                 label="Category"
               />
               <StepPill isActive={step === 2} isDone={step > 2} label="Team" />
@@ -619,7 +761,12 @@ export default function RegistrationPage() {
         </div>
 
         <div className="space-y-6 p-4 sm:p-6 lg:space-y-8 lg:p-8">
-          {step === 1 ? (
+          {isEditMode &&
+          (editRegistrationLoading ||
+            activeRallyQuery.isLoading ||
+            !category) ? (
+            <PanelBlockSkeleton lines={4} />
+          ) : step === 1 && !isEditMode ? (
             <div className="space-y-5">
               <div className="space-y-1">
                 <Typography
@@ -883,15 +1030,20 @@ export default function RegistrationPage() {
                     Select team
                   </Typography>
                   <Typography variant="body-sm" className="text-[#8B96AD]">
-                    Choose a team for this category. Manage teams and users on
-                    the{" "}
-                    <Link
-                      to={ROUTES.TEAMS}
-                      className="font-medium text-[#1F6B43] underline"
-                    >
-                      Teams
-                    </Link>{" "}
-                    page.
+                    {isEditMode
+                      ? "Category is locked for this entry. Choose a team in the same category."
+                      : "Choose a team for this category. Manage teams and users on the "}
+                    {!isEditMode ? (
+                      <>
+                        <Link
+                          to={ROUTES.TEAMS}
+                          className="font-medium text-[#1F6B43] underline"
+                        >
+                          Teams
+                        </Link>{" "}
+                        page.
+                      </>
+                    ) : null}
                   </Typography>
                 </div>
 
@@ -899,9 +1051,15 @@ export default function RegistrationPage() {
                   type="button"
                   variant="primary-outline"
                   className="w-full sm:w-auto"
-                  onClick={() => setStep(1)}
+                  onClick={() => {
+                    if (isEditMode) {
+                      void navigate(ROUTES.MY_REGISTRATIONS);
+                      return;
+                    }
+                    setStep(1);
+                  }}
                 >
-                  Back
+                  {isEditMode ? "Cancel" : "Back"}
                 </Button>
               </div>
 
@@ -1114,8 +1272,9 @@ export default function RegistrationPage() {
                     Consent
                   </Typography>
                   <Typography variant="body-sm" className="text-[#8B96AD]">
-                    Please review and accept the undertaking to submit your
-                    registration.
+                    {isEditMode
+                      ? "Review your selections and accept the undertaking to save your changes. No payment is required."
+                      : "Please review and accept the undertaking to submit your registration."}
                   </Typography>
                 </div>
 
@@ -1146,7 +1305,7 @@ export default function RegistrationPage() {
                     category undertaking below.
                   </Typography>
 
-                  {category ? (
+                      {category ? (
                     <>
                       <Typography
                         variant="body-sm"
@@ -1158,8 +1317,21 @@ export default function RegistrationPage() {
                             CATEGORY_LABELS[category as Category] ??
                             category}
                         </span>
+                        {isEditMode ? (
+                          <span className="ml-2 text-[#8B96AD]">(locked)</span>
+                        ) : null}
                       </Typography>
-                      {selectedPricing ? (
+                      {isEditMode ? (
+                        <Typography
+                          variant="body-sm"
+                          className="mt-1 text-[#25314D]"
+                        >
+                          Fee:{" "}
+                          <span className="font-semibold">
+                            Already paid — no additional payment
+                          </span>
+                        </Typography>
+                      ) : selectedPricing ? (
                         <Typography
                           variant="body-sm"
                           className="mt-1 text-[#25314D]"
@@ -1208,7 +1380,17 @@ export default function RegistrationPage() {
                             : "-"}
                         </span>
                       </Typography>
-                      {selectedPricing ? (
+                      {isEditMode ? (
+                        <Typography
+                          variant="body-sm"
+                          className="mt-1 text-[#25314D]"
+                        >
+                          Fee:{" "}
+                          <span className="font-semibold">
+                            Already paid — no additional payment
+                          </span>
+                        </Typography>
+                      ) : selectedPricing ? (
                         <Typography
                           variant="body-sm"
                           className="mt-1 text-[#25314D]"
@@ -1272,10 +1454,11 @@ export default function RegistrationPage() {
                       !selectedRegistrationTeamId ||
                       !selectedRegistrationVehicleId ||
                       !selectedTeamValidation?.ok ||
-                      !(
-                        typeof selectedPricing?.amount === "number" &&
-                        selectedPricing.amount > 0
-                      ) ||
+                      (!isEditMode &&
+                        !(
+                          typeof selectedPricing?.amount === "number" &&
+                          selectedPricing.amount > 0
+                        )) ||
                       !teamsForCategory.some(
                         (t) => t._id === selectedRegistrationTeamId,
                       ) ||
@@ -1285,10 +1468,14 @@ export default function RegistrationPage() {
                     }
                   >
                     {isSubmittingRegistration
-                      ? "Starting payment..."
-                      : selectedPricing
-                        ? `Pay now · ${formatRallyAmount(selectedPricing.amount)}`
-                        : "Pay now"}
+                      ? isEditMode
+                        ? "Saving..."
+                        : "Starting payment..."
+                      : isEditMode
+                        ? "Save changes"
+                        : selectedPricing
+                          ? `Pay now · ${formatRallyAmount(selectedPricing.amount)}`
+                          : "Pay now"}
                   </Button>
                 </div>
               </FormCommon>

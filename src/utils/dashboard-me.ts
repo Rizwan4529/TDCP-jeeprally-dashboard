@@ -90,10 +90,13 @@ export function getBestRallyByPosition(
 ): DashboardRallyEntry | null {
   if (!entries?.length) return null;
 
-  return [...entries].sort((a, b) => {
-    const byPosition = a.ranking.position - b.ranking.position;
+  const ranked = entries.filter((e) => e?.ranking != null);
+  if (!ranked.length) return null;
+
+  return [...ranked].sort((a, b) => {
+    const byPosition = a.ranking!.position - b.ranking!.position;
     if (byPosition !== 0) return byPosition;
-    return b.ranking.points - a.ranking.points;
+    return b.ranking!.points - a.ranking!.points;
   })[0] ?? null;
 }
 
@@ -160,20 +163,26 @@ export function buildRankingRows(
   if (!entries?.length) return [];
 
   return [...entries]
+    .filter((entry) => entry?.event != null)
     .sort(
       (a, b) =>
         new Date(b.event.date).getTime() - new Date(a.event.date).getTime(),
     )
-    .map((entry) => ({
-      id: entry.event._id,
-      year: eventYearFromIso(entry.event.date),
-      event: shortEventName(entry.event.name),
-      category: resolveDashboardCategoryLabel(entry.category),
-      result: formatOrdinalPosition(entry.ranking.position),
-      time: entry.ranking.total_time,
-      points: String(entry.ranking.points),
-      isFirst: entry.ranking.position === 1,
-    }));
+    .map((entry) => {
+      const ranking = entry.ranking;
+      const position = ranking?.position;
+      return {
+        id: entry.event._id,
+        year: eventYearFromIso(entry.event.date),
+        event: shortEventName(entry.event.name),
+        category: resolveDashboardCategoryLabel(entry.category),
+        result:
+          position != null ? formatOrdinalPosition(position) : "—",
+        time: ranking?.total_time?.trim() || "—",
+        points: ranking?.points != null ? String(ranking.points) : "—",
+        isFirst: position === 1,
+      };
+    });
 }
 
 export type ParticipationYearPoint = {

@@ -7,6 +7,7 @@ export const teamFormSchema = z.object({
   team_name: z.string().trim().min(1, "Team name is required"),
   team_number: z.string().trim().min(1, "Team number is required"),
   category: z.string().trim().min(1, "Category is required"),
+  navigator_id: z.string().optional(),
 });
 
 export type TeamFormValues = z.infer<typeof teamFormSchema>;
@@ -15,6 +16,7 @@ export const emptyTeamFormValues: TeamFormValues = {
   team_name: "",
   team_number: "",
   category: "",
+  navigator_id: "",
 };
 
 export function teamToFormValues(t: Team): TeamFormValues {
@@ -22,6 +24,7 @@ export function teamToFormValues(t: Team): TeamFormValues {
     team_name: t.team_name,
     team_number: t.team_number,
     category: t.category,
+    navigator_id: t.navigator_id?._id ?? "",
   };
 }
 

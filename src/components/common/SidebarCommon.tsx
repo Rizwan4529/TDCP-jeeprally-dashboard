@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import {
   CalendarDaysIcon,
   CarIcon,
+  ChevronRightIcon,
   ChevronsUpIcon,
   ClipboardListIcon,
   LayoutGridIcon,
@@ -11,6 +12,11 @@ import {
   UsersIcon,
 } from "lucide-react";
 
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Sidebar,
   SidebarContent,
@@ -21,6 +27,9 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  SidebarMenuSub,
+  SidebarMenuSubButton,
+  SidebarMenuSubItem,
   useSidebar,
 } from "@/components/ui/sidebar";
 import {
@@ -49,7 +58,6 @@ const NAV_ITEMS: SidebarNavItem[] = [
   { label: "Teams", to: ROUTES.TEAMS, icon: UsersIcon },
   { label: "Vehicle", to: ROUTES.VEHICLE, icon: CarIcon },
   { label: "Events", to: ROUTES.EVENTS, icon: CalendarDaysIcon },
-  { label: "Registration", to: ROUTES.REGISTRATION, icon: ClipboardListIcon },
 ];
 
 function initialsFromName(name: string | undefined) {
@@ -85,6 +93,12 @@ export default function SidebarCommon() {
     if (to === ROUTES.DASHBOARD) return location.pathname === to;
     return location.pathname === to || location.pathname.startsWith(`${to}/`);
   };
+
+  const myEntriesActive =
+    location.pathname === ROUTES.MY_REGISTRATIONS ||
+    location.pathname.startsWith(`${ROUTES.MY_REGISTRATIONS}/`);
+  const registerNowActive = location.pathname === ROUTES.REGISTRATION;
+  const registrationActive = myEntriesActive || registerNowActive;
 
   return (
     <Sidebar className="h-full" collapsible="icon">
@@ -139,6 +153,68 @@ export default function SidebarCommon() {
                   </SidebarMenuItem>
                 );
               })}
+
+              <Collapsible
+                asChild
+                defaultOpen={registrationActive}
+                className="group/collapsible"
+              >
+                <SidebarMenuItem>
+                  <CollapsibleTrigger asChild>
+                    <SidebarMenuButton
+                      isActive={registrationActive}
+                      tooltip="Registration"
+                      className="!h-12 !px-4"
+                    >
+                      <ClipboardListIcon className="size-5" />
+                      <span>Registration</span>
+                      <ChevronRightIcon className="ml-auto size-4 shrink-0 transition-transform duration-200 ease-out group-data-[state=open]/collapsible:rotate-90" />
+                    </SidebarMenuButton>
+                  </CollapsibleTrigger>
+                  <CollapsibleContent>
+                    <SidebarMenuSub className="mx-0 border-0 px-0 py-1">
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton
+                          asChild
+                          isActive={myEntriesActive}
+                          size="md"
+                          className="h-9 gap-3 rounded-md px-4 text-muted-foreground data-active:bg-transparent data-active:font-medium data-active:text-primary data-active:hover:bg-sidebar-accent data-active:hover:text-primary data-active:focus:bg-transparent data-active:focus:text-primary"
+                        >
+                          <Link
+                            to={ROUTES.MY_REGISTRATIONS}
+                            onClick={closeMobileSidebar}
+                          >
+                            <span
+                              aria-hidden
+                              className="mt-px h-px w-3 shrink-0 bg-primary"
+                            />
+                            <span>My entries</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                      <SidebarMenuSubItem>
+                        <SidebarMenuSubButton
+                          asChild
+                          isActive={registerNowActive}
+                          size="md"
+                          className="h-9 gap-3 rounded-md px-4 text-muted-foreground data-active:bg-transparent data-active:font-medium data-active:text-primary data-active:hover:bg-sidebar-accent data-active:hover:text-primary data-active:focus:bg-transparent data-active:focus:text-primary"
+                        >
+                          <Link
+                            to={ROUTES.REGISTRATION}
+                            onClick={closeMobileSidebar}
+                          >
+                            <span
+                              aria-hidden
+                              className="mt-px h-px w-3 shrink-0 bg-primary"
+                            />
+                            <span>Register now</span>
+                          </Link>
+                        </SidebarMenuSubButton>
+                      </SidebarMenuSubItem>
+                    </SidebarMenuSub>
+                  </CollapsibleContent>
+                </SidebarMenuItem>
+              </Collapsible>
             </SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>

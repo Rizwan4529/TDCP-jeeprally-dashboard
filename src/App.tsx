@@ -12,6 +12,7 @@ import PaymentCallbackPage from "@/pages/PaymentCallback"
 import ProfilePage from "@/pages/Profile"
 import ProfileEditPage from "@/pages/ProfileEditPage"
 import RegistrationPage from "@/pages/Registration"
+import MyRegistrationsPage from "@/pages/MyRegistrations"
 import TeamsPage from "@/pages/Teams"
 import SignupPage from "@/pages/Signup"
 import VehiclePage from "@/pages/Vehicle"
@@ -70,6 +71,10 @@ const App = () => {
             />
 
             <Route path="events" element={<EventsPage />} />
+            <Route
+              path={ROUTES.MY_REGISTRATIONS.replace(/^\//, "")}
+              element={<MyRegistrationsPage />}
+            />
             <Route path="registration" element={<RegistrationPage />} />
             <Route
               path={ROUTES.PAYMENT_CALLBACK.replace(/^\//, "")}

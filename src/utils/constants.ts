@@ -20,6 +20,9 @@ export const ROUTES = {
   VEHICLE_NEW: "/vehicle/new",
   VEHICLE_EDIT: "/vehicle/:id/edit",
   EVENTS: "/events",
+  /** Driver's registration entries for the active rally. */
+  MY_REGISTRATIONS: "/registrations",
+  /** New registration wizard. */
   REGISTRATION: "/registration",
   PAYMENT_CALLBACK: "/payment-callback",
 } as const;

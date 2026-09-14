@@ -55,13 +55,32 @@ export function createJeepRallyOrderId(): string {
   return `JEEPRALLY-${Date.now()}`;
 }
 
+/** Payment gateway `order.description` must be fewer than 128 characters. */
+const ORDER_DESCRIPTION_MAX_LENGTH = 127;
+
 export function buildJeepRallyOrderDescription(
   details: (string | number | null | undefined)[],
 ): string {
   const parts = ["Jeep Rally registration", ...details]
     .map((part) => String(part ?? "").replace(/\s+/g, " ").trim())
     .filter(Boolean);
-  return parts.join(" | ");
+
+  let description = parts.join(" | ");
+  if (description.length <= ORDER_DESCRIPTION_MAX_LENGTH) {
+    return description;
+  }
+
+  // Drop trailing detail segments until it fits, then hard-trim if needed.
+  while (parts.length > 1 && description.length > ORDER_DESCRIPTION_MAX_LENGTH) {
+    parts.pop();
+    description = parts.join(" | ");
+  }
+
+  if (description.length <= ORDER_DESCRIPTION_MAX_LENGTH) {
+    return description;
+  }
+
+  return description.slice(0, ORDER_DESCRIPTION_MAX_LENGTH).trimEnd();
 }
 
 export function buildPaymentReturnUrl(orderId: string): string {

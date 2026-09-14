@@ -28,6 +28,10 @@ export const queryKeys = {
     events: (params: unknown) => [...queryKeys.rally.all, "events", params] as const,
     pricing: (eventId: string) =>
       [...queryKeys.rally.all, "pricing", eventId] as const,
+    registrations: (eventId: string) =>
+      [...queryKeys.rally.all, "registrations", eventId] as const,
+    registration: (registrationId: string) =>
+      [...queryKeys.rally.all, "registration", registrationId] as const,
   },
   dashboard: {
     all: ["dashboard"] as const,

@@ -55,7 +55,7 @@ export type DashboardRallyEntry = {
   team_number: string;
   category_id?: string;
   category: DashboardCategoryRef | Category | string;
-  ranking: DashboardRanking;
+  ranking: DashboardRanking | null;
 };
 
 export type DriverDashboardData = {
