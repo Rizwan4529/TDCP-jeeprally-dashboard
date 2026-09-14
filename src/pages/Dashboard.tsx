@@ -26,19 +26,21 @@ import {
   RankingTableSkeleton,
   StatsGridSkeleton,
 } from "@/components/common/LoadingStates";
+import { useActiveRallyQuery } from "@/hooks/api/use-active-rally";
 import { useDriverDashboardQuery } from "@/hooks/api/use-dashboard";
 import { useRallyEventsQuery } from "@/hooks/api/use-rally-events";
 import { useAuthRedirectOnQueryError } from "@/hooks/use-auth-redirect";
 import type { RallyEvent } from "@/api/types/rally";
-import { fetchAuthToken } from "@/utils/helpers";
+import { fetchAuthToken, toPublicFileUrl } from "@/utils/helpers";
 import { cn } from "@/lib/utils";
 import {
-  eventCountdownTarget,
   formatDayMonth,
-  formatEventDateRangeHero,
   formatEventScheduleDates,
+  getActiveRallyHeroCountdown,
   getCountdownParts,
-  splitUpcomingEvents,
+  getEventPrimaryDate,
+  getScheduledEventsExcludingActive,
+  resolveEventHeroDateRange,
 } from "@/utils/dashboard-events";
 import {
   buildDriverSummary,
@@ -47,6 +49,12 @@ import {
   formatOrdinalPosition,
   type StatCardView,
 } from "@/utils/dashboard-me";
+import {
+  formatRegistrationDate,
+  getRallyEventId,
+  getRegistrationWindow,
+  getRegistrationWindowMessage,
+} from "@/utils/rally-event";
 import {
   SCROLL_PAGE,
   SIDEBAR_PAGE_PADDING,
@@ -90,27 +98,36 @@ function useCountdown(targetIso: string | null | undefined) {
 
 export default function DashboardPage() {
   const token = React.useMemo(() => Boolean(fetchAuthToken()), []);
+  const activeRallyQuery = useActiveRallyQuery(token);
   const upcomingQuery = useRallyEventsQuery({ status: "upcoming" });
   const dashboardQuery = useDriverDashboardQuery(token);
 
   useAuthRedirectOnQueryError(dashboardQuery.error, dashboardQuery.isError);
   useAuthRedirectOnQueryError(upcomingQuery.error, upcomingQuery.isError);
+  useAuthRedirectOnQueryError(activeRallyQuery.error, activeRallyQuery.isError);
+
+  const activeRally = activeRallyQuery.data?.data ?? null;
+  const activeRallyId = getRallyEventId(activeRally);
 
   const events = Array.isArray(upcomingQuery.data?.data)
     ? upcomingQuery.data.data
     : [];
   const dashboardData = dashboardQuery.data?.data;
 
-  const { nextEvent, scheduledEvents } = React.useMemo(
-    () => splitUpcomingEvents(events),
-    [events],
+  const scheduledEvents = React.useMemo(
+    () => getScheduledEventsExcludingActive(events, activeRallyId),
+    [events, activeRallyId],
   );
 
-  const showNextEvent =
-    !upcomingQuery.isLoading && !upcomingQuery.isError && nextEvent != null;
+  const showActiveRally =
+    !activeRallyQuery.isLoading &&
+    !activeRallyQuery.isError &&
+    activeRally != null;
 
-  const showNextEventEmpty =
-    !upcomingQuery.isLoading && !upcomingQuery.isError && nextEvent == null;
+  const showActiveRallyEmpty =
+    !activeRallyQuery.isLoading &&
+    !activeRallyQuery.isError &&
+    activeRally == null;
 
   const statCards = React.useMemo(
     () => buildStatCards(dashboardData?.cards),
@@ -132,14 +149,14 @@ export default function DashboardPage() {
   return (
     <div className={cn(SCROLL_PAGE, SIDEBAR_PAGE_PADDING)}>
       <div className="space-y-6 pb-2">
-      {upcomingQuery.isLoading ? (
+      {activeRallyQuery.isLoading ? (
         <EventHeroSkeleton />
-      ) : showNextEvent ? (
-        <EventHero event={nextEvent} />
-      ) : showNextEventEmpty ? (
-        <NextEventEmpty />
-      ) : upcomingQuery.isError ? (
-        <NextEventError message={upcomingQuery.error?.message} />
+      ) : showActiveRally ? (
+        <EventHero event={activeRally} />
+      ) : showActiveRallyEmpty ? (
+        <ActiveRallyEmpty />
+      ) : activeRallyQuery.isError ? (
+        <ActiveRallyError message={activeRallyQuery.error?.message} />
       ) : null}
       <StatsGrid
         cards={statCards}
@@ -191,28 +208,28 @@ function NextEventPanel({ children }: { children: React.ReactNode }) {
   );
 }
 
-function NextEventEmpty() {
+function ActiveRallyEmpty() {
   return (
     <NextEventPanel>
       <DashboardPanelEmptyState
         icon={CalendarDaysIcon}
-        title="No upcoming event"
-        description="There are no rallies scheduled right now. Check back when new events are announced."
+        title="No active rally"
+        description="There is no active rally right now. Check back when registration opens for the next event."
         className="min-h-0 w-full max-w-md border-none bg-transparent py-6"
       />
     </NextEventPanel>
   );
 }
 
-function NextEventError({ message }: { message?: string }) {
+function ActiveRallyError({ message }: { message?: string }) {
   return (
     <NextEventPanel>
       <DashboardPanelEmptyState
         icon={AlertCircleIcon}
-        title="Could not load next event"
+        title="Could not load active rally"
         description={
           message ??
-          "Upcoming rally details could not be loaded. Please try again later."
+          "Active rally details could not be loaded. Please try again later."
         }
         variant="error"
         className="min-h-0 w-full max-w-md border-none bg-transparent py-6"
@@ -221,23 +238,66 @@ function NextEventError({ message }: { message?: string }) {
   );
 }
 
+function heroStatusToneClass(
+  tone: ReturnType<typeof getActiveRallyHeroCountdown>["statusTone"],
+): string {
+  switch (tone) {
+    case "open":
+      return "border-[#7DDBA8]/70 bg-[#1F6B43]/85 text-white";
+    case "upcoming":
+      return "border-[#FFD27A]/80 bg-[#9A6B00]/85 text-white";
+    case "closed":
+      return "border-white/35 bg-black/45 text-white";
+    default:
+      return "border-white/30 bg-black/40 text-white";
+  }
+}
+
 function EventHero({ event }: { event: RallyEvent }) {
-  const countdown = useCountdown(eventCountdownTarget(event));
-  const dateRange = formatEventDateRangeHero(event.date, event.end_date);
+  const registrationWindow = React.useMemo(
+    () => getRegistrationWindow(event),
+    [event],
+  );
+  const heroCountdown = React.useMemo(
+    () => getActiveRallyHeroCountdown(event, registrationWindow),
+    [event, registrationWindow],
+  );
+  const countdown = useCountdown(heroCountdown.targetIso);
+  const dateRange = resolveEventHeroDateRange(event);
+  const windowMessage = React.useMemo(
+    () => getRegistrationWindowMessage(registrationWindow, event.name),
+    [registrationWindow, event.name],
+  );
+
+  const coverUrl =
+    toPublicFileUrl(event.cover_image) ??
+    toPublicFileUrl(event.banner_image) ??
+    null;
 
   return (
     <section className="relative overflow-visible pt-3 pb-1">
-      <div className="relative min-h-[200px] overflow-hidden rounded-[10px] bg-[#9B6A45]">
+      <div className="relative min-h-[220px] overflow-hidden rounded-[10px] bg-[#9B6A45]">
         <img
-          src={DashboardBg}
+          src={coverUrl ?? DashboardBg}
           alt=""
-          className="absolute inset-0 size-full object-cover"
+          decoding="async"
+          className="absolute inset-0 size-full object-cover object-center [image-rendering:auto]"
         />
-        <div className="absolute inset-0 bg-black/10" />
-        <div className="relative z-10 flex min-h-[200px] max-w-[calc(100%-1.5rem)] flex-col justify-center px-7 py-6 text-white sm:max-w-[420px] sm:px-9 sm:py-7 md:max-w-[min(52%,480px)]">
-          <p className="text-xs font-semibold uppercase leading-none">
-            Next Event
-          </p>
+        <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-black/35 to-black/15" />
+        <div className="relative z-10 flex min-h-[220px] max-w-[calc(100%-1.5rem)] flex-col justify-center px-7 py-6 text-white sm:max-w-[480px] sm:px-9 sm:py-7 md:max-w-[min(56%,520px)]">
+          <div className="flex flex-wrap items-center gap-2">
+            <p className="text-xs font-semibold uppercase leading-none tracking-wide">
+              Active rally
+            </p>
+            <span
+              className={cn(
+                "inline-flex rounded-full border px-2.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide",
+                heroStatusToneClass(heroCountdown.statusTone),
+              )}
+            >
+              {heroCountdown.statusLabel}
+            </span>
+          </div>
           <h2 className="mt-3 text-[22px] font-bold leading-snug sm:text-[24px]">
             {event.name}
           </h2>
@@ -259,29 +319,55 @@ function EventHero({ event }: { event: RallyEvent }) {
               {event.location}
             </span>
           </div>
-          <div className="mt-4 flex items-end text-[#FFA51E]">
-            {(
-              [
-                [countdown.days, "Days"],
-                [countdown.hours, "Hrs"],
-                [countdown.mins, "Mins"],
-                [countdown.secs, "Secs"],
-              ] as const
-            ).map(([value, label], index) => (
-              <div
-                key={label}
-                className={cn(
-                  "min-w-[52px]",
-                  index > 0 && "border-l border-white/45 pl-4",
-                )}
-              >
-                <p className="text-[24px] font-bold leading-none">{value}</p>
-                <p className="mt-1 text-[9px] font-semibold uppercase text-white">
-                  {label}
-                </p>
+
+          {registrationWindow.status === "open" && registrationWindow.endIso ? (
+            <p className="mt-3 text-[12px] leading-relaxed text-white/90">
+              Registration is open through{" "}
+              {formatRegistrationDate(registrationWindow.endIso)}.
+            </p>
+          ) : registrationWindow.status === "not_started" ||
+            registrationWindow.status === "closed" ||
+            registrationWindow.status === "unavailable" ? (
+            <p className="mt-3 max-w-md text-[12px] leading-relaxed text-white/90">
+              {windowMessage.description}
+            </p>
+          ) : null}
+
+          {heroCountdown.showCountdown ? (
+            <div className="mt-4">
+              <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-white/85">
+                {heroCountdown.label}
+              </p>
+              <div className="flex items-end text-[#FFA51E]">
+                {(
+                  [
+                    [countdown.days, "Days"],
+                    [countdown.hours, "Hrs"],
+                    [countdown.mins, "Mins"],
+                    [countdown.secs, "Secs"],
+                  ] as const
+                ).map(([value, label], index) => (
+                  <div
+                    key={label}
+                    className={cn(
+                      "min-w-[52px]",
+                      index > 0 && "border-l border-white/45 pl-4",
+                    )}
+                  >
+                    <p className="text-[24px] font-bold leading-none">{value}</p>
+                    <p className="mt-1 text-[9px] font-semibold uppercase text-white">
+                      {label}
+                    </p>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
+            </div>
+          ) : (
+            <div className="mt-4 inline-flex items-center gap-2 rounded-md border border-white/30 bg-black/35 px-3 py-2 text-[12px] font-semibold text-white">
+              <CalendarOffIcon className="size-4 text-[#FFA51E]" />
+              {heroCountdown.label}
+            </div>
+          )}
         </div>
       </div>
 
@@ -430,7 +516,8 @@ function EventSchedule({
           ) : (
             <div className="space-y-4">
               {events.map((item) => {
-                const { day, month } = formatDayMonth(item.date);
+                const primaryDate = getEventPrimaryDate(item);
+                const { day, month } = formatDayMonth(primaryDate);
                 return (
                   <div
                     key={item._id}
@@ -451,7 +538,10 @@ function EventSchedule({
                       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-[#7F8697]">
                         <span className="inline-flex items-center gap-1">
                           <Clock3Icon className={locationIconClass} />
-                          {formatEventScheduleDates(item.date, item.end_date)}
+                          {formatEventScheduleDates(
+                            primaryDate || item.date,
+                            item.end_date || item.rally_start_date || primaryDate,
+                          )}
                         </span>
                         <span className="inline-flex items-center gap-1">
                           <MapPinIcon

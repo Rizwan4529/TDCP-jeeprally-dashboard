@@ -17,8 +17,8 @@ export type RallyEvent = {
   name: string;
   edition_number: number;
   category?: RallyEventCategory | string;
-  date: string;
-  end_date: string;
+  date?: string;
+  end_date?: string;
   registration_start_date?: string;
   registration_end_date?: string;
   rally_start_date?: string;
@@ -27,6 +27,7 @@ export type RallyEvent = {
   description: string;
   banner_image: string | null;
   thumbnail_image: string | null;
+  cover_image?: string | null;
   status: string;
   is_featured: boolean;
   highlights: string[];

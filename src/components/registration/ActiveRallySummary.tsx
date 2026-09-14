@@ -9,7 +9,7 @@ import { DashboardPanelEmptyState } from "@/components/common/LoadingStates";
 import { Typography } from "@/components/common/Typography";
 import type { RallyEvent } from "@/api/types/rally";
 import {
-  formatEventDateRangeHero,
+  resolveEventHeroDateRange,
 } from "@/utils/dashboard-events";
 import { cn } from "@/lib/utils";
 
@@ -93,7 +93,7 @@ export function ActiveRallySummary({
     );
   }
 
-  const dateRange = formatEventDateRangeHero(event.date, event.end_date);
+  const dateRange = resolveEventHeroDateRange(event);
   const description = event.description?.trim() ?? "";
 
   return (

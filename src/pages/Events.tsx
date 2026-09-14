@@ -119,15 +119,19 @@ function formatStatusFilterLabel(statuses: RallyEventStatus[]): string {
   return `${statuses.length} statuses`;
 }
 
-function formatDayMonth(isoDate: string): { day: string; month: string } {
+function formatDayMonth(isoDate?: string | null): { day: string; month: string } {
+  if (!isoDate?.trim()) return { day: "—", month: "—" };
   const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) return { day: "—", month: "—" };
   const day = String(d.getUTCDate()).padStart(2, "0");
   const month = MONTHS_SHORT[d.getUTCMonth()] ?? "—";
   return { day, month };
 }
 
-function formatISODate(isoDate: string): string {
+function formatISODate(isoDate?: string | null): string {
+  if (!isoDate?.trim()) return "—";
   const d = new Date(isoDate);
+  if (Number.isNaN(d.getTime())) return "—";
   return d.toLocaleDateString(undefined, {
     timeZone: "UTC",
     year: "numeric",
@@ -361,7 +365,16 @@ export default function EventsPage() {
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
           {events.map((event) => {
-            const { day, month } = formatDayMonth(event.date);
+            const primaryDate =
+              event.date?.trim() ||
+              event.rally_start_date?.trim() ||
+              event.registration_start_date?.trim() ||
+              "";
+            const endDate =
+              event.end_date?.trim() ||
+              event.rally_start_date?.trim() ||
+              primaryDate;
+            const { day, month } = formatDayMonth(primaryDate);
             const banner = toPublicFileUrl(event.thumbnail_image);
             return (
               <Card
@@ -401,9 +414,9 @@ export default function EventsPage() {
                     <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-[12px] text-[#7F8697]">
                       <span className="inline-flex items-center gap-1">
                         <Clock3Icon className="size-3.5" />
-                        {formatISODate(event.date)}
+                        {formatISODate(primaryDate)}
                         {" – "}
-                        {formatISODate(event.end_date)}
+                        {formatISODate(endDate)}
                       </span>
                       <span className="inline-flex items-center gap-1">
                         <MapPinIcon
