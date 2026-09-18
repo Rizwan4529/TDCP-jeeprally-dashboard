@@ -17,7 +17,7 @@ export default function NotFoundPage() {
           action={
             <Button
               asChild
-              className="h-11 rounded-[10px] bg-[#3FA565] px-6 text-[14px] font-semibold hover:bg-[#369A5D]"
+              className="h-11 rounded-full bg-primary px-6 text-[14px] font-semibold hover:bg-primary-dark"
             >
               <Link to={ROUTES.DASHBOARD}>
                 <LayoutDashboardIcon className="size-4" />

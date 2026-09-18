@@ -137,7 +137,7 @@ export function TeamsTableSkeleton({ rows = 5 }: { rows?: number }) {
       aria-busy
       aria-label="Loading table"
     >
-      <div className="flex gap-4 bg-[#3FA565]/20 px-4 py-3">
+      <div className="flex gap-4 bg-primary/20 px-4 py-3">
         {Array.from({ length: 6 }, (_, i) => (
           <Skeleton
             key={i}

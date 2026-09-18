@@ -68,7 +68,7 @@ export function ActiveRallySummary({
     return (
       <div
         className={cn(
-          "rounded-md border border-[#C8E6D4] bg-[#EAF6EF] px-4 py-3",
+          "rounded-md border border-primary/25 bg-primary/10 px-4 py-3",
           className,
         )}
       >
@@ -77,16 +77,16 @@ export function ActiveRallySummary({
         </Typography>
         <Typography
           variant="body-lg"
-          className="mt-1 font-semibold text-[#1F6B43]"
+          className="mt-1 font-semibold text-primary"
         >
           {event.name}
         </Typography>
         {event.edition_number > 0 ? (
-          <Typography variant="body-sm" className="mt-0.5 text-[#1F6B43]/80">
+          <Typography variant="body-sm" className="mt-0.5 text-primary/80">
             Edition {event.edition_number}
           </Typography>
         ) : null}
-        <Typography variant="body-sm" className="mt-1 text-[#3d5c4a]">
+        <Typography variant="body-sm" className="mt-1 text-primary/70">
           {event.location}
         </Typography>
       </div>
@@ -99,11 +99,11 @@ export function ActiveRallySummary({
   return (
     <div
       className={cn(
-        "overflow-hidden rounded-md border border-[#C8E6D4] bg-gradient-to-br from-[#EAF6EF] to-white",
+        "overflow-hidden rounded-md border border-primary/25 bg-gradient-to-br from-primary/10 to-white",
         className,
       )}
     >
-      <div className="border-b border-[#C8E6D4]/80 bg-[#3FA565] px-3 py-2 sm:px-4">
+      <div className="border-b border-primary/20 bg-primary px-3 py-2 sm:px-4">
         <Typography
           variant="caption"
           className="font-semibold uppercase tracking-wide text-white/90"
@@ -123,7 +123,7 @@ export function ActiveRallySummary({
           {event.edition_number > 0 ? (
             <Typography
               variant="caption"
-              className="font-semibold text-[#1F6B43]"
+              className="font-semibold text-primary"
             >
               Edition {event.edition_number}
             </Typography>
@@ -133,7 +133,7 @@ export function ActiveRallySummary({
         <div className="grid gap-1.5 text-[13px] text-[#4A5568] sm:grid-cols-2 sm:gap-3">
           <span className="inline-flex items-center gap-1.5 min-w-0">
             <CalendarDaysIcon
-              className="size-3.5 shrink-0 text-[#3FA565]"
+              className="size-3.5 shrink-0 text-primary"
               aria-hidden
             />
             <span className="truncate font-medium text-[#25314D]">
@@ -142,7 +142,7 @@ export function ActiveRallySummary({
           </span>
           <span className="inline-flex items-center gap-1.5 min-w-0">
             <MapPinIcon
-              className="size-3.5 shrink-0 text-[#3FA565]"
+              className="size-3.5 shrink-0 text-primary"
               aria-hidden
             />
             <span className="truncate font-medium text-[#25314D]">
@@ -197,7 +197,7 @@ function RallyDescription({ text }: { text: string }) {
         <button
           type="button"
           onClick={() => setExpanded((prev) => !prev)}
-          className="mt-1 text-[12px] font-semibold text-[#1F6B43] hover:text-[#165A34] hover:underline"
+          className="mt-1 text-[12px] font-semibold text-primary hover:text-primary-dark hover:underline"
         >
           {expanded ? "Read less" : "Read more"}
         </button>

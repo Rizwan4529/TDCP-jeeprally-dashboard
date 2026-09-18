@@ -41,7 +41,7 @@ export function DataTableCommon({
 
 export function DataTableHeader({ children }: { children: ReactNode }) {
   return (
-    <TableHeader className="sticky top-0 z-10 bg-[#3FA565]">
+    <TableHeader className="sticky top-0 z-10 bg-primary">
       {children}
     </TableHeader>
   );
@@ -49,7 +49,7 @@ export function DataTableHeader({ children }: { children: ReactNode }) {
 
 export function DataTableHeaderRow({ children }: { children: ReactNode }) {
   return (
-    <TableRow className="border-none bg-[#3FA565] hover:bg-[#3FA565]">
+    <TableRow className="border-none bg-primary hover:bg-primary">
       {children}
     </TableRow>
   );

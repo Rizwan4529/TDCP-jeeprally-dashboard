@@ -154,7 +154,7 @@ export default function HeaderCommon({ title, subtitle }: HeaderCommonProps) {
           >
             <MenuItemIcon
               icon={UserRoundIcon}
-              className="bg-[#EAF6EF] text-[#2F8F57]"
+              className="bg-primary/10 text-primary"
             />
             <Typography as="span" variant="label" color="inherit">
               View Profile

@@ -220,7 +220,7 @@ export default function SignupPage() {
           type="submit"
           disabled={registerMutation.isPending}
           aria-busy={registerMutation.isPending}
-          className="mt-2 h-12 w-full rounded-md text-[16px] font-medium disabled:opacity-70"
+          className="mt-2 h-12 w-full rounded-full text-[16px] font-medium disabled:opacity-70"
         >
           {registerMutation.isPending ? (
             <ButtonSpinner className="size-6 text-primary-foreground" />

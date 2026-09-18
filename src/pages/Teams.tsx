@@ -388,7 +388,7 @@ function RosterSection({ token }: { token: boolean }) {
                       }
                       onCheckedChange={handleSelectAllChange}
                       aria-label="Select all users"
-                      className="border-white/40 data-[state=checked]:bg-white data-[state=checked]:text-[#3FA565]"
+                      className="border-white/40 data-[state=checked]:bg-white data-[state=checked]:text-primary"
                     />
                   </TeamsDataTableHead>
                   <TeamsDataTableHead className="w-[12%]">Name</TeamsDataTableHead>
@@ -444,7 +444,7 @@ function RosterSection({ token }: { token: boolean }) {
                     <TableRow
                       key={m._id}
                       data-state={isSelected ? "selected" : undefined}
-                      className={cn(isSelected && "bg-[#EAF6EF]/50")}
+                      className={cn(isSelected && "bg-primary/5")}
                     >
                       <TableCell className="px-3">
                         <Checkbox
@@ -1099,7 +1099,7 @@ function NavigatorBadge({ compact = false }: { compact?: boolean }) {
   return (
     <span
       className={cn(
-        "inline-flex items-center gap-1 rounded-full border border-[#B8E0C8] bg-[#EAF6EF] font-semibold uppercase tracking-wide text-[#1F6B43]",
+        "inline-flex items-center gap-1 rounded-full border border-primary/25 bg-primary/10 font-semibold uppercase tracking-wide text-primary",
         compact ? "px-2 py-0.5 text-[10px]" : "px-2.5 py-1 text-[11px]",
       )}
     >

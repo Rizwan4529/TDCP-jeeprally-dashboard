@@ -47,7 +47,7 @@ export function TeamsDataTableHeaderRow({
   children: React.ReactNode;
 }) {
   return (
-    <TableRow className="border-none bg-[#3FA565] hover:bg-[#3FA565]">
+    <TableRow className="border-none bg-primary hover:bg-primary">
       {children}
     </TableRow>
   );

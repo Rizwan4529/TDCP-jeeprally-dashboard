@@ -57,7 +57,7 @@ function ProfileScreen() {
           <div className="flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-5">
               <div className="relative">
-                <div className="size-[108px] overflow-hidden rounded-full border-2 border-[#3FA565] bg-[#EAF6EF]">
+                <div className="size-[108px] overflow-hidden rounded-full border-2 border-primary bg-primary/10">
                   {toPublicFileUrl(driver?.profile_image ?? null) ? (
                     <img
                       src={toPublicFileUrl(driver?.profile_image ?? null) ?? ""}
@@ -65,7 +65,7 @@ function ProfileScreen() {
                       className="size-full object-cover"
                     />
                   ) : (
-                    <div className="flex h-full w-full items-center justify-center text-[28px] font-semibold text-[#00571C]">
+                    <div className="flex h-full w-full items-center justify-center text-[28px] font-semibold text-primary">
                       {initials}
                     </div>
                   )}
@@ -73,7 +73,7 @@ function ProfileScreen() {
                 <Button
                   asChild
                   size="icon"
-                  className="absolute bottom-1 right-1 size-10 rounded-full bg-[#3FA565] text-white shadow-[0_10px_20px_rgba(16,24,40,0.18)] ring-2 ring-white hover:bg-[#369A5D]"
+                  className="absolute bottom-1 right-1 size-10 rounded-full bg-primary text-white shadow-[0_10px_20px_rgba(16,24,40,0.18)] ring-2 ring-white hover:bg-primary-dark"
                   aria-label="Change photo"
                 >
                   <Link to={ROUTES.PROFILE_EDIT}>
@@ -237,7 +237,7 @@ function DataTable({
 }) {
   const headerClass =
     headerVariant === "green"
-      ? "bg-[#3FA565] text-white"
+      ? "bg-primary text-white"
       : "bg-[#2F2F31] text-white";
 
   return (

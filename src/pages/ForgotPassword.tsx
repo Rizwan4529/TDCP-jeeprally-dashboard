@@ -97,7 +97,7 @@ export default function ForgotPasswordPage() {
           type="submit"
           disabled={forgotMutation.isPending}
           aria-busy={forgotMutation.isPending}
-          className="mt-2 h-12 w-full rounded-md text-[16px] font-medium"
+          className="mt-2 h-12 w-full rounded-full text-[16px] font-medium"
         >
           {forgotMutation.isPending ? (
             <ButtonSpinner className="size-6 text-primary-foreground" />

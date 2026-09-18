@@ -419,7 +419,7 @@ export function AddUsersToTeamDialog({
           {isExistingMode ? (
             <Button
               type="button"
-              className="bg-[#3FA565] hover:bg-[#369A5D]"
+              className="bg-primary hover:bg-primary-dark"
               disabled={
                 isSaving ||
                 !existingTeamId ||
@@ -432,7 +432,7 @@ export function AddUsersToTeamDialog({
           ) : (
             <Button
               type="button"
-              className="bg-[#3FA565] hover:bg-[#369A5D]"
+              className="bg-primary hover:bg-primary-dark"
               disabled={isSaving}
               onClick={() => void form.handleSubmit(onSubmitNew)()}
             >

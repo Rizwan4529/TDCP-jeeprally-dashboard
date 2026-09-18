@@ -171,7 +171,7 @@ function VehicleScreen() {
                             )}
                             <label
                               className={cn(
-                                "absolute right-0.5 bottom-0.5 flex size-6 cursor-pointer items-center justify-center rounded-full bg-[#3FA565] text-white shadow-sm",
+                                "absolute right-0.5 bottom-0.5 flex size-6 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-sm",
                                 uploadImageMutation.isPending &&
                                   "pointer-events-none opacity-70",
                               )}

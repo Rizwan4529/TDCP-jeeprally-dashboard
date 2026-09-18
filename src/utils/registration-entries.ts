@@ -288,7 +288,7 @@ export function registrationStatusTone(status: string | undefined): string {
     case "pending":
       return "bg-[#FFF8E8] text-[#9A6B00] border-[#F0DFA8]";
     case "approved":
-      return "bg-[#EAF6EF] text-[#1F6B43] border-[#C8E6D4]";
+      return "bg-primary/10 text-primary border-primary/25";
     case "rejected":
       return "bg-[#FFF5F5] text-[#B91C1C] border-[#F2D6D6]";
     case "withdrawn":

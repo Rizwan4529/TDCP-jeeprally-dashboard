@@ -137,7 +137,7 @@ export default function LoginPage() {
           type="submit"
           disabled={loginMutation.isPending}
           aria-busy={loginMutation.isPending}
-          className="mt-2 h-12 w-full rounded-md text-[16px] font-medium"
+          className="mt-2 h-12 w-full rounded-full text-[16px] font-medium"
         >
           {loginMutation.isPending ? (
             <ButtonSpinner className="size-6 text-primary-foreground" />

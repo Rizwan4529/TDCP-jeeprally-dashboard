@@ -57,10 +57,10 @@ const variantStyles: Record<
 > = {
   default: {
     shell: "border-[#DDE3EC] bg-[linear-gradient(180deg,#FCFDFE_0%,#F5F8FC_100%)]",
-    halo: "bg-[#3FA565]/10",
+    halo: "bg-primary/10",
     iconWrap:
-      "bg-[linear-gradient(145deg,#EAF6EF_0%,#D7EFE2_100%)] text-[#2F8F57] shadow-[0_10px_24px_rgba(63,165,101,0.14)] ring-1 ring-[#3FA565]/20",
-    icon: "text-[#319F60]",
+      "bg-primary/10 text-primary shadow-[0_10px_24px_rgba(180,68,35,0.14)] ring-1 ring-primary/20",
+    icon: "text-primary",
     title: "text-[#1F1838]",
     description: "text-[#6B7890]",
   },

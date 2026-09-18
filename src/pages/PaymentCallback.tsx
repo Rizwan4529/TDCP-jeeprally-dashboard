@@ -131,9 +131,9 @@ export default function PaymentCallbackPage() {
 
   const icon =
     state.kind === "loading" ? (
-      <Loader2Icon className="size-10 animate-spin text-[#43AA72]" />
+      <Loader2Icon className="size-10 animate-spin text-primary" />
     ) : state.kind === "success" ? (
-      <CheckCircle2Icon className="size-10 text-[#43AA72]" />
+      <CheckCircle2Icon className="size-10 text-primary" />
     ) : (
       <AlertCircleIcon className="size-10 text-[#E04444]" />
     );

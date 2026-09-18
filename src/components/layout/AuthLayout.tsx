@@ -17,7 +17,7 @@ export default function AuthLayout({
   children,
 }: AuthLayoutProps) {
   return (
-    <main className="grid h-svh overflow-hidden bg-[#FDFDFE] lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
+    <main className="grid h-svh overflow-hidden bg-section lg:grid-cols-[minmax(0,0.88fr)_minmax(0,1.12fr)]">
       <section className="h-svh overflow-y-auto px-5 sm:px-8 lg:px-12">
         <div className="mx-auto flex min-h-full w-full max-w-[470px] flex-col justify-center py-8">
           <div className="mb-8 flex items-center gap-3.5 sm:mb-9">
@@ -29,7 +29,7 @@ export default function AuthLayout({
             <Typography
               as="span"
               variant="h5"
-              className="block text-[26px] font-semibold leading-none tracking-tight text-[#00571C] sm:text-[30px]"
+              className="block text-[26px] font-semibold leading-none tracking-tight text-primary sm:text-[30px]"
             >
               Jeep Rally
             </Typography>

@@ -125,7 +125,7 @@ export default function ResetPasswordPage() {
           type="submit"
           disabled={resetMutation.isPending}
           aria-busy={resetMutation.isPending}
-          className="mt-2 h-12 w-full rounded-md text-[16px] font-medium"
+          className="mt-2 h-12 w-full rounded-full text-[16px] font-medium"
         >
           {resetMutation.isPending ? (
             <ButtonSpinner className="size-6 text-primary-foreground" />

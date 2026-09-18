@@ -32,16 +32,16 @@ import { cn } from "@/lib/utils";
 const chartConfig = {
   tdcp: {
     label: "TDCP Races",
-    color: "#3FA565",
+    color: "#B44423",
   },
   other: {
     label: "Other Races",
-    color: "#F4B400",
+    color: "#F9DA4A",
   },
 } satisfies ChartConfig;
 
 const surfaceCard =
-  "rounded-lg border border-[#E0E0E0] bg-white shadow-none ring-0";
+  "rounded-[10px] border border-[#E8E0D8] bg-white shadow-none ring-0";
 
 type ParticipationRankingChartProps = {
   enabled?: boolean;
@@ -151,22 +151,22 @@ export function ParticipationRankingChart({
                   dataKey="tdcp"
                   stroke="var(--color-tdcp)"
                   strokeWidth={3}
-                  dot={{ r: 4, fill: "#3FA565", strokeWidth: 0 }}
-                  activeDot={{ r: 6, fill: "#3FA565", strokeWidth: 0 }}
+                  dot={{ r: 4, fill: "#B44423", strokeWidth: 0 }}
+                  activeDot={{ r: 6, fill: "#B44423", strokeWidth: 0 }}
                 />
                 <Line
                   type="monotone"
                   dataKey="other"
                   stroke="var(--color-other)"
                   strokeWidth={3}
-                  dot={{ r: 4, fill: "#F4B400", strokeWidth: 0 }}
-                  activeDot={{ r: 6, fill: "#F4B400", strokeWidth: 0 }}
+                  dot={{ r: 4, fill: "#F9DA4A", strokeWidth: 0 }}
+                  activeDot={{ r: 6, fill: "#F9DA4A", strokeWidth: 0 }}
                 />
               </LineChart>
             </ChartContainer>
             <div className="flex flex-wrap items-center justify-center gap-6">
-              <ChartLegendItem color="#3FA565" label={labels.tdcp} />
-              <ChartLegendItem color="#F4B400" label={labels.other} />
+              <ChartLegendItem color="#B44423" label={labels.tdcp} />
+              <ChartLegendItem color="#F9DA4A" label={labels.other} />
             </div>
           </div>
         )}

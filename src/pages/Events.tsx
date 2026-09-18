@@ -41,7 +41,7 @@ import type {
 import { toPublicFileUrl } from "@/utils/helpers";
 
 const filterControlClass =
-  "h-9 rounded-md border border-[#E8E8E8] bg-white text-[13px] text-[#1F1838] outline-none focus-visible:ring-2 focus-visible:ring-[#3FA565]/30";
+  "h-9 rounded-md border border-[#E8E8E8] bg-white text-[13px] text-[#1F1838] outline-none focus-visible:ring-2 focus-visible:ring-primary/30";
 
 const YEAR_FILTER_ALL = "all";
 const SORT_DEFAULT: RallyEventSort = "date_desc";
@@ -382,7 +382,7 @@ export default function EventsPage() {
                 className={cn(surfaceCard, "overflow-hidden rounded-md")}
               >
                 <div className="flex gap-4 p-4">
-                  <div className="flex size-[52px] shrink-0 flex-col items-center justify-center rounded-[4px] bg-dashboard-icon-bg text-[#319F60]">
+                  <div className="flex size-[52px] shrink-0 flex-col items-center justify-center rounded-[4px] bg-dashboard-icon-bg text-primary">
                     <span className="text-[20px] font-bold leading-none">
                       {day}
                     </span>
@@ -400,7 +400,7 @@ export default function EventsPage() {
                         {event.name}
                       </Typography>
                       {event.is_featured ? (
-                        <span className="shrink-0 rounded-full bg-[#EAF6EF] px-3 py-1 text-[10px] font-semibold text-[#1F6B43]">
+                        <span className="shrink-0 rounded-full bg-primary/10 px-3 py-1 text-[10px] font-semibold text-primary">
                           Featured
                         </span>
                       ) : null}

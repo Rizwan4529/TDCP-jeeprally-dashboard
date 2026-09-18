@@ -1,4 +1,4 @@
-ï»¿import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type SubmitHandler } from "react-hook-form";
@@ -157,7 +157,7 @@ function StepPill({
       className={cn(
         "flex items-center gap-2 rounded-full border px-3 py-2 text-sm transition-colors",
         isActive
-          ? "border-[#43AA72] bg-[#EAF6EF] text-[#1F6B43]"
+          ? "border-primary bg-primary/10 text-primary"
           : isDone
             ? "border-[#D7DAE1] bg-white text-[#25314D]"
             : "border-[#E8E8E8] bg-[#F9FAFD] text-[#8B96AD]",
@@ -167,7 +167,7 @@ function StepPill({
         className={cn(
           "grid size-5 place-items-center rounded-full text-[12px] font-semibold",
           isActive
-            ? "bg-[#43AA72] text-white"
+            ? "bg-primary text-white"
             : isDone
               ? "bg-[#25314D] text-white"
               : "bg-[#D7DAE1] text-white",
@@ -940,7 +940,7 @@ export default function RegistrationPage() {
                           isBlocked
                             ? "cursor-not-allowed border-[#E8E8E8] bg-[#F4F5F8] opacity-60"
                             : isActive
-                              ? "border-[#43AA72] bg-[#EAF6EF]"
+                              ? "border-primary bg-primary/10"
                               : "border-[#E8E8E8] bg-white hover:bg-[#F9FAFD]",
                         )}
                       >
@@ -963,7 +963,7 @@ export default function RegistrationPage() {
                                 isBlocked
                                   ? "text-[#6B7890]"
                                   : isActive
-                                    ? "text-[#1F6B43]"
+                                    ? "text-primary"
                                     : "text-[#25314D]",
                               )}
                             >
@@ -976,7 +976,7 @@ export default function RegistrationPage() {
                                 isBlocked
                                   ? "text-[#6B7890]"
                                   : isActive
-                                    ? "text-[#1F6B43]"
+                                    ? "text-primary"
                                     : "text-[#25314D]",
                               )}
                             >
@@ -998,7 +998,7 @@ export default function RegistrationPage() {
                                   isBlocked
                                     ? "text-[#8B96AD]"
                                     : isActive
-                                      ? "text-[#1F6B43]/90"
+                                      ? "text-primary/90"
                                       : "text-[#6B7890]",
                                 )}
                               >
@@ -1013,7 +1013,7 @@ export default function RegistrationPage() {
                                   isBlocked
                                     ? "text-[#8B96AD]"
                                     : isActive
-                                      ? "text-[#1F6B43]"
+                                      ? "text-primary"
                                       : "text-[#8B96AD]",
                                 )}
                               >
@@ -1027,7 +1027,7 @@ export default function RegistrationPage() {
                               isBlocked
                                 ? "border-[#D7DAE1] bg-[#E8E8E8] text-transparent"
                                 : isActive
-                                  ? "border-[#43AA72] bg-[#43AA72] text-white"
+                                  ? "border-primary bg-primary text-white"
                                   : "border-[#D7DAE1] bg-white text-transparent group-hover:text-[#D7DAE1]",
                             )}
                           >
@@ -1062,7 +1062,7 @@ export default function RegistrationPage() {
                       >
                         <Link
                           to={ROUTES.PROFILE}
-                          className="font-semibold text-[#1F6B43] underline"
+                          className="font-semibold text-primary underline"
                         >
                           Go to Profile
                         </Link>{" "}
@@ -1137,7 +1137,7 @@ export default function RegistrationPage() {
                     Profile complete.{" "}
                     <Link
                       to={ROUTES.PROFILE}
-                      className="font-medium text-[#1F6B43] underline"
+                      className="font-medium text-primary underline"
                     >
                       View profile
                     </Link>
@@ -1146,7 +1146,7 @@ export default function RegistrationPage() {
                   <Typography variant="body-sm" className="text-[#6B7890]">
                     <Link
                       to={ROUTES.PROFILE}
-                      className="font-medium text-[#1F6B43] underline"
+                      className="font-medium text-primary underline"
                     >
                       Update profile
                     </Link>{" "}
@@ -1172,7 +1172,7 @@ export default function RegistrationPage() {
                     the{" "}
                     <Link
                       to={ROUTES.TEAMS}
-                      className="font-medium text-[#1F6B43] underline"
+                      className="font-medium text-primary underline"
                     >
                       Teams
                     </Link>{" "}
@@ -1215,7 +1215,7 @@ export default function RegistrationPage() {
                       continue registration.{" "}
                       <Link
                         to={ROUTES.TEAMS}
-                        className="font-medium text-[#1F6B43] underline"
+                        className="font-medium text-primary underline"
                       >
                         Go to Teams
                       </Link>
@@ -1251,7 +1251,7 @@ export default function RegistrationPage() {
                           isSel
                             ? isInvalid
                               ? "border-[#E04444] bg-[#FFF5F5]"
-                              : "border-[#43AA72] bg-[#EAF6EF]"
+                              : "border-primary bg-primary/10"
                             : isInvalid
                               ? "border-[#F2D6D6] bg-[#FFFBFB] hover:bg-[#FFF5F5]"
                               : "border-[#E8E8E8] bg-white hover:bg-[#F9FAFD]",
@@ -1264,7 +1264,7 @@ export default function RegistrationPage() {
                               variant="body-lg"
                               className={cn(
                                 "text-[16px] font-semibold leading-none",
-                                isSel ? "text-[#1F6B43]" : "text-[#25314D]",
+                                isSel ? "text-primary" : "text-[#25314D]",
                               )}
                             >
                               {t.team_name}
@@ -1273,19 +1273,19 @@ export default function RegistrationPage() {
                               variant="body-sm"
                               className={cn(
                                 "leading-[1.45]",
-                                isSel ? "text-[#1F6B43]" : "text-[#8B96AD]",
+                                isSel ? "text-primary" : "text-[#8B96AD]",
                               )}
                             >
                               {categoryRecord?.title ??
                                 CATEGORY_LABELS[t.category as Category] ??
                                 t.category}{" "}
-                              Â· #{t.team_number}
+                              · #{t.team_number}
                             </Typography>
                             <Typography
                               variant="body-sm"
                               className={cn(
                                 "text-[13px]",
-                                isSel ? "text-[#1F6B43]/80" : "text-[#8B96AD]",
+                                isSel ? "text-primary/80" : "text-[#8B96AD]",
                               )}
                             >
                               Members: {memberNames}
@@ -1294,7 +1294,7 @@ export default function RegistrationPage() {
                               variant="body-sm"
                               className={cn(
                                 "text-[13px]",
-                                isSel ? "text-[#1F6B43]/80" : "text-[#8B96AD]",
+                                isSel ? "text-primary/80" : "text-[#8B96AD]",
                               )}
                             >
                               Navigator: {navName}
@@ -1312,7 +1312,7 @@ export default function RegistrationPage() {
                             className={cn(
                               "mt-0.5 grid size-5 shrink-0 place-items-center rounded-full border text-[12px] font-semibold",
                               isSel
-                                ? "border-[#43AA72] bg-[#43AA72] text-white"
+                                ? "border-primary bg-primary text-white"
                                 : "border-[#D7DAE1] bg-white text-transparent",
                             )}
                             aria-hidden
@@ -1351,7 +1351,7 @@ export default function RegistrationPage() {
                       >
                         <Link
                           to={ROUTES.TEAMS}
-                          className="font-semibold text-[#1F6B43] underline"
+                          className="font-semibold text-primary underline"
                         >
                           Go to Teams
                         </Link>{" "}
@@ -1455,7 +1455,7 @@ export default function RegistrationPage() {
                         >
                           Fee:{" "}
                           <span className="font-semibold">
-                            Already paid â€” no additional payment
+                            Already paid — no additional payment
                           </span>
                         </Typography>
                       ) : selectedPricing ? (
@@ -1492,7 +1492,7 @@ export default function RegistrationPage() {
                         Team:{" "}
                         <span className="font-semibold">
                           {registrationSummary.team
-                            ? `${registrationSummary.team.team_name} Â· #${registrationSummary.team.team_number}`
+                            ? `${registrationSummary.team.team_name} · #${registrationSummary.team.team_number}`
                             : "-"}
                         </span>
                         {isEditMode ? (
@@ -1506,7 +1506,7 @@ export default function RegistrationPage() {
                         Vehicle:{" "}
                         <span className="font-semibold">
                           {registrationSummary.vehicle
-                            ? `${registrationSummary.vehicle.model} Â· ${registrationSummary.vehicle.engine}`
+                            ? `${registrationSummary.vehicle.model} · ${registrationSummary.vehicle.engine}`
                             : "-"}
                         </span>
                       </Typography>
@@ -1517,7 +1517,7 @@ export default function RegistrationPage() {
                         >
                           Fee:{" "}
                           <span className="font-semibold">
-                            Already paid â€” no additional payment
+                            Already paid — no additional payment
                           </span>
                         </Typography>
                       ) : selectedPricing ? (
@@ -1603,7 +1603,7 @@ export default function RegistrationPage() {
                       : isEditMode
                         ? "Save changes"
                         : selectedPricing
-                          ? `Pay now Â· ${formatRallyAmount(selectedPricing.amount)}`
+                          ? `Pay now · ${formatRallyAmount(selectedPricing.amount)}`
                           : "Pay now"}
                   </Button>
                 </div>
@@ -1629,7 +1629,7 @@ export default function RegistrationPage() {
                       <>
                         <Link
                           to={ROUTES.VEHICLE}
-                          className="font-medium text-[#1F6B43] underline"
+                          className="font-medium text-primary underline"
                         >
                           Vehicle
                         </Link>{" "}
@@ -1670,7 +1670,7 @@ export default function RegistrationPage() {
                     Could not fetch your vehicles. You can still{" "}
                     <Link
                       to={ROUTES.VEHICLE}
-                      className="font-medium text-[#1F6B43] underline"
+                      className="font-medium text-primary underline"
                     >
                       add a vehicle
                     </Link>{" "}
@@ -1693,7 +1693,7 @@ export default function RegistrationPage() {
                           className={cn(
                             "rounded-md border p-4 text-left transition-colors",
                             isSel
-                              ? "border-[#43AA72] bg-[#EAF6EF]"
+                              ? "border-primary bg-primary/10"
                               : "border-[#E8E8E8] bg-white hover:bg-[#F9FAFD]",
                           )}
                         >
@@ -1712,7 +1712,7 @@ export default function RegistrationPage() {
                               )}
                               <label
                                 className={cn(
-                                  "absolute bottom-0.5 right-0.5 flex size-7 cursor-pointer items-center justify-center rounded-full bg-[#3FA565] text-white shadow-md",
+                                  "absolute bottom-0.5 right-0.5 flex size-7 cursor-pointer items-center justify-center rounded-full bg-primary text-white shadow-md",
                                   uploadImageMutation.isPending &&
                                     "pointer-events-none opacity-70",
                                 )}
@@ -1752,7 +1752,7 @@ export default function RegistrationPage() {
                                 variant="body-lg"
                                 className={cn(
                                   "truncate text-[15px] font-semibold",
-                                  isSel ? "text-[#1F6B43]" : "text-[#25314D]",
+                                  isSel ? "text-primary" : "text-[#25314D]",
                                 )}
                               >
                                 {v.model}
@@ -1760,19 +1760,19 @@ export default function RegistrationPage() {
                               <Typography
                                 variant="body-sm"
                                 className={cn(
-                                  isSel ? "text-[#1F6B43]" : "text-[#8B96AD]",
+                                  isSel ? "text-primary" : "text-[#8B96AD]",
                                 )}
                               >
                                 {getVehicleCategoryTitle(v)}
-                                {v.class ? ` Â· ${v.class}` : ""}
-                                {v.power != null ? ` Â· Power ${v.power}` : ""}
+                                {v.class ? ` · ${v.class}` : ""}
+                                {v.power != null ? ` · Power ${v.power}` : ""}
                               </Typography>
                             </div>
                             <span
                               className={cn(
                                 "mt-1 grid size-5 shrink-0 place-items-center self-start rounded-full border text-[12px] font-semibold",
                                 isSel
-                                  ? "border-[#43AA72] bg-[#43AA72] text-white"
+                                  ? "border-primary bg-primary text-white"
                                   : "border-[#D7DAE1] bg-white text-transparent",
                               )}
                               aria-hidden
@@ -1794,7 +1794,7 @@ export default function RegistrationPage() {
                         Vehicle page, then return here.{" "}
                         <Link
                           to={ROUTES.VEHICLE}
-                          className="font-medium text-[#1F6B43] underline"
+                          className="font-medium text-primary underline"
                         >
                           Go to Vehicle
                         </Link>
@@ -1812,7 +1812,7 @@ export default function RegistrationPage() {
                         continue registration.{" "}
                         <Link
                           to={ROUTES.VEHICLE}
-                          className="font-medium text-[#1F6B43] underline"
+                          className="font-medium text-primary underline"
                         >
                           Go to Vehicle
                         </Link>

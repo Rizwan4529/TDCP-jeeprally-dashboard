@@ -120,7 +120,7 @@ export default function SidebarCommon() {
                   <Typography
                     as="span"
                     variant="h6"
-                    className="leading-none text-[#00571C]"
+                    className="leading-none text-primary"
                   >
                     Jeep Rally
                   </Typography>
@@ -229,7 +229,7 @@ export default function SidebarCommon() {
                   className={`cursor-pointer !h-14 ${
                     isCollapsed
                       ? "justify-center"
-                      : "!border !border-[#C8E6D4] !bg-[#EAF6EF] !text-[#1F6B43] hover:!bg-[#DFF0E6] hover:!text-[#1F6B43]"
+                      : "!border !border-primary/25 !bg-primary/10 !text-primary hover:!bg-primary/15 hover:!text-primary"
                   }`}
                 >
                   <Avatar className="size-7">
@@ -248,13 +248,13 @@ export default function SidebarCommon() {
                       <span className="block truncate text-sm font-medium text-[#1F1838]">
                         {sessionUser?.name ?? "Account"}
                       </span>
-                      <span className="block truncate text-xs text-[#1F6B43]/80">
+                      <span className="block truncate text-xs text-primary/80">
                         {sessionUser?.email ?? "Signed in"}
                       </span>
                     </span>
                   ) : null}
                   {!isCollapsed ? (
-                    <ChevronsUpIcon className="ml-auto size-4 text-[#3FA565]" />
+                    <ChevronsUpIcon className="ml-auto size-4 text-primary" />
                   ) : null}
                 </SidebarMenuButton>
               </DropdownMenuTrigger>

@@ -913,7 +913,7 @@ function ImagePickerControl({
           disabled={disabled}
           onClick={() => inputRef.current?.click()}
           className={cn(
-            "group relative flex size-[7.25rem] shrink-0 items-center justify-center rounded-full border-2 border-[#E8E8E8] bg-[#F9FAFD] shadow-sm outline-none transition-[border-color,box-shadow] hover:border-[#3FA565] focus-visible:ring-2 focus-visible:ring-[#3FA565]/35 disabled:cursor-not-allowed disabled:opacity-60",
+            "group relative flex size-[7.25rem] shrink-0 items-center justify-center rounded-full border-2 border-[#E8E8E8] bg-[#F9FAFD] shadow-sm outline-none transition-[border-color,box-shadow] hover:border-primary focus-visible:ring-2 focus-visible:ring-primary/35 disabled:cursor-not-allowed disabled:opacity-60",
             previewClassName,
           )}
           aria-label="Choose vehicle photo"
@@ -927,7 +927,7 @@ function ImagePickerControl({
               </span>
             )}
           </span>
-          <span className="pointer-events-none absolute bottom-0 right-0 z-20 flex size-9 translate-x-px translate-y-px items-center justify-center rounded-full border-2 border-white bg-[#3FA565] text-white shadow-md ring-1 ring-black/5">
+          <span className="pointer-events-none absolute bottom-0 right-0 z-20 flex size-9 translate-x-px translate-y-px items-center justify-center rounded-full border-2 border-white bg-primary text-white shadow-md ring-1 ring-black/5">
             <CameraIcon className="size-3.5" />
           </span>
         </button>
@@ -1018,7 +1018,7 @@ function ImagePickerControl({
       : hasOnFile
         ? {
             label: "Uploaded",
-            className: "border-[#C5E6D4] bg-[#EAF6EF] text-[#1F6B43]",
+            className: "border-primary/25 bg-primary/10 text-primary",
             icon: CheckCircle2Icon,
           }
         : {
@@ -1040,7 +1040,7 @@ function ImagePickerControl({
           type="button"
           disabled={disabled}
           onClick={() => inputRef.current?.click()}
-          className="group relative block w-full aspect-[4/3] overflow-hidden bg-[#F4F6FA] outline-none focus-visible:ring-2 focus-visible:ring-[#3FA565]/40 disabled:cursor-not-allowed disabled:opacity-60"
+          className="group relative block w-full aspect-[4/3] overflow-hidden bg-[#F4F6FA] outline-none focus-visible:ring-2 focus-visible:ring-primary/40 disabled:cursor-not-allowed disabled:opacity-60"
           aria-label={
             hasOnFile ? "Replace document image" : "Upload document image"
           }

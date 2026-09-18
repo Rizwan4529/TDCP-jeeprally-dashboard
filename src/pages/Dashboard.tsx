@@ -68,7 +68,7 @@ const STAT_ICONS = {
 } as const;
 
 const surfaceCard =
-  "rounded-lg border border-[#E0E0E0] bg-white shadow-none ring-0";
+  "rounded-[10px] border border-[#E8E0D8] bg-white shadow-none ring-0";
 
 /** Fixed panel height; body scrolls vertically inside the card. */
 const dashboardScrollCardClass = cn(
@@ -243,9 +243,9 @@ function heroStatusToneClass(
 ): string {
   switch (tone) {
     case "open":
-      return "border-[#7DDBA8]/70 bg-[#1F6B43]/85 text-white";
+      return "border-secondary/80 bg-primary/90 text-white";
     case "upcoming":
-      return "border-[#FFD27A]/80 bg-[#9A6B00]/85 text-white";
+      return "border-secondary/80 bg-[#9A6B00]/85 text-white";
     case "closed":
       return "border-white/35 bg-black/45 text-white";
     default:
@@ -276,7 +276,7 @@ function EventHero({ event }: { event: RallyEvent }) {
 
   return (
     <section className="relative overflow-visible pt-3 pb-1">
-      <div className="relative min-h-[220px] overflow-hidden rounded-[10px] bg-[#9B6A45]">
+      <div className="relative min-h-[220px] overflow-hidden rounded-[10px] bg-primary-dark">
         <img
           src={coverUrl ?? DashboardBg}
           alt=""
@@ -308,12 +308,12 @@ function EventHero({ event }: { event: RallyEvent }) {
           ) : null}
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-[12px] font-semibold">
             <span className="inline-flex items-center gap-2">
-              <CalendarDaysIcon className="size-4 text-[#FFA51E]" />
+              <CalendarDaysIcon className="size-4 text-secondary" />
               {dateRange}
             </span>
             <span className="inline-flex items-center gap-2">
               <MapPinIcon
-                className="size-4 text-[#FFA51E]"
+                className="size-4 text-secondary"
                 strokeWidth={2.25}
               />
               {event.location}
@@ -338,7 +338,7 @@ function EventHero({ event }: { event: RallyEvent }) {
               <p className="mb-2 text-[10px] font-semibold uppercase tracking-wide text-white/85">
                 {heroCountdown.label}
               </p>
-              <div className="flex items-end text-[#FFA51E]">
+              <div className="flex items-end text-secondary">
                 {(
                   [
                     [countdown.days, "Days"],
@@ -364,7 +364,7 @@ function EventHero({ event }: { event: RallyEvent }) {
             </div>
           ) : (
             <div className="mt-4 inline-flex items-center gap-2 rounded-md border border-white/30 bg-black/35 px-3 py-2 text-[12px] font-semibold text-white">
-              <CalendarOffIcon className="size-4 text-[#FFA51E]" />
+              <CalendarOffIcon className="size-4 text-secondary" />
               {heroCountdown.label}
             </div>
           )}
@@ -521,9 +521,9 @@ function EventSchedule({
                 return (
                   <div
                     key={item._id}
-                    className="flex min-h-[62px] items-center gap-4 rounded-lg border border-[#DCDDE2] bg-gradient-to-r from-white to-[#FAFBFF] px-3"
+                    className="flex min-h-[62px] items-center gap-4 rounded-[10px] border border-[#E8E0D8] bg-gradient-to-r from-white to-[#FAFBFF] px-3"
                   >
-                    <div className="flex size-[50px] shrink-0 flex-col items-center justify-center rounded-[4px] bg-dashboard-icon-bg text-[#319F60]">
+                    <div className="flex size-[50px] shrink-0 flex-col items-center justify-center rounded-[4px] bg-dashboard-icon-bg text-primary">
                       <span className="text-[20px] font-bold leading-none">
                         {day}
                       </span>
@@ -629,17 +629,17 @@ function DriverSummary({
                 className={cn(
                   "relative mx-auto flex size-[154px] flex-col items-center justify-center rounded-full border-[5px] shadow-[0_12px_18px_rgba(15,23,42,0.08)]",
                   bestPosition === 1
-                    ? "border-[#FFD699] bg-[#FFF8EB]"
-                    : "border-[#C8E6D4] bg-[#EAF6EF]",
+                    ? "border-secondary bg-[#FFF8EB]"
+                    : "border-primary/25 bg-primary/10",
                 )}
               >
-                <span className="text-[11px] font-semibold uppercase tracking-wide text-[#1F6B43]">
+                <span className="text-[11px] font-semibold uppercase tracking-wide text-primary">
                   Best finish
                 </span>
                 <span
                   className={cn(
                     "mt-1 text-[36px] font-bold leading-none",
-                    bestPosition === 1 ? "text-[#FF9500]" : "text-[#1F6B43]",
+                    bestPosition === 1 ? "text-primary-dark" : "text-primary",
                   )}
                 >
                   {bestPosition != null
@@ -717,7 +717,7 @@ function OverallRanking({
                     <td
                       className={cn(
                         "px-3 py-3 font-medium",
-                        row.isFirst && "text-[#FF9500]",
+                        row.isFirst && "text-primary",
                       )}
                     >
                       {row.result}
