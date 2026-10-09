@@ -19,8 +19,7 @@ import {
 } from "@/components/layout/pageLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { useCategoriesQuery } from "@/hooks/api/use-categories";
-import { useMyTeamQuery } from "@/hooks/api/use-teams";
+import { useActiveRallyQuery } from "@/hooks/api/use-active-rally";
 import {
   useCreateVehicleMutation,
   useMyVehiclesQuery,
@@ -31,7 +30,13 @@ import { cn } from "@/lib/utils";
 import { ROUTES } from "@/utils/constants";
 import { fetchAuthToken } from "@/utils/helpers";
 import {
-  buildCategorySelectOptions,
+  findRallyCategory,
+  findRallyType,
+  getRallyCategoriesForType,
+  getRallyTypes,
+  getTypeIdForCategory,
+} from "@/utils/rally-team-options";
+import {
   buildCreateVehiclePayload,
   buildUpdateVehiclePayload,
   emptyVehicleFormValues,
@@ -53,34 +58,21 @@ export default function VehicleFormPage() {
   const navigate = useNavigate();
   const token = useMemo(() => fetchAuthToken(), []);
 
-  const categoriesQuery = useCategoriesQuery(Boolean(token));
-  const categories = Array.isArray(categoriesQuery.data?.data)
-    ? categoriesQuery.data.data
-    : [];
-  const categoryOptions = useMemo(
-    () => buildCategorySelectOptions(categories),
-    [categories],
+  // Types and categories come from the active rally (same source as teams).
+  const activeRallyQuery = useActiveRallyQuery(Boolean(token));
+  const activeRally = activeRallyQuery.data?.data ?? null;
+  const rallyTypes = useMemo(() => getRallyTypes(activeRally), [activeRally]);
+  const typeOptions = useMemo(
+    () => rallyTypes.map((t) => ({ label: t.name, value: t._id })),
+    [rallyTypes],
   );
-
-  const teamQuery = useMyTeamQuery(Boolean(token));
-  const teams = Array.isArray(teamQuery.data?.data) ? teamQuery.data.data : [];
-  const team = teams[0] ?? null;
-
-  const defaultCategoryId = useMemo(() => {
-    if (categories.length === 0) return "";
-    const teamCategory = team?.category;
-    return (
-      categories.find((item) => item.key === teamCategory)?._id ??
-      categories[0]._id
-    );
-  }, [categories, team?.category]);
 
   const defaultFormValues = useMemo((): VehicleFormValues => {
     return {
       ...emptyVehicleFormValues,
-      category_id: defaultCategoryId,
+      typeId: rallyTypes.length === 1 ? rallyTypes[0]._id : "",
     };
-  }, [defaultCategoryId]);
+  }, [rallyTypes]);
 
   const vehiclesQuery = useMyVehiclesQuery(Boolean(token) && isEditMode);
   const vehicles = Array.isArray(vehiclesQuery.data?.data)
@@ -99,15 +91,48 @@ export default function VehicleFormPage() {
     defaultValues: emptyVehicleFormValues,
   });
 
+  const selectedTypeId = form.watch("typeId") ?? "";
+
+  /** Editing a vehicle whose category isn't in the active rally: keep it selectable. */
+  const legacyCategoryOption = useMemo(() => {
+    const category = editingVehicle?.category_id;
+    if (!category?._id || findRallyCategory(activeRally, category._id)) {
+      return null;
+    }
+    return { label: category.title ?? category.key, value: category._id };
+  }, [editingVehicle, activeRally]);
+
+  const categoryOptions = useMemo(() => {
+    const options = getRallyCategoriesForType(activeRally, selectedTypeId).map(
+      (c) => ({ label: c.title, value: c._id }),
+    );
+    return legacyCategoryOption ? [...options, legacyCategoryOption] : options;
+  }, [activeRally, selectedTypeId, legacyCategoryOption]);
+
+  // Changing the type clears a category that doesn't belong to it.
+  useEffect(() => {
+    const current = form.getValues("category_id");
+    if (current && !categoryOptions.some((o) => o.value === current)) {
+      form.setValue("category_id", "");
+    }
+  }, [categoryOptions, form]);
+
   useEffect(() => {
     if (isEditMode && editingVehicle) {
-      form.reset(vehicleToFormValues(editingVehicle));
+      const values = vehicleToFormValues(editingVehicle);
+      form.reset({
+        ...values,
+        // API may return the type key; fall back to the category's type.
+        typeId:
+          findRallyType(activeRally, values.typeId)?._id ||
+          getTypeIdForCategory(activeRally, values.category_id),
+      });
       return;
     }
     if (!isEditMode) {
       form.reset(defaultFormValues);
     }
-  }, [isEditMode, editingVehicle, defaultFormValues, form]);
+  }, [isEditMode, editingVehicle, defaultFormValues, activeRally, form]);
 
   const isSaving =
     createVehicleMutation.isPending ||
@@ -115,6 +140,10 @@ export default function VehicleFormPage() {
     uploadImageMutation.isPending;
 
   const onSubmit: SubmitHandler<VehicleFormValues> = async (values) => {
+    if (!values.typeId?.trim()) {
+      form.setError("typeId", { message: "Select a vehicle type." });
+      return;
+    }
     const imageFile =
       values.vehicleImage instanceof File ? values.vehicleImage : null;
 
@@ -226,23 +255,45 @@ export default function VehicleFormPage() {
               {...vehicleFormFieldProps("engine")}
               className={fieldClassName}
             />
-            {categoriesQuery.isLoading ? (
-              <SelectFieldSkeleton />
-            ) : categoriesQuery.isError || categoryOptions.length === 0 ? (
+            {activeRallyQuery.isLoading ? (
+              <>
+                <SelectFieldSkeleton />
+                <SelectFieldSkeleton />
+              </>
+            ) : activeRallyQuery.isError || typeOptions.length === 0 ? (
               <div className="rounded-md border border-[#F2D6D6] bg-[#FFF5F5] p-4 md:col-span-2">
                 <Typography variant="body-sm" className="text-[#8B2B2B]">
-                  Could not load categories. Try again later.
+                  {activeRallyQuery.isError
+                    ? "Could not load vehicle types. Try again later."
+                    : "Vehicle types and categories become available once an event is active."}
                 </Typography>
               </div>
             ) : (
-              <Select
-                control={form.control}
-                name="category_id"
-                {...vehicleFormFieldProps("category")}
-                options={categoryOptions}
-                className={fieldClassName}
-                disabled={isSaving}
-              />
+              <>
+                <Select
+                  control={form.control}
+                  name="typeId"
+                  label="Type"
+                  required
+                  placeholder="Select vehicle type"
+                  options={typeOptions}
+                  className={fieldClassName}
+                  disabled={isSaving}
+                />
+                <Select
+                  control={form.control}
+                  name="category_id"
+                  {...vehicleFormFieldProps("category")}
+                  placeholder={
+                    selectedTypeId || legacyCategoryOption
+                      ? "Select category"
+                      : "Select a type first"
+                  }
+                  options={categoryOptions}
+                  className={fieldClassName}
+                  disabled={isSaving || categoryOptions.length === 0}
+                />
+              </>
             )}
             <Input
               control={form.control}
@@ -316,8 +367,8 @@ export default function VehicleFormPage() {
               size="default"
               disabled={
                 isSaving ||
-                categoriesQuery.isLoading ||
-                categoryOptions.length === 0
+                activeRallyQuery.isLoading ||
+                typeOptions.length === 0
               }
             >
               {isEditMode ? "Update" : "Save"}

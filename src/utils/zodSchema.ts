@@ -324,8 +324,10 @@ export const profileUpdateSchema = z.object({
   date_of_birth: signupDateOfBirthSchema,
   occupation: requiredString("Enter occupation"),
   profile_image: optionalProfileImage,
-  cnic_image: optionalProfileImage,
-  license_image: optionalProfileImage,
+  cnic_front_image: optionalProfileImage,
+  cnic_back_image: optionalProfileImage,
+  license_front_image: optionalProfileImage,
+  license_back_image: optionalProfileImage,
 })
 
 export type ProfileUpdateValues = z.infer<typeof profileUpdateSchema>

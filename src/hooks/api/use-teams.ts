@@ -5,12 +5,15 @@ import {
   createTeam,
   deleteTeam,
   getMyTeams,
+  inviteCoDriver,
   updateTeam,
 } from "@/api/services/teams";
 import type {
   CreateTeamPayload,
   DeleteTeamResponse,
   GetMyTeamsResponse,
+  InviteCoDriverPayload,
+  InviteCoDriverResponse,
   UpdateTeamPayload,
   UpsertTeamResponse,
 } from "@/api/types/teams";
@@ -58,6 +61,21 @@ export function useDeleteTeamMutation() {
 
   return useMutation<DeleteTeamResponse, Error, string>({
     mutationFn: deleteTeam,
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.teams.all });
+    },
+  });
+}
+
+export function useInviteCoDriverMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    InviteCoDriverResponse,
+    Error,
+    { teamId: string; payload: InviteCoDriverPayload }
+  >({
+    mutationFn: ({ teamId, payload }) => inviteCoDriver(teamId, payload),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.teams.all });
     },

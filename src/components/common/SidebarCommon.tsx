@@ -1,6 +1,7 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useQueryClient } from "@tanstack/react-query";
 import {
+  BellIcon,
   CalendarDaysIcon,
   CarIcon,
   ChevronRightIcon,
@@ -42,6 +43,7 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Typography } from "@/components/common/Typography";
 import { useSessionUser } from "@/hooks/api/use-session-user";
+import { useInviteNotifications } from "@/hooks/use-invite-notifications";
 import { ROUTES } from "@/utils/constants";
 import { removeAuthToken, toPublicFileUrl } from "@/utils/helpers";
 import Logo from "@/assets/icons/logo.png";
@@ -58,6 +60,7 @@ const NAV_ITEMS: SidebarNavItem[] = [
   { label: "Teams", to: ROUTES.TEAMS, icon: UsersIcon },
   { label: "Vehicle", to: ROUTES.VEHICLE, icon: CarIcon },
   { label: "Events", to: ROUTES.EVENTS, icon: CalendarDaysIcon },
+  { label: "Notifications", to: ROUTES.NOTIFICATIONS, icon: BellIcon },
 ];
 
 function initialsFromName(name: string | undefined) {
@@ -78,6 +81,7 @@ export default function SidebarCommon() {
   const isCollapsed = state === "collapsed";
   const { data: sessionUser } = useSessionUser();
   const profileImageUrl = toPublicFileUrl(sessionUser?.profile_image);
+  const { hasUnseen: hasUnseenInvites } = useInviteNotifications();
 
   const closeMobileSidebar = () => {
     if (isMobile) setOpenMobile(false);
@@ -138,6 +142,8 @@ export default function SidebarCommon() {
               {NAV_ITEMS.map((item) => {
                 const Icon = item.icon;
                 const active = isNavActive(item.to);
+                const showDot =
+                  item.to === ROUTES.NOTIFICATIONS && hasUnseenInvites;
                 return (
                   <SidebarMenuItem key={item.to}>
                     <SidebarMenuButton
@@ -146,8 +152,19 @@ export default function SidebarCommon() {
                       className="!h-12 !px-4"
                     >
                       <Link to={item.to} onClick={closeMobileSidebar}>
-                        <Icon className="size-5" />
+                        <span className="relative inline-flex">
+                          <Icon className="size-5" />
+                          {showDot ? (
+                            <span
+                              aria-hidden
+                              className="absolute -top-0.5 -right-0.5 size-2 rounded-full bg-[#E5484D] ring-2 ring-sidebar"
+                            />
+                          ) : null}
+                        </span>
                         <span>{item.label}</span>
+                        {showDot ? (
+                          <span className="sr-only">(new invites)</span>
+                        ) : null}
                       </Link>
                     </SidebarMenuButton>
                   </SidebarMenuItem>

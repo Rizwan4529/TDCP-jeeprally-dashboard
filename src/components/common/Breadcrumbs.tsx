@@ -20,6 +20,7 @@ const ROUTE_LABELS: { match: RegExp | string; name: string }[] = [
   { match: /^\/vehicle\/[^/]+\/edit$/, name: "Edit vehicle" },
   { match: ROUTES.VEHICLE, name: "Vehicle" },
   { match: "/events", name: "Events" },
+  { match: ROUTES.NOTIFICATIONS, name: "Notifications" },
   { match: ROUTES.MY_REGISTRATIONS, name: "My entries" },
   { match: ROUTES.REGISTRATION, name: "Registration" },
   { match: ROUTES.PAYMENT_CALLBACK, name: "Payment" },

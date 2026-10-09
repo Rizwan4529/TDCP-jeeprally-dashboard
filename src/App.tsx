@@ -10,6 +10,7 @@ import LoginPage from "@/pages/Login"
 import ForgotPasswordPage from "@/pages/ForgotPassword"
 import ResetPasswordPage from "@/pages/ResetPassword"
 import NotFoundPage from "@/pages/NotFound"
+import NotificationsPage from "@/pages/Notifications"
 import PaymentCallbackPage from "@/pages/PaymentCallback"
 import ProfilePage from "@/pages/Profile"
 import ProfileEditPage from "@/pages/ProfileEditPage"
@@ -78,6 +79,10 @@ const App = () => {
             />
 
             <Route path="events" element={<EventsPage />} />
+            <Route
+              path={ROUTES.NOTIFICATIONS.replace(/^\//, "")}
+              element={<NotificationsPage />}
+            />
             <Route
               path={ROUTES.MY_REGISTRATIONS.replace(/^\//, "")}
               element={<MyRegistrationsPage />}

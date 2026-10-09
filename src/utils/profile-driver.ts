@@ -17,8 +17,10 @@ export type ProfileDriver = {
   license_number?: string | null;
   license_expiry?: string | null;
   profile_image?: string | null;
-  cnic_image?: string | null;
-  license_image?: string | null;
+  cnic_front_image?: string | null;
+  cnic_back_image?: string | null;
+  license_front_image?: string | null;
+  license_back_image?: string | null;
 };
 
 export function sessionToProfileDriver(session: LoginUser): ProfileDriver {
@@ -41,8 +43,10 @@ function sessionToProfile(session: LoginUser): ProfileDriver {
     license_number: session.license_number,
     license_expiry: session.license_expiry,
     profile_image: session.profile_image,
-    cnic_image: session.cnic_image,
-    license_image: session.license_image,
+    cnic_front_image: session.cnic_front_image ?? null,
+    cnic_back_image: session.cnic_back_image ?? null,
+    license_front_image: session.license_front_image ?? null,
+    license_back_image: session.license_back_image ?? null,
   };
 }
 
@@ -62,8 +66,10 @@ function embedToProfile(embed: NonNullable<Team["driver_id"]>): ProfileDriver {
     license_number: embed.license_number ?? null,
     license_expiry: embed.license_expiry ?? null,
     profile_image: embed.profile_image ?? null,
-    cnic_image: embed.cnic_image ?? null,
-    license_image: embed.license_image ?? null,
+    cnic_front_image: embed.cnic_front_image ?? null,
+    cnic_back_image: embed.cnic_back_image ?? null,
+    license_front_image: embed.license_front_image ?? null,
+    license_back_image: embed.license_back_image ?? null,
   };
 }
 
@@ -102,8 +108,13 @@ export function mergeTeamDriverWithSession(
     license_number: session.license_number ?? embed.license_number ?? null,
     license_expiry: session.license_expiry ?? embed.license_expiry ?? null,
     profile_image: session.profile_image ?? embed.profile_image ?? null,
-    cnic_image: session.cnic_image ?? embed.cnic_image ?? null,
-    license_image: session.license_image ?? embed.license_image ?? null,
+    cnic_front_image:
+      session.cnic_front_image ?? embed.cnic_front_image ?? null,
+    cnic_back_image: session.cnic_back_image ?? embed.cnic_back_image ?? null,
+    license_front_image:
+      session.license_front_image ?? embed.license_front_image ?? null,
+    license_back_image:
+      session.license_back_image ?? embed.license_back_image ?? null,
   };
 }
 

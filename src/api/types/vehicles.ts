@@ -12,6 +12,9 @@ export type Vehicle = {
   _id: string;
   owner_id?: VehicleOwner;
   category_id: CategoryRecord;
+  /** Vehicle type: id, key, or populated `{ _id, name, key }`. */
+  typeId?: string | { _id: string; name?: string; key?: string } | null;
+  type?: string | { _id: string; name?: string; key?: string } | null;
   team_id?: string | null;
   model: string;
   engine: string;
@@ -42,6 +45,8 @@ export type GetMyVehicleResponse = GetMyVehiclesResponse;
 /** POST /vehicles */
 export type CreateVehiclePayload = {
   category_id: string;
+  /** Rally vehicle type id. */
+  typeId?: string;
   model: string;
   engine: string;
   frame?: string;

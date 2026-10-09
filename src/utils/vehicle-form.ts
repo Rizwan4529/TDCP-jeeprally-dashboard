@@ -7,6 +7,7 @@ import type {
   Vehicle,
 } from "@/api/types/vehicles";
 import { toPublicFileUrl } from "@/utils/helpers";
+import { refId } from "@/utils/rally-team-options";
 
 /** Suggested ranges — used for validation and form hints. */
 export const VEHICLE_FIELD_LIMITS = {
@@ -139,6 +140,7 @@ export const vehicleFormSchema = z.object({
   model: z.string().trim().min(1, "Model is required"),
   engine: z.string().trim().min(1, "Engine is required"),
   category_id: z.string().trim().min(1, "Select a valid category"),
+  typeId: z.string().trim().optional(),
   frame: z
     .string()
     .optional()
@@ -181,6 +183,7 @@ export const emptyVehicleFormValues: VehicleFormValues = {
   model: "",
   engine: "",
   category_id: "",
+  typeId: "",
   frame: "",
   power: "",
   weight: "",
@@ -223,6 +226,11 @@ export function getVehicleCategoryId(vehicle: Vehicle): string {
   return vehicle.category_id?._id ?? "";
 }
 
+/** Type id or key as returned by the API (resolve against rally types to get the id). */
+export function getVehicleTypeRef(vehicle: Vehicle): string {
+  return refId(vehicle.typeId ?? null) || refId(vehicle.type ?? null);
+}
+
 export function getVehicleCategoryKey(vehicle: Vehicle): string {
   return vehicle.category_id?.key ?? "";
 }
@@ -244,6 +252,9 @@ export function buildCreateVehiclePayload(
     model: values.model.trim(),
     engine: values.engine.trim(),
   };
+
+  const typeId = optionalTrimmed(values.typeId);
+  if (typeId !== undefined) payload.typeId = typeId;
 
   const frame = optionalTrimmed(values.frame);
   if (frame !== undefined) payload.frame = frame;
@@ -294,6 +305,7 @@ export function vehicleToFormValues(v: Vehicle): VehicleFormValues {
     model: v.model,
     engine: v.engine,
     category_id: getVehicleCategoryId(v),
+    typeId: getVehicleTypeRef(v),
     frame: v.frame ?? "",
     power: v.power != null ? String(v.power) : "",
     weight: v.weight != null ? String(v.weight) : "",

@@ -5,9 +5,22 @@ import type {
   CreateTeamPayload,
   DeleteTeamResponse,
   GetMyTeamsResponse,
+  InviteCoDriverPayload,
+  InviteCoDriverResponse,
   UpdateTeamPayload,
   UpsertTeamResponse,
 } from "@/api/types/teams";
+
+/** Surfaces the backend `message` (e.g. "Driver account not found…") instead of axios' generic text. */
+function toApiError(err: unknown, fallback: string): Error {
+  if (axios.isAxiosError(err)) {
+    const body = err.response?.data as { message?: unknown } | undefined;
+    if (typeof body?.message === "string" && body.message.trim()) {
+      return new Error(body.message);
+    }
+  }
+  return err instanceof Error ? err : new Error(fallback);
+}
 
 function normalizeMyTeamsResponse(raw: unknown): GetMyTeamsResponse {
   if (!raw || typeof raw !== "object") {
@@ -50,19 +63,42 @@ export const getMyTeam = getMyTeams;
 export async function createTeam(
   payload: CreateTeamPayload,
 ): Promise<UpsertTeamResponse> {
-  const { data } = await apiClient.post<UpsertTeamResponse>("/teams", payload);
-  return data;
+  try {
+    const { data } = await apiClient.post<UpsertTeamResponse>("/teams", payload);
+    return data;
+  } catch (err) {
+    throw toApiError(err, "Could not create team.");
+  }
 }
 
 export async function updateTeam(
   teamId: string,
   payload: UpdateTeamPayload,
 ): Promise<UpsertTeamResponse> {
-  const { data } = await apiClient.put<UpsertTeamResponse>(
-    `/teams/${encodeURIComponent(teamId)}`,
-    payload,
-  );
-  return data;
+  try {
+    const { data } = await apiClient.put<UpsertTeamResponse>(
+      `/teams/${encodeURIComponent(teamId)}`,
+      payload,
+    );
+    return data;
+  } catch (err) {
+    throw toApiError(err, "Could not update team.");
+  }
+}
+
+export async function inviteCoDriver(
+  teamId: string,
+  payload: InviteCoDriverPayload,
+): Promise<InviteCoDriverResponse> {
+  try {
+    const { data } = await apiClient.post<InviteCoDriverResponse>(
+      `/teams/${encodeURIComponent(teamId)}/invites`,
+      payload,
+    );
+    return data;
+  } catch (err) {
+    throw toApiError(err, "Could not send invite.");
+  }
 }
 
 export async function deleteTeam(teamId: string): Promise<DeleteTeamResponse> {

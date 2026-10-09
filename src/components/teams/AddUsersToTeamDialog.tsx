@@ -30,10 +30,12 @@ import {
 import type { CategoryRecord } from "@/api/types/categories";
 import type { TeamMember } from "@/api/types/team-members";
 import type { Team } from "@/api/types/teams";
+import { useActiveRallyQuery } from "@/hooks/api/use-active-rally";
 import {
   useCreateTeamMutation,
   useUpdateTeamMutation,
 } from "@/hooks/api/use-teams";
+import { getTeamCreationBlock } from "@/utils/rally-event";
 import {
   buildCategoryMap,
   mergeTeamMemberIds,
@@ -93,6 +95,7 @@ export function AddUsersToTeamDialog({
   const [existingTeamId, setExistingTeamId] = React.useState("");
   const [navigatorId, setNavigatorId] = React.useState("");
 
+  const activeRallyQuery = useActiveRallyQuery(open);
   const createMutation = useCreateTeamMutation();
   const updateMutation = useUpdateTeamMutation();
   const isSaving = createMutation.isPending || updateMutation.isPending;
@@ -181,6 +184,22 @@ export function AddUsersToTeamDialog({
   }, [open, showNavigatorPicker, navigatorOptions]);
 
   const onSubmitNew: SubmitHandler<TeamFormValues> = async (values) => {
+    if (activeRallyQuery.isPending) {
+      toast.info("Checking the active event. Please try again in a moment.");
+      return;
+    }
+    const block = activeRallyQuery.isError
+      ? {
+          title: "Couldn't check the active event",
+          description:
+            "Teams can only be created while an event's registration is open. Please refresh and try again.",
+        }
+      : getTeamCreationBlock(activeRallyQuery.data?.data);
+    if (block) {
+      toast.error(block.title, { description: block.description });
+      return;
+    }
+
     const cat = categoryByKey.get(values.category);
     const navId = needsNavigator(cat)
       ? navigatorId || undefined

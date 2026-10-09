@@ -231,3 +231,44 @@ export function getRegistrationWindowMessage(
     description: `Registration dates for ${rallyLabel} are not available yet. Please check back later or contact support.`,
   };
 }
+
+/**
+ * Teams can only be created while the active rally's registration window is open.
+ * Returns null when creation is allowed, otherwise the toast copy explaining why not.
+ */
+export function getTeamCreationBlock(
+  event: RallyEvent | null | undefined,
+  now = new Date(),
+): { title: string; description: string } | null {
+  if (!event) {
+    return {
+      title: "No active event",
+      description:
+        "Teams can only be created while an event's registration is open. Please check back once the next event is announced.",
+    };
+  }
+
+  const window = getRegistrationWindow(event, now);
+  const rallyLabel = event.name?.trim() || "this rally";
+
+  if (window.status === "open") return null;
+
+  if (window.status === "not_started") {
+    return {
+      title: "Team creation hasn't opened yet",
+      description: `You can create a team for ${rallyLabel} once registration opens on ${formatRegistrationDate(window.startIso)}.`,
+    };
+  }
+
+  if (window.status === "closed") {
+    return {
+      title: "Team creation is closed",
+      description: `Registration for ${rallyLabel} ended on ${formatRegistrationDate(window.endIso)}, so new teams can no longer be created.`,
+    };
+  }
+
+  return {
+    title: "Team creation unavailable",
+    description: `Registration dates for ${rallyLabel} are not available yet, so teams can't be created. Please check back later.`,
+  };
+}

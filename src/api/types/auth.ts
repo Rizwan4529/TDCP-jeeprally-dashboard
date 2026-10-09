@@ -18,8 +18,10 @@ export type UpdateProfilePayload = {
   date_of_birth?: string
   occupation?: string
   profile_image?: File
-  cnic_image?: File
-  license_image?: File
+  cnic_front_image?: File
+  cnic_back_image?: File
+  license_front_image?: File
+  license_back_image?: File
 }
 
 export type UpdateProfileResponse = {
@@ -56,8 +58,10 @@ export type LoginUser = {
   date_of_birth: string
   occupation: string
   profile_image: string | null
-  cnic_image: string | null
-  license_image: string | null
+  cnic_front_image?: string | null
+  cnic_back_image?: string | null
+  license_front_image?: string | null
+  license_back_image?: string | null
   role: string
   is_verified: boolean
   created_at: string

@@ -1,3 +1,4 @@
+import axios from "axios";
 import { apiClient } from "@/api/client";
 import type {
   LoginRequest,
@@ -54,20 +55,31 @@ export async function updateMyProfile(
   const formData = new FormData();
   appendUpdateProfileToFormData(formData, payload);
 
-  const { data } = await apiClient.put<UpdateProfileResponse>("/auth/me", formData, {
-    headers: {
-      "Content-Type": "multipart/form-data",
-    },
-    transformRequest: [
-      (body, headers) => {
-        if (body instanceof FormData && headers) {
-          delete headers["Content-Type"];
-        }
-        return body;
+  try {
+    const { data } = await apiClient.put<UpdateProfileResponse>("/auth/me", formData, {
+      headers: {
+        "Content-Type": "multipart/form-data",
       },
-    ],
-  });
-  return data;
+      transformRequest: [
+        (body, headers) => {
+          if (body instanceof FormData && headers) {
+            delete headers["Content-Type"];
+          }
+          return body;
+        },
+      ],
+    });
+    return data;
+  } catch (err) {
+    // Surface the backend's validation message (e.g. a missing document) to the form.
+    if (axios.isAxiosError(err)) {
+      const body = err.response?.data as { message?: unknown } | undefined;
+      if (typeof body?.message === "string" && body.message.trim()) {
+        throw new Error(body.message, { cause: err });
+      }
+    }
+    throw err;
+  }
 }
 
 export async function loginUser(

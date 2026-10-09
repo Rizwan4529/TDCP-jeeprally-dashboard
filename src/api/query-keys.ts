@@ -18,6 +18,10 @@ export const queryKeys = {
     /** @deprecated use myTeams */
     myTeam: () => [...queryKeys.teams.all, "my-teams"] as const,
   },
+  teamInvites: {
+    all: ["team-invites"] as const,
+    mine: () => [...queryKeys.teamInvites.all, "mine"] as const,
+  },
   vehicles: {
     all: ["vehicles"] as const,
     myVehicles: () => [...queryKeys.vehicles.all, "my-vehicles"] as const,

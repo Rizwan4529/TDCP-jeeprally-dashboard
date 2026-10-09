@@ -2,6 +2,8 @@
 export type CreateRegistrationPayload = {
   team_id: string;
   event_id: string;
+  /** Type of the selected category (category.typeId). */
+  type_id: string;
   category_id: string;
   vehicle_id: string;
   navigator_id?: string;

@@ -1,3 +1,4 @@
+import { coDriverFromTeam } from "@/utils/team-form";
 import type {
   DriverRegistration,
   RegistrationCategory,
@@ -40,8 +41,8 @@ export function resolveRegistrationTeam(
     driver_id: team.driver_id
       ? toRegistrationPerson(team.driver_id)
       : null,
-    navigator_id: team.navigator_id
-      ? toRegistrationPerson(team.navigator_id)
+    navigator_id: coDriverFromTeam(team)
+      ? toRegistrationPerson(coDriverFromTeam(team)!)
       : null,
     member_ids: team.member_ids.map(toRegistrationPerson),
   };

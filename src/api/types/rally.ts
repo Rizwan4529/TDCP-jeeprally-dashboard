@@ -12,11 +12,29 @@ export type RallyEventCategory = {
   __v?: number;
 };
 
+/** Vehicle type (e.g. 4x4, Bike) offered by a rally. */
+export type RallyType = {
+  _id: string;
+  name: string;
+  key: string;
+  image?: string | null;
+  description?: string | null;
+  status?: string;
+};
+
+/** Category as embedded in the active rally, linked to its vehicle type. */
+export type RallyTeamCategory = RallyEventCategory & {
+  typeId?: RallyType | string | null;
+  status?: string;
+};
+
 export type RallyEvent = {
   _id: string;
   name: string;
   edition_number: number;
   category?: RallyEventCategory | string;
+  categories?: RallyTeamCategory[];
+  types?: RallyType[];
   date?: string;
   end_date?: string;
   registration_start_date?: string;
@@ -89,6 +107,7 @@ export type RallyPricingCategory = {
   consent_document?: string | null;
   isSigned?: boolean;
   route_id?: string | null;
+  typeId?: RallyType | string | null;
   members?: unknown[];
   created_at?: string;
   updated_at?: string;

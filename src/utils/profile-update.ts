@@ -15,12 +15,20 @@ export function normDateForProfile(value: string | null | undefined): string {
   return value.trim();
 }
 
+/** Profile photos/documents; each must be saved on the account or uploaded. */
+export const PROFILE_IMAGE_FIELDS = [
+  { key: "profile_image", label: "Driver's image" },
+  { key: "cnic_front_image", label: "CNIC (front)" },
+  { key: "cnic_back_image", label: "CNIC (back)" },
+  { key: "license_front_image", label: "Driving license (front)" },
+  { key: "license_back_image", label: "Driving license (back)" },
+] as const;
+
+export type ProfileImageField = (typeof PROFILE_IMAGE_FIELDS)[number]["key"];
+
 function setTextIfChanged(
   payload: UpdateProfilePayload,
-  key: keyof Omit<
-    UpdateProfilePayload,
-    "profile_image" | "cnic_image" | "license_image"
-  >,
+  key: keyof Omit<UpdateProfilePayload, ProfileImageField>,
   next: string,
   prev: string,
 ) {
@@ -98,14 +106,11 @@ export function buildUpdateProfilePayload(
     );
   }
 
-  if (values.profile_image instanceof File) {
-    payload.profile_image = values.profile_image;
-  }
-  if (values.cnic_image instanceof File) {
-    payload.cnic_image = values.cnic_image;
-  }
-  if (values.license_image instanceof File) {
-    payload.license_image = values.license_image;
+  for (const { key } of PROFILE_IMAGE_FIELDS) {
+    const file = values[key];
+    if (file instanceof File) {
+      payload[key] = file;
+    }
   }
 
   return payload;
@@ -136,14 +141,11 @@ export function appendUpdateProfileToFormData(
     }
   }
 
-  if (payload.profile_image instanceof File) {
-    formData.append("profile_image", payload.profile_image);
-  }
-  if (payload.cnic_image instanceof File) {
-    formData.append("cnic_image", payload.cnic_image);
-  }
-  if (payload.license_image instanceof File) {
-    formData.append("license_image", payload.license_image);
+  for (const { key } of PROFILE_IMAGE_FIELDS) {
+    const file = payload[key];
+    if (file instanceof File) {
+      formData.append(key, file);
+    }
   }
 }
 
@@ -165,9 +167,16 @@ export function hasUpdateProfileChanges(payload: UpdateProfilePayload): boolean 
   if (textKeys.some((k) => payload[k] !== undefined)) {
     return true;
   }
-  return (
-    payload.profile_image instanceof File ||
-    payload.cnic_image instanceof File ||
-    payload.license_image instanceof File
-  );
+  return PROFILE_IMAGE_FIELDS.some(({ key }) => payload[key] instanceof File);
+}
+
+/** Labels of required images that are neither saved nor newly selected. */
+export function getMissingProfileImages(
+  values: Pick<ProfileUpdateValues, ProfileImageField>,
+  previous: Partial<Record<ProfileImageField, string | null>> | null,
+): { key: ProfileImageField; label: string }[] {
+  return PROFILE_IMAGE_FIELDS.filter(({ key }) => {
+    if (values[key] instanceof File) return false;
+    return !normText(previous?.[key]);
+  });
 }

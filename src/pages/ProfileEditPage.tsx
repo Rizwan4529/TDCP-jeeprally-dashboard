@@ -28,7 +28,9 @@ import { toDateOnlyInputValue, toPublicFileUrl } from "@/utils/helpers";
 import { sessionToProfileDriver } from "@/utils/profile-driver";
 import {
   buildUpdateProfilePayload,
+  getMissingProfileImages,
   hasUpdateProfileChanges,
+  PROFILE_IMAGE_FIELDS,
 } from "@/utils/profile-update";
 import {
   profileUpdateSchema,
@@ -55,8 +57,10 @@ const profileFormDefaults: ProfileUpdateValues = {
   date_of_birth: "",
   occupation: "",
   profile_image: null,
-  cnic_image: null,
-  license_image: null,
+  cnic_front_image: null,
+  cnic_back_image: null,
+  license_front_image: null,
+  license_back_image: null,
 };
 
 const profileFieldClassName =
@@ -96,8 +100,10 @@ function ProfileEditScreen() {
           date_of_birth: toDateOnlyInputValue(driver.date_of_birth),
           occupation: driver.occupation ?? "",
           profile_image: null,
-          cnic_image: null,
-          license_image: null,
+          cnic_front_image: null,
+          cnic_back_image: null,
+          license_front_image: null,
+          license_back_image: null,
         }
       : undefined,
   });
@@ -105,6 +111,17 @@ function ProfileEditScreen() {
   const onSubmitDriverProfile: SubmitHandler<ProfileUpdateValues> = async (
     values,
   ) => {
+    const missingImages = getMissingProfileImages(values, sessionUser ?? null);
+    if (missingImages.length > 0) {
+      for (const { key, label } of missingImages) {
+        driverForm.setError(key, { message: `${label} is required` });
+      }
+      toast.error("Please upload all required documents", {
+        description: `Missing: ${missingImages.map((m) => m.label).join(", ")}`,
+      });
+      return;
+    }
+
     const payload = buildUpdateProfilePayload(values, sessionUser ?? null);
     if (!hasUpdateProfileChanges(payload)) {
       toast.message("No changes to save.");
@@ -261,47 +278,25 @@ function ProfileEditScreen() {
                       variant="body-sm"
                       className="mt-1 text-[#6B7890]"
                     >
-                      Preview shows what is saved on your account. Upload only
-                      when you need to replace a file.
+                      All five images are required. Preview shows what is saved
+                      on your account; upload to add a missing file or replace one.
                     </Typography>
                   </div>
                   <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                    <ImagePicker
-                      control={driverForm.control}
-                      name="profile_image"
-                      label="Driver's image"
-                      accept="image/jpeg,image/jpg,image/png,image/gif"
-                      variant="profile-document"
-                      existingImageUrl={toPublicFileUrl(
-                        driver?.profile_image ?? null,
-                      )}
-                      helperText="JPG, PNG, GIF"
-                      itemClassName="gap-2"
-                    />
-                    <ImagePicker
-                      control={driverForm.control}
-                      name="cnic_image"
-                      label="Driver's CNIC"
-                      accept="image/jpeg,image/jpg,image/png,image/gif"
-                      variant="profile-document"
-                      existingImageUrl={toPublicFileUrl(
-                        driver?.cnic_image ?? null,
-                      )}
-                      helperText="JPG, PNG, GIF"
-                      itemClassName="gap-2"
-                    />
-                    <ImagePicker
-                      control={driverForm.control}
-                      name="license_image"
-                      label="Driver's license"
-                      accept="image/jpeg,image/jpg,image/png,image/gif"
-                      variant="profile-document"
-                      existingImageUrl={toPublicFileUrl(
-                        driver?.license_image ?? null,
-                      )}
-                      helperText="JPG, PNG, GIF"
-                      itemClassName="gap-2 sm:col-span-2 lg:col-span-1"
-                    />
+                    {PROFILE_IMAGE_FIELDS.map(({ key, label }) => (
+                      <ImagePicker
+                        key={key}
+                        control={driverForm.control}
+                        name={key}
+                        label={label}
+                        required
+                        accept="image/jpeg,image/jpg,image/png,image/gif"
+                        variant="profile-document"
+                        existingImageUrl={toPublicFileUrl(driver?.[key] ?? null)}
+                        helperText="JPG, PNG, GIF"
+                        itemClassName="gap-2"
+                      />
+                    ))}
                   </div>
                 </div>
                 <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">

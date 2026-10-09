@@ -4,7 +4,11 @@ export function needsRosterMembers(cat: CategoryRecord | undefined): boolean {
   return (cat?.max_members ?? 0) > 0;
 }
 
-export function needsNavigator(cat: CategoryRecord | undefined): boolean {
+export function needsNavigator(
+  cat: Pick<CategoryRecord, "navigator_allowed" | "max_members"> | Partial<
+    Pick<CategoryRecord, "navigator_allowed" | "max_members">
+  > | undefined,
+): boolean {
   return Boolean(cat?.navigator_allowed && (cat?.max_members ?? 0) > 0);
 }
 

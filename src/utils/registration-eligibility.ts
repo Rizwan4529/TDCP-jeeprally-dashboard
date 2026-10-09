@@ -1,7 +1,18 @@
 import type { LoginUser } from "@/api/types/auth";
 import type { CategoryRecord } from "@/api/types/categories";
 import type { Team } from "@/api/types/teams";
-import type { TeamRosterValidationResult } from "@/utils/team-roster-rules";
+import { refId } from "@/utils/rally-team-options";
+import { coDriverFromTeam } from "@/utils/team-form";
+import {
+  needsNavigator,
+  type TeamRosterValidationResult,
+} from "@/utils/team-roster-rules";
+import {
+  PROFILE_IMAGE_FIELDS,
+  type ProfileImageField,
+} from "@/utils/profile-update";
+
+const PROFILE_IMAGE_KEYS = new Set<string>(PROFILE_IMAGE_FIELDS.map((f) => f.key));
 
 function hasText(value: string | number | null | undefined): boolean {
   if (value == null) return false;
@@ -24,17 +35,15 @@ const PROFILE_FIELD_LABELS: { key: keyof LoginUser | "email"; label: string }[] 
   { key: "email", label: "Email" },
   { key: "date_of_birth", label: "Date of birth" },
   { key: "occupation", label: "Occupation" },
-  { key: "profile_image", label: "Driver's image" },
-  { key: "cnic_image", label: "Driver's CNIC" },
-  { key: "license_image", label: "Driver's license image" },
+  ...PROFILE_IMAGE_FIELDS,
 ];
 
 export function getCompetitorProfileGaps(user: LoginUser): string[] {
   const gaps: string[] = [];
 
   for (const { key, label } of PROFILE_FIELD_LABELS) {
-    if (key === "profile_image" || key === "cnic_image" || key === "license_image") {
-      if (!hasUploadedFile(user[key])) gaps.push(label);
+    if (PROFILE_IMAGE_KEYS.has(key)) {
+      if (!hasUploadedFile(user[key as ProfileImageField])) gaps.push(label);
     } else if (key === "age") {
       if (!hasText(user.age)) gaps.push(label);
     } else {
@@ -52,62 +61,101 @@ export function isCompetitorProfileComplete(user: LoginUser | null | undefined):
   return getCompetitorProfileGaps(user).length === 0;
 }
 
-export function getTeamMemberIds(team: Team): string[] {
-  return (team.member_ids ?? []).map((m) => m._id);
+/** Everyone on the team besides the driver: the co-driver plus any extra members. */
+function getTeamMates(team: Team): { _id: string; name: string }[] {
+  const driverId = team.driver_id?._id;
+  const byId = new Map<string, { _id: string; name: string }>();
+  const coDriver = coDriverFromTeam(team);
+  if (coDriver?._id) byId.set(coDriver._id, coDriver);
+  for (const member of team.member_ids ?? []) {
+    if (member?._id && !byId.has(member._id)) byId.set(member._id, member);
+  }
+  if (driverId) byId.delete(driverId);
+  return [...byId.values()];
 }
 
-/** Registration-only: full roster required when max_members > 0. */
+/** Team-mate ids (co-driver included), excluding the driver. */
+export function getTeamMemberIds(team: Team): string[] {
+  return getTeamMates(team).map((m) => m._id);
+}
+
+export function getTeamMemberNames(team: Team): string[] {
+  return getTeamMates(team).map((m) => m.name);
+}
+
+/** Teams store the category as a key (legacy) or as the rally category id. */
+export function teamMatchesCategory(
+  team: Team,
+  category: { _id?: string; key?: string } | undefined,
+): boolean {
+  if (!category) return false;
+  const value = String(team.category ?? "");
+  return Boolean(value) && (value === category.key || value === category._id);
+}
+
+/** Legacy teams have no event; new teams must belong to the given event. */
+export function teamBelongsToEvent(team: Team, eventId: string | undefined): boolean {
+  const teamEventId = refId(team.event_id);
+  return !teamEventId || !eventId || teamEventId === eventId;
+}
+
+/**
+ * Profile gaps for a co-driver, judged on the profile fields the teams API
+ * actually returns for them (fields it doesn't send can't be verified here).
+ */
+export function getCoDriverProfileGaps(person: object): string[] {
+  const record = person as Record<string, unknown>;
+  const gaps: string[] = [];
+  for (const { key, label } of PROFILE_FIELD_LABELS) {
+    if (!(key in record)) continue;
+    const value = record[key];
+    if (typeof value === "number") continue;
+    if (typeof value !== "string" || !value.trim()) gaps.push(label);
+  }
+  return gaps;
+}
+
+/** Registration-only: checks the team's co-driver and roster against the category. */
 export function validateTeamForRegistration(
   cat: CategoryRecord | undefined,
-  memberIds: string[],
-  navigatorId: string | undefined,
+  team: Team,
 ): TeamRosterValidationResult {
   if (!cat) {
     return { ok: false, message: "Select a category." };
   }
 
+  const coDriver = coDriverFromTeam(team);
+  const mates = getTeamMemberIds(team);
+
+  if (needsNavigator(cat)) {
+    if (!coDriver) {
+      return {
+        ok: false,
+        message: `${team.team_name} has no co-driver yet. Invite one from the Teams page. They need to accept before you can register.`,
+      };
+    }
+    const gaps = getCoDriverProfileGaps(coDriver);
+    if (gaps.length > 0) {
+      return {
+        ok: false,
+        message: `Your co-driver ${coDriver.name} must complete their profile before you can register (missing: ${gaps.join(", ")}).`,
+      };
+    }
+  } else if (coDriver) {
+    return {
+      ok: false,
+      message: `${cat.title} doesn't allow a navigator, but ${team.team_name} has a co-driver. Choose a team without one.`,
+    };
+  }
+
+  // max_members may or may not count the driver, so allow whichever is larger.
   const max = cat.max_members ?? 0;
-
-  if (max === 0) {
-    if (memberIds.length > 0) {
-      return { ok: false, message: "This category does not allow team members." };
-    }
-    if (navigatorId) {
-      return { ok: false, message: "This category does not allow a navigator." };
-    }
-    return { ok: true };
-  }
-
-  if (memberIds.length < max) {
-    const missing = max - memberIds.length;
+  const allowedMates = Math.max(max - 1, needsNavigator(cat) ? 1 : 0);
+  if (mates.length > allowedMates) {
     return {
       ok: false,
-      message: `This team needs ${max} member${max === 1 ? "" : "s"} for ${cat.title} (${missing} more required). Update the team on the Teams page.`,
+      message: `${team.team_name} has too many members for ${cat.title} (maximum ${allowedMates} besides you). Update the team on the Teams page.`,
     };
-  }
-
-  if (memberIds.length > max) {
-    return {
-      ok: false,
-      message: `This team has too many members (maximum ${max} for ${cat.title}). Update the team on the Teams page.`,
-    };
-  }
-
-  if (cat.navigator_allowed) {
-    if (!navigatorId) {
-      return {
-        ok: false,
-        message: "This team must have a navigator assigned. Update the team on the Teams page.",
-      };
-    }
-    if (!memberIds.includes(navigatorId)) {
-      return {
-        ok: false,
-        message: "Navigator must be one of the team's members.",
-      };
-    }
-  } else if (navigatorId) {
-    return { ok: false, message: "This category does not allow a navigator." };
   }
 
   return { ok: true };

@@ -4,6 +4,7 @@ import { useForm, type SubmitHandler } from "react-hook-form";
 import { useLocation } from "react-router-dom";
 import {
   CompassIcon,
+  MailIcon,
   PlusIcon,
   Trash2Icon,
   UserPlusIcon,
@@ -56,6 +57,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useActiveRallyQuery } from "@/hooks/api/use-active-rally";
 import { useCategoriesQuery } from "@/hooks/api/use-categories";
 import {
   getTeamMemberErrorMessage,
@@ -67,23 +69,31 @@ import {
 import {
   useCreateTeamMutation,
   useDeleteTeamMutation,
+  useInviteCoDriverMutation,
   useMyTeamsQuery,
   useUpdateTeamMutation,
 } from "@/hooks/api/use-teams";
 import type { TeamMember } from "@/api/types/team-members";
 import type { Team } from "@/api/types/teams";
 import { cn } from "@/lib/utils";
-import {
-  CATEGORY_LABELS,
-  type Category,
-} from "@/utils/constants";
+import { CATEGORY_LABELS, type Category } from "@/utils/constants";
 import { fetchAuthToken, toDateOnlyInputValue } from "@/utils/helpers";
+import { getRallyEventId, getTeamCreationBlock } from "@/utils/rally-event";
+import { getTeamMemberIds } from "@/utils/registration-eligibility";
+import {
+  findRallyCategory,
+  findRallyType,
+  getCategoryTypeId,
+  getRallyCategoriesForType,
+  getRallyTypes,
+  refId,
+} from "@/utils/rally-team-options";
 import { buildCategoryMap, needsNavigator } from "@/utils/team-roster-rules";
 import {
-  buildCreateTeamPayload,
-  buildUpdateTeamPayload,
+  buildCreateTeamWithInvitePayload,
+  buildTeamDetailsUpdatePayload,
+  coDriverFromTeam,
   emptyTeamFormValues,
-  selectedMembersForTeamForm,
   teamFormSchema,
   teamToFormValues,
   type TeamFormValues,
@@ -120,8 +130,7 @@ function TeamsScreen() {
       ? "teams"
       : "roster";
   const [pageTab, setPageTab] = React.useState<PageTab>(initialTab);
-  const activeTab =
-    TEAMS_NAV.find((t) => t.label === pageTab) ?? TEAMS_NAV[0];
+  const activeTab = TEAMS_NAV.find((t) => t.label === pageTab) ?? TEAMS_NAV[0];
 
   React.useEffect(() => {
     const tab = (location.state as { tab?: PageTab } | null)?.tab;
@@ -391,17 +400,27 @@ function RosterSection({ token }: { token: boolean }) {
                       className="border-white/40 data-[state=checked]:bg-white data-[state=checked]:text-primary"
                     />
                   </TeamsDataTableHead>
-                  <TeamsDataTableHead className="w-[12%]">Name</TeamsDataTableHead>
-                  <TeamsDataTableHead className="w-[16%]">Email</TeamsDataTableHead>
-                  <TeamsDataTableHead className="w-[11%]">Contact</TeamsDataTableHead>
-                  <TeamsDataTableHead className="w-[11%]">CNIC</TeamsDataTableHead>
+                  <TeamsDataTableHead className="w-[12%]">
+                    Name
+                  </TeamsDataTableHead>
+                  <TeamsDataTableHead className="w-[16%]">
+                    Email
+                  </TeamsDataTableHead>
+                  <TeamsDataTableHead className="w-[11%]">
+                    Contact
+                  </TeamsDataTableHead>
+                  <TeamsDataTableHead className="w-[11%]">
+                    CNIC
+                  </TeamsDataTableHead>
                   <TeamsDataTableHead className="w-[10%]">
                     Date of birth
                   </TeamsDataTableHead>
                   <TeamsDataTableHead className="w-[10%]">
                     Navigator
                   </TeamsDataTableHead>
-                  <TeamsDataTableHead className="w-[14%]">Teams</TeamsDataTableHead>
+                  <TeamsDataTableHead className="w-[14%]">
+                    Teams
+                  </TeamsDataTableHead>
                   <TeamsDataTableHead className="w-24 text-right">
                     <div className="flex items-center justify-end gap-1">
                       <span>Actions</span>
@@ -507,9 +526,7 @@ function RosterSection({ token }: { token: boolean }) {
                                     toast.success("User removed.");
                                     if (editingId === m._id) closeDialog();
                                   } catch (err) {
-                                    toast.error(
-                                      getTeamMemberErrorMessage(err),
-                                    );
+                                    toast.error(getTeamMemberErrorMessage(err));
                                   }
                                 })();
                               }}
@@ -640,7 +657,9 @@ function RosterSection({ token }: { token: boolean }) {
 function MyTeamsSection({ token }: { token: boolean }) {
   const categoriesQuery = useCategoriesQuery(token);
   const teamsQuery = useMyTeamsQuery(token);
-  const membersQuery = useTeamMembersQuery(token);
+  const activeRallyQuery = useActiveRallyQuery(token);
+  const activeRally = activeRallyQuery.data?.data ?? null;
+  const activeEventId = getRallyEventId(activeRally);
 
   const categories = React.useMemo(
     () =>
@@ -649,36 +668,31 @@ function MyTeamsSection({ token }: { token: boolean }) {
         : [],
     [categoriesQuery.data?.data],
   );
-  const categoryByKey = React.useMemo(
+  const legacyCategoryByKey = React.useMemo(
     () => buildCategoryMap(categories),
     [categories],
   );
-  const categoryOptions = React.useMemo(
-    () =>
-      categories.map((c) => ({
-        label: c.title,
-        value: c.key,
-      })),
-    [categories],
+  /** Looks a team's category up by rally id/key first, then legacy key. */
+  const lookupCategory = React.useCallback(
+    (value: string | undefined) =>
+      findRallyCategory(activeRally, value) ??
+      (value ? legacyCategoryByKey.get(value) : undefined),
+    [activeRally, legacyCategoryByKey],
+  );
+
+  const rallyTypes = React.useMemo(() => getRallyTypes(activeRally), [activeRally]);
+  const typeOptions = React.useMemo(
+    () => rallyTypes.map((t) => ({ label: t.name, value: t._id })),
+    [rallyTypes],
   );
 
   const teams = Array.isArray(teamsQuery.data?.data)
     ? teamsQuery.data.data
     : [];
-  const members = Array.isArray(membersQuery.data?.data)
-    ? membersQuery.data.data
-    : [];
-  const navigatorOptions = React.useMemo(
-    () =>
-      members.map((m) => ({
-        label: m.name?.trim() || m.email || "User",
-        value: m._id,
-      })),
-    [members],
-  );
 
   const createMutation = useCreateTeamMutation();
   const updateMutation = useUpdateTeamMutation();
+  const inviteMutation = useInviteCoDriverMutation();
   const deleteMutation = useDeleteTeamMutation();
 
   const isLoading = categoriesQuery.isLoading || teamsQuery.isLoading;
@@ -691,20 +705,51 @@ function MyTeamsSection({ token }: { token: boolean }) {
     defaultValues: emptyTeamFormValues,
   });
 
-  const selectedCategoryKey = form.watch("category");
-  const selectedCategory = categoryByKey.get(selectedCategoryKey);
-  const showNavigatorField = needsNavigator(selectedCategory);
-  const watchedNavigatorId = form.watch("navigator_id") ?? "";
+  const selectedTypeId = form.watch("type") ?? "";
+  const selectedCategoryValue = form.watch("category");
+  const selectedCategory = lookupCategory(selectedCategoryValue);
+  const showCoDriverField = needsNavigator(selectedCategory);
 
   const isEdit = Boolean(editingTeam);
-  const isSaving = createMutation.isPending || updateMutation.isPending;
+  const editingCoDriver = editingTeam ? coDriverFromTeam(editingTeam) : null;
+
+  /** Editing a team whose category isn't in the active rally: keep it selectable. */
+  const legacyCategoryOption = React.useMemo(() => {
+    if (!editingTeam || findRallyCategory(activeRally, editingTeam.category)) {
+      return null;
+    }
+    return {
+      label: lookupCategory(editingTeam.category)?.title ?? editingTeam.category,
+      value: editingTeam.category,
+    };
+  }, [editingTeam, activeRally, lookupCategory]);
+
+  const categoryOptions = React.useMemo(() => {
+    const options = getRallyCategoriesForType(activeRally, selectedTypeId).map(
+      (c) => ({ label: c.title, value: c._id }),
+    );
+    return legacyCategoryOption ? [...options, legacyCategoryOption] : options;
+  }, [activeRally, selectedTypeId, legacyCategoryOption]);
+
+  // Changing the type clears a category that doesn't belong to it.
+  React.useEffect(() => {
+    if (!dialogOpen) return;
+    const current = form.getValues("category");
+    if (current && !categoryOptions.some((o) => o.value === current)) {
+      form.setValue("category", "");
+    }
+  }, [dialogOpen, categoryOptions, form]);
+  const isSaving =
+    createMutation.isPending ||
+    updateMutation.isPending ||
+    inviteMutation.isPending;
 
   const filteredTeams = React.useMemo(() => {
     const q = search.trim().toLowerCase();
     if (!q) return teams;
     return teams.filter((t) => {
       const catTitle =
-        categoryByKey.get(t.category)?.title ??
+        lookupCategory(t.category)?.title ??
         CATEGORY_LABELS[t.category as Category] ??
         t.category;
       const haystack = [
@@ -712,39 +757,67 @@ function MyTeamsSection({ token }: { token: boolean }) {
         String(t.team_number),
         t.category,
         catTitle,
-        t.navigator_id?.name,
+        coDriverFromTeam(t)?.name,
       ]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
       return haystack.includes(q);
     });
-  }, [teams, search, categoryByKey]);
+  }, [teams, search, lookupCategory]);
 
-  React.useEffect(() => {
-    if (!dialogOpen) return;
-    if (!showNavigatorField) {
-      form.setValue("navigator_id", "");
-      return;
+  /** Toasts and returns false when a team can't be created right now. */
+  const ensureTeamCreationAllowed = (): boolean => {
+    if (activeRallyQuery.isPending) {
+      toast.info("Checking the active event. Please try again in a moment.");
+      return false;
     }
-    const current = form.getValues("navigator_id") ?? "";
-    if (current && navigatorOptions.some((o) => o.value === current)) return;
-    form.setValue("navigator_id", navigatorOptions[0]?.value ?? "");
-  }, [dialogOpen, showNavigatorField, navigatorOptions, form]);
+    if (activeRallyQuery.isError) {
+      toast.error("Couldn't check the active event", {
+        description:
+          "Teams can only be created while an event's registration is open. Please refresh and try again.",
+      });
+      return false;
+    }
+    // Re-evaluated on every click so a window that closes mid-session is respected.
+    const block = getTeamCreationBlock(activeRally);
+    if (block) {
+      toast.error(block.title, { description: block.description });
+      return false;
+    }
+    if (rallyTypes.length === 0) {
+      toast.error("No vehicle types available", {
+        description: `${activeRally?.name ?? "The active event"} has no vehicle types or categories open for teams yet.`,
+      });
+      return false;
+    }
+    return true;
+  };
+
+  const teamCreationBlocked =
+    !activeRallyQuery.isPending &&
+    (activeRallyQuery.isError || Boolean(getTeamCreationBlock(activeRally)));
 
   const openNew = () => {
+    if (!ensureTeamCreationAllowed()) return;
     setEditingTeam(null);
     form.reset({
       ...emptyTeamFormValues,
-      category: categories[0]?.key ?? "",
-      navigator_id: "",
+      type: rallyTypes.length === 1 ? rallyTypes[0]._id : "",
     });
     setDialogOpen(true);
   };
 
   const openEdit = (team: Team) => {
+    const rallyCategory = findRallyCategory(activeRally, team.category);
     setEditingTeam(team);
-    form.reset(teamToFormValues(team));
+    form.reset({
+      ...teamToFormValues(team),
+      type:
+        findRallyType(activeRally, refId(team.type))?._id ||
+        (rallyCategory ? getCategoryTypeId(rallyCategory) : ""),
+      category: rallyCategory?._id ?? team.category,
+    });
     setDialogOpen(true);
   };
 
@@ -763,63 +836,61 @@ function MyTeamsSection({ token }: { token: boolean }) {
   };
 
   const onSubmitTeam: SubmitHandler<TeamFormValues> = async (values) => {
-    const cat = categoryByKey.get(values.category);
-    const requiresNavigator = needsNavigator(cat);
-    const navigatorId = values.navigator_id?.trim() || "";
+    if (!isEdit && !values.type?.trim()) {
+      form.setError("type", { message: "Select a vehicle type." });
+      return;
+    }
+    const cat = lookupCategory(values.category);
+    const requiresCoDriver = needsNavigator(cat);
+    const coDriverEmail = requiresCoDriver
+      ? values.co_driver_email?.trim() || ""
+      : "";
+    const valuesToSave = { ...values, co_driver_email: coDriverEmail };
 
-    if (requiresNavigator) {
-      if (!navigatorId) {
-        toast.error(
-          members.length === 0
-            ? "Add a user on the Users tab first, then select them as navigator."
-            : "Select a navigator for this category.",
-        );
-        return;
-      }
-      if (!members.some((m) => m._id === navigatorId)) {
-        toast.error("Selected navigator is invalid.");
-        return;
-      }
+    if (!isEdit && !ensureTeamCreationAllowed()) return;
+
+    if (!isEdit && requiresCoDriver && !coDriverEmail) {
+      form.setError("co_driver_email", {
+        message: "Enter your co-driver's email to invite them.",
+      });
+      return;
     }
 
     try {
       if (isEdit && editingTeam) {
-        const { memberIds } = selectedMembersForTeamForm(editingTeam);
-        const maxMembers = cat?.max_members ?? 0;
-        let nextMembers = [...memberIds];
-        let nextNavigator: string | null = null;
-
-        if (requiresNavigator) {
-          nextNavigator = navigatorId;
-          if (!nextMembers.includes(navigatorId)) {
-            if (nextMembers.length >= maxMembers) {
-              toast.error(
-                `This team already has the maximum of ${maxMembers} member${maxMembers === 1 ? "" : "s"}. Remove a member before assigning a different navigator.`,
-              );
-              return;
-            }
-            nextMembers = [...nextMembers, navigatorId];
-          }
-        }
-
         await updateMutation.mutateAsync({
           id: editingTeam._id,
-          payload: buildUpdateTeamPayload(values, nextMembers, nextNavigator),
+          payload: buildTeamDetailsUpdatePayload(valuesToSave),
         });
-        toast.success("Team updated.");
+        if (coDriverEmail && !editingCoDriver) {
+          try {
+            await inviteMutation.mutateAsync({
+              teamId: editingTeam._id,
+              payload: { co_driver_email: coDriverEmail },
+            });
+          } catch (err) {
+            // Details saved; keep the dialog open so the email can be fixed.
+            toast.success("Team updated.");
+            form.setError("co_driver_email", {
+              message:
+                err instanceof Error ? err.message : "Could not send invite.",
+            });
+            return;
+          }
+          toast.success(
+            `Team updated. Invite sent to ${coDriverEmail}. They become co-driver once they accept.`,
+          );
+        } else {
+          toast.success("Team updated.");
+        }
       } else {
-        const memberIds = requiresNavigator ? [navigatorId] : [];
         await createMutation.mutateAsync(
-          buildCreateTeamPayload(
-            values,
-            memberIds,
-            requiresNavigator ? navigatorId : undefined,
-          ),
+          buildCreateTeamWithInvitePayload(valuesToSave, activeEventId),
         );
         toast.success(
-          requiresNavigator
-            ? "Team created with navigator. Add more members from the Users tab if needed."
-            : "Team created. Add members from the Users tab.",
+          coDriverEmail
+            ? `Team created. Invite sent to ${coDriverEmail}. They become co-driver once they accept.`
+            : "Team created.",
         );
       }
       closeDialog();
@@ -838,9 +909,10 @@ function MyTeamsSection({ token }: { token: boolean }) {
           <Button
             type="button"
             variant="primary-outline"
-            className="shrink-0"
+            className={cn("shrink-0", teamCreationBlocked && "opacity-60")}
             onClick={openNew}
-            disabled={!token || categories.length === 0}
+            disabled={!token}
+            aria-disabled={teamCreationBlocked || undefined}
           >
             <PlusIcon className="size-4" />
             Add team
@@ -867,8 +939,10 @@ function MyTeamsSection({ token }: { token: boolean }) {
             action={
               <Button
                 type="button"
+                className={cn(teamCreationBlocked && "opacity-60")}
                 onClick={openNew}
-                disabled={!token || categories.length === 0}
+                disabled={!token}
+                aria-disabled={teamCreationBlocked || undefined}
               >
                 <PlusIcon className="size-4" />
                 Create first team
@@ -890,7 +964,7 @@ function MyTeamsSection({ token }: { token: boolean }) {
                 <TeamsDataTableHead>Number</TeamsDataTableHead>
                 <TeamsDataTableHead>Category</TeamsDataTableHead>
                 <TeamsDataTableHead>Members</TeamsDataTableHead>
-                <TeamsDataTableHead>Navigator</TeamsDataTableHead>
+                <TeamsDataTableHead>Co-driver</TeamsDataTableHead>
                 <TeamsDataTableHead className="min-w-[96px] text-right">
                   Actions
                 </TeamsDataTableHead>
@@ -899,10 +973,13 @@ function MyTeamsSection({ token }: { token: boolean }) {
             <TeamsDataTableBody>
               {filteredTeams.map((t) => {
                 const catTitle =
-                  categoryByKey.get(t.category)?.title ??
+                  lookupCategory(t.category)?.title ??
                   CATEGORY_LABELS[t.category as Category] ??
                   t.category;
-                const memberCount = t.member_ids?.length ?? 0;
+                const memberCount = getTeamMemberIds(t).length;
+                const coDriver = coDriverFromTeam(t);
+                const awaitingCoDriver =
+                  !coDriver && needsNavigator(lookupCategory(t.category));
                 return (
                   <TableRow key={t._id}>
                     <TableCell className="px-4 font-semibold text-[#1F1838]">
@@ -925,9 +1002,13 @@ function MyTeamsSection({ token }: { token: boolean }) {
                       )}
                     </TableCell>
                     <TableCell className="px-4">
-                      {t.navigator_id?.name ? (
+                      {coDriver?.name ? (
                         <span className="font-medium text-[#1F1838]">
-                          {t.navigator_id.name}
+                          {coDriver.name}
+                        </span>
+                      ) : awaitingCoDriver ? (
+                        <span className="rounded-full border border-[#F0DFA8] bg-[#FFF8E8] px-2.5 py-1 text-xs font-medium text-[#9A6B00]">
+                          Not joined yet
                         </span>
                       ) : (
                         <span className="text-[#9AA6C8]">—</span>
@@ -968,8 +1049,8 @@ function MyTeamsSection({ token }: { token: boolean }) {
         headerTitle={isEdit ? "Edit team" : "Add team"}
         headerDescription={
           isEdit
-            ? "Update this team’s name, number, category, and navigator when required."
-            : "Create a team. Categories that require a navigator will ask you to pick one from your users."
+            ? "Update this team’s details, or invite a co-driver if it doesn’t have one yet."
+            : "Create a team. Categories that need a navigator ask you to invite a co-driver: a registered driver who joins once they accept."
         }
         className="sm:max-w-[520px]"
       >
@@ -988,42 +1069,67 @@ function MyTeamsSection({ token }: { token: boolean }) {
             required
             className={fieldClassName}
           />
-          {categoryOptions.length > 0 ? (
-            <Select
-              control={form.control}
-              name="category"
-              label="Category"
-              placeholder="Select category"
-              required
-              options={categoryOptions}
-              className={fieldClassName}
-            />
-          ) : (
-            <p className="text-sm text-[#6B7890]">No categories available.</p>
-          )}
+          <Select
+            control={form.control}
+            name="type"
+            label="Type"
+            placeholder="Select vehicle type"
+            required={!isEdit}
+            options={typeOptions}
+            className={fieldClassName}
+          />
+          <Select
+            control={form.control}
+            name="category"
+            label="Category"
+            placeholder={
+              selectedTypeId || legacyCategoryOption
+                ? "Select category"
+                : "Select a type first"
+            }
+            required
+            disabled={categoryOptions.length === 0}
+            options={categoryOptions}
+            className={fieldClassName}
+          />
+          {selectedTypeId && categoryOptions.length === 0 ? (
+            <p className="-mt-3 text-sm text-[#9A6B00]">
+              No categories are open for this type in the active event.
+            </p>
+          ) : null}
 
-          {showNavigatorField ? (
-            navigatorOptions.length > 0 ? (
-              <div className="space-y-1.5">
-                <Select
-                  control={form.control}
-                  name="navigator_id"
-                  label="Navigator"
-                  placeholder="Select navigator"
-                  required
-                  options={navigatorOptions}
-                  className={fieldClassName}
-                />
+          {showCoDriverField ? (
+            isEdit && editingCoDriver ? (
+              <div className="space-y-1 rounded-md border border-primary/20 bg-primary/5 p-3">
+                <Typography
+                  variant="body-sm"
+                  className="font-medium text-[#1F1838]"
+                >
+                  Co-driver: {editingCoDriver.name}
+                </Typography>
                 <Typography variant="body-sm" className="text-[#6B7890]">
-                  Required for this category. The navigator is also added as a
-                  team member.
+                  {editingCoDriver.email}
                 </Typography>
               </div>
             ) : (
-              <div className="rounded-md border border-[#F0DFA8] bg-[#FFF8E8] p-3">
-                <Typography variant="body-sm" className="text-[#9A6B00]">
-                  This category requires a navigator. Add a user on the Users
-                  tab first, then create the team.
+              <div className="space-y-1.5">
+                <Input
+                  control={form.control}
+                  name="co_driver_email"
+                  label={isEdit ? "Invite co-driver" : "Co-driver email"}
+                  type="email"
+                  placeholder="co-driver@example.com"
+                  required={!isEdit}
+                  className={fieldClassName}
+                />
+                <Typography
+                  variant="body-sm"
+                  className="flex items-start gap-1.5 text-[#6B7890]"
+                >
+                  <MailIcon className="mt-0.5 size-3.5 shrink-0" />
+                  {isEdit
+                    ? "Only needed to send a new invite, e.g. if your last invite was declined."
+                    : "They must already have a driver account."}
                 </Typography>
               </div>
             )
@@ -1040,14 +1146,13 @@ function MyTeamsSection({ token }: { token: boolean }) {
             </Button>
             <Button
               type="submit"
-              disabled={
-                isSaving ||
-                categoryOptions.length === 0 ||
-                (showNavigatorField &&
-                  (navigatorOptions.length === 0 || !watchedNavigatorId))
-              }
+              disabled={isSaving}
             >
-              {isEdit ? "Update team" : "Save team"}
+              {isEdit
+                ? "Update team"
+                : showCoDriverField
+                  ? "Save & send invite"
+                  : "Save team"}
             </Button>
           </div>
         </FormCommon>

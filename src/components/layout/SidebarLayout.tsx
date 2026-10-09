@@ -2,11 +2,13 @@ import { Outlet } from "react-router-dom";
 
 import { Breadcrumbs } from "@/components/common/Breadcrumbs";
 import SidebarCommon from "@/components/common/SidebarCommon";
+import { InviteNotificationsWatcher } from "@/components/notifications/InviteNotificationsWatcher";
 import { SidebarProvider, SidebarTrigger } from "@/components/ui/sidebar";
 
 export default function SidebarLayout() {
   return (
     <div className="h-svh max-h-svh w-full overflow-hidden">
+      <InviteNotificationsWatcher />
       <SidebarProvider className="!min-h-0 flex h-svh max-h-svh w-full overflow-hidden">
         <SidebarCommon />
         <main className="flex min-h-0 w-full flex-1 flex-col overflow-hidden bg-[#FDFDFE]">

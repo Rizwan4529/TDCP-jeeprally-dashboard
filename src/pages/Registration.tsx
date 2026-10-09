@@ -98,10 +98,18 @@ import {
 import {
   categoryRegistrationHint,
   getCompetitorProfileGaps,
-  getTeamMemberIds,
+  getTeamMemberNames,
   isCompetitorProfileComplete,
+  teamBelongsToEvent,
+  teamMatchesCategory,
   validateTeamForRegistration,
 } from "@/utils/registration-eligibility";
+import { coDriverFromTeam } from "@/utils/team-form";
+import {
+  findRallyType,
+  getTypeIdForCategory,
+  refId,
+} from "@/utils/rally-team-options";
 import {
   canUpdateRegistration,
   getRegistrationCategory,
@@ -345,8 +353,13 @@ export default function RegistrationPage() {
 
   const teamsForCategory = useMemo(() => {
     if (!category) return [];
-    return teams.filter((t) => t.category === category);
-  }, [teams, category]);
+    const target = { key: category, _id: categoryRecord?._id };
+    return teams.filter(
+      (t) =>
+        teamMatchesCategory(t, target) &&
+        teamBelongsToEvent(t, activeRallyEventId),
+    );
+  }, [teams, category, categoryRecord?._id, activeRallyEventId]);
 
   const selectedTeam = useMemo(
     () => teams.find((t) => t._id === selectedRegistrationTeamId) ?? null,
@@ -355,11 +368,7 @@ export default function RegistrationPage() {
 
   const selectedTeamValidation = useMemo(() => {
     if (!selectedTeam || !categoryRecord) return null;
-    return validateTeamForRegistration(
-      categoryRecord,
-      getTeamMemberIds(selectedTeam),
-      selectedTeam.navigator_id?._id,
-    );
+    return validateTeamForRegistration(categoryRecord, selectedTeam);
   }, [selectedTeam, categoryRecord]);
 
   const canContinueStep2 = Boolean(
@@ -448,7 +457,23 @@ export default function RegistrationPage() {
     uploadImageMutation.error ??
     null;
 
-  const onSubmitVehicle: SubmitHandler<VehicleFormValues> = async (values) => {
+  const onSubmitVehicle: SubmitHandler<VehicleFormValues> = async (
+    formValues,
+  ) => {
+    // No type picker here: the vehicle's type follows its rally category.
+    const values: VehicleFormValues = {
+      ...formValues,
+      // An edited vehicle may carry the type key from the API; send the id.
+      typeId:
+        findRallyType(activeRally, formValues.typeId?.trim())?._id ||
+        getTypeIdForCategory(activeRally, formValues.category_id),
+    };
+    if (!values.typeId) {
+      toast.error("Couldn't determine the vehicle type for this category.", {
+        description: "Add the vehicle from the Vehicle page and pick its type.",
+      });
+      return;
+    }
     const imageFile =
       values.vehicleImage instanceof File ? values.vehicleImage : null;
 
@@ -487,7 +512,7 @@ export default function RegistrationPage() {
       teams.find((t) => t._id === selectedRegistrationTeamId) ?? null;
     const vehicle =
       vehicles.find((v) => v._id === activeVehicleId) ?? null;
-    const navigatorName = team?.navigator_id?.name ?? null;
+    const navigatorName = team ? (coDriverFromTeam(team)?.name ?? null) : null;
     return { team, vehicle, navigatorName };
   }, [
     teams,
@@ -724,11 +749,9 @@ export default function RegistrationPage() {
       return;
     }
 
-    const memberIds = getTeamMemberIds(selectedTeam);
     const rosterValidation = validateTeamForRegistration(
       categoryRecord,
-      memberIds,
-      selectedTeam.navigator_id?._id,
+      selectedTeam,
     );
     if (!rosterValidation.ok) {
       toast.error(rosterValidation.message);
@@ -741,7 +764,7 @@ export default function RegistrationPage() {
         const updatePayload: UpdateRegistrationPayload = {
           vehicle_id: activeVehicleId,
         };
-        const navigatorId = selectedTeam.navigator_id?._id;
+        const navigatorId = coDriverFromTeam(selectedTeam)?._id;
         if (navigatorId) updatePayload.navigator_id = navigatorId;
 
         await updateRegistrationMutation.mutateAsync({
@@ -757,18 +780,42 @@ export default function RegistrationPage() {
       }
 
       const amount = selectedPricing!.amount;
+      // The registration's type is the selected category's type.
+      const typeId =
+        getTypeIdForCategory(activeRally, categoryRecord._id) ||
+        getTypeIdForCategory(activeRally, categoryRecord.key) ||
+        refId(selectedPricing?.category_id?.typeId ?? null);
       const payload: CreateRegistrationPayload = {
         team_id: selectedRegistrationTeamId,
         event_id: activeRallyEventId,
+        type_id: typeId,
         category_id: categoryRecord._id,
         vehicle_id: activeVehicleId,
       };
-      const navigatorId = selectedTeam.navigator_id?._id;
+      const missingFields = (
+        [
+          ["team", payload.team_id],
+          ["event", payload.event_id],
+          ["vehicle type", payload.type_id],
+          ["category", payload.category_id],
+          ["vehicle", payload.vehicle_id],
+        ] as const
+      )
+        .filter(([, value]) => !value?.trim())
+        .map(([label]) => label);
+      if (missingFields.length > 0) {
+        toast.error("Registration is missing required details", {
+          description: `Couldn't determine the ${missingFields.join(", ")}. Go back and check your selections, or refresh the page.`,
+        });
+        setIsSubmittingRegistration(false);
+        return;
+      }
+      const navigatorId = coDriverFromTeam(selectedTeam)?._id;
       if (navigatorId) {
         payload.navigator_id = navigatorId;
       } else if (requiresNavigator) {
         toast.error(
-          "Selected team must have a navigator assigned before registering.",
+          "Selected team must have an accepted co-driver before registering.",
         );
         setIsSubmittingRegistration(false);
         return;
@@ -1227,17 +1274,12 @@ export default function RegistrationPage() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   {teamsForCategory.map((t) => {
                     const isSel = selectedRegistrationTeamId === t._id;
+                    const mateNames = getTeamMemberNames(t);
                     const memberNames =
-                      t.member_ids?.length > 0
-                        ? t.member_ids.map((m) => m.name).join(", ")
-                        : "-";
-                    const navName = t.navigator_id?.name ?? "-";
+                      mateNames.length > 0 ? mateNames.join(", ") : "-";
+                    const navName = coDriverFromTeam(t)?.name ?? "-";
                     const teamValidation = categoryRecord
-                      ? validateTeamForRegistration(
-                          categoryRecord,
-                          getTeamMemberIds(t),
-                          t.navigator_id?._id,
-                        )
+                      ? validateTeamForRegistration(categoryRecord, t)
                       : null;
                     const isInvalid =
                       teamValidation != null && !teamValidation.ok;
@@ -1279,7 +1321,7 @@ export default function RegistrationPage() {
                               {categoryRecord?.title ??
                                 CATEGORY_LABELS[t.category as Category] ??
                                 t.category}{" "}
-                              · #{t.team_number}
+                              Â· #{t.team_number}
                             </Typography>
                             <Typography
                               variant="body-sm"
@@ -1297,7 +1339,7 @@ export default function RegistrationPage() {
                                 isSel ? "text-primary/80" : "text-[#8B96AD]",
                               )}
                             >
-                              Navigator: {navName}
+                              Co-driver: {navName}
                             </Typography>
                             {isInvalid && teamValidation ? (
                               <Typography
@@ -1455,7 +1497,7 @@ export default function RegistrationPage() {
                         >
                           Fee:{" "}
                           <span className="font-semibold">
-                            Already paid — no additional payment
+                            Already paid â€” no additional payment
                           </span>
                         </Typography>
                       ) : selectedPricing ? (
@@ -1492,7 +1534,7 @@ export default function RegistrationPage() {
                         Team:{" "}
                         <span className="font-semibold">
                           {registrationSummary.team
-                            ? `${registrationSummary.team.team_name} · #${registrationSummary.team.team_number}`
+                            ? `${registrationSummary.team.team_name} Â· #${registrationSummary.team.team_number}`
                             : "-"}
                         </span>
                         {isEditMode ? (
@@ -1506,7 +1548,7 @@ export default function RegistrationPage() {
                         Vehicle:{" "}
                         <span className="font-semibold">
                           {registrationSummary.vehicle
-                            ? `${registrationSummary.vehicle.model} · ${registrationSummary.vehicle.engine}`
+                            ? `${registrationSummary.vehicle.model} Â· ${registrationSummary.vehicle.engine}`
                             : "-"}
                         </span>
                       </Typography>
@@ -1517,7 +1559,7 @@ export default function RegistrationPage() {
                         >
                           Fee:{" "}
                           <span className="font-semibold">
-                            Already paid — no additional payment
+                            Already paid â€” no additional payment
                           </span>
                         </Typography>
                       ) : selectedPricing ? (
@@ -1536,7 +1578,7 @@ export default function RegistrationPage() {
                           variant="body-sm"
                           className="mt-1 text-[#25314D]"
                         >
-                          Navigator:{" "}
+                          Co-driver:{" "}
                           <span className="font-semibold">
                             {registrationSummary.navigatorName ?? "-"}
                           </span>
@@ -1603,7 +1645,7 @@ export default function RegistrationPage() {
                       : isEditMode
                         ? "Save changes"
                         : selectedPricing
-                          ? `Pay now · ${formatRallyAmount(selectedPricing.amount)}`
+                          ? `Pay now Â· ${formatRallyAmount(selectedPricing.amount)}`
                           : "Pay now"}
                   </Button>
                 </div>
@@ -1764,8 +1806,8 @@ export default function RegistrationPage() {
                                 )}
                               >
                                 {getVehicleCategoryTitle(v)}
-                                {v.class ? ` · ${v.class}` : ""}
-                                {v.power != null ? ` · Power ${v.power}` : ""}
+                                {v.class ? ` Â· ${v.class}` : ""}
+                                {v.power != null ? ` Â· Power ${v.power}` : ""}
                               </Typography>
                             </div>
                             <span

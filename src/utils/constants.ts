@@ -22,6 +22,8 @@ export const ROUTES = {
   VEHICLE_NEW: "/vehicle/new",
   VEHICLE_EDIT: "/vehicle/:id/edit",
   EVENTS: "/events",
+  /** Team invites sent to the signed-in competitor. */
+  NOTIFICATIONS: "/notifications",
   /** Driver's registration entries for the active rally. */
   MY_REGISTRATIONS: "/registrations",
   /** New registration wizard. */
