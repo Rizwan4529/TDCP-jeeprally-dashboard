@@ -1,15 +1,29 @@
 import axios from "axios";
 
-import { apiClient } from "@/api/client";
+import { apiClient } from "../client";
 import type {
   CreateTeamPayload,
   DeleteTeamResponse,
   GetMyTeamsResponse,
-  InviteCoDriverPayload,
-  InviteCoDriverResponse,
+  // InviteCoDriverPayload,
+  // InviteCoDriverResponse,
   UpdateTeamPayload,
   UpsertTeamResponse,
-} from "@/api/types/teams";
+} from "../types/teams";
+
+const multipartRequestConfig = {
+  headers: {
+    "Content-Type": "multipart/form-data",
+  },
+  transformRequest: [
+    (body: unknown, headers?: Record<string, unknown>) => {
+      if (body instanceof FormData && headers) {
+        delete headers["Content-Type"];
+      }
+      return body;
+    },
+  ],
+};
 
 /** Surfaces the backend `message` (e.g. "Driver account not found…") instead of axios' generic text. */
 function toApiError(err: unknown, fallback: string): Error {
@@ -37,6 +51,7 @@ function normalizeMyTeamsResponse(raw: unknown): GetMyTeamsResponse {
       ...t,
       member_ids: Array.isArray(t.member_ids) ? t.member_ids : [],
       navigator_id: t.navigator_id ?? null,
+      co_drivers: Array.isArray(t.co_drivers) ? t.co_drivers : [],
     })),
   };
 }
@@ -61,9 +76,17 @@ export async function getMyTeams(): Promise<GetMyTeamsResponse> {
 export const getMyTeam = getMyTeams;
 
 export async function createTeam(
-  payload: CreateTeamPayload,
+  payload: CreateTeamPayload | FormData,
 ): Promise<UpsertTeamResponse> {
   try {
+    if (payload instanceof FormData) {
+      const { data } = await apiClient.post<UpsertTeamResponse>(
+        "/teams",
+        payload,
+        multipartRequestConfig,
+      );
+      return data;
+    }
     const { data } = await apiClient.post<UpsertTeamResponse>("/teams", payload);
     return data;
   } catch (err) {
@@ -86,20 +109,45 @@ export async function updateTeam(
   }
 }
 
-export async function inviteCoDriver(
+/** Add a co-driver to an existing team (flat fields or FormData with images). */
+export async function addCoDriver(
   teamId: string,
-  payload: InviteCoDriverPayload,
-): Promise<InviteCoDriverResponse> {
+  payload: Record<string, string> | FormData,
+): Promise<UpsertTeamResponse> {
   try {
-    const { data } = await apiClient.post<InviteCoDriverResponse>(
-      `/teams/${encodeURIComponent(teamId)}/invites`,
+    if (payload instanceof FormData) {
+      const { data } = await apiClient.post<UpsertTeamResponse>(
+        `/teams/${encodeURIComponent(teamId)}/co-drivers`,
+        payload,
+        multipartRequestConfig,
+      );
+      return data;
+    }
+    const { data } = await apiClient.post<UpsertTeamResponse>(
+      `/teams/${encodeURIComponent(teamId)}/co-drivers`,
       payload,
     );
     return data;
   } catch (err) {
-    throw toApiError(err, "Could not send invite.");
+    throw toApiError(err, "Could not add co-driver.");
   }
 }
+
+// Invite-by-email flow paused for now.
+// export async function inviteCoDriver(
+//   teamId: string,
+//   payload: InviteCoDriverPayload,
+// ): Promise<InviteCoDriverResponse> {
+//   try {
+//     const { data } = await apiClient.post<InviteCoDriverResponse>(
+//       `/teams/${encodeURIComponent(teamId)}/invites`,
+//       payload,
+//     );
+//     return data;
+//   } catch (err) {
+//     throw toApiError(err, "Could not send invite.");
+//   }
+// }
 
 export async function deleteTeam(teamId: string): Promise<DeleteTeamResponse> {
   const { data } = await apiClient.delete<DeleteTeamResponse>(

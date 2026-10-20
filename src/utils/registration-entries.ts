@@ -195,6 +195,54 @@ export function hasActiveRegistrationForCategory(args: {
   });
 }
 
+/**
+ * Team already used on any active registration for this event
+ * (same or another category) — cannot be selected again.
+ */
+export function isTeamRegisteredInEvent(args: {
+  teamId: string | null | undefined;
+  registrations: DriverRegistration[];
+  eventId: string | null | undefined;
+  /** Allow this registration's own team in edit mode. */
+  exceptRegistrationId?: string | null;
+}): boolean {
+  const teamId = args.teamId?.trim() ?? "";
+  const eventId = args.eventId?.trim() ?? "";
+  if (!teamId || !eventId) return false;
+  const exceptId = args.exceptRegistrationId?.trim() ?? "";
+
+  return args.registrations.some((registration) => {
+    if (exceptId && registration._id === exceptId) return false;
+    if (!isActiveRegistrationStatus(registration.status)) return false;
+    if (getRegistrationEventId(registration) !== eventId) return false;
+    return getRegistrationTeamId(registration) === teamId;
+  });
+}
+
+/**
+ * Vehicle already used on any active registration for this event
+ * (same or another category) — cannot be selected again.
+ */
+export function isVehicleRegisteredInEvent(args: {
+  vehicleId: string | null | undefined;
+  registrations: DriverRegistration[];
+  eventId: string | null | undefined;
+  /** Allow this registration's own vehicle in edit mode. */
+  exceptRegistrationId?: string | null;
+}): boolean {
+  const vehicleId = args.vehicleId?.trim() ?? "";
+  const eventId = args.eventId?.trim() ?? "";
+  if (!vehicleId || !eventId) return false;
+  const exceptId = args.exceptRegistrationId?.trim() ?? "";
+
+  return args.registrations.some((registration) => {
+    if (exceptId && registration._id === exceptId) return false;
+    if (!isActiveRegistrationStatus(registration.status)) return false;
+    if (getRegistrationEventId(registration) !== eventId) return false;
+    return getRegistrationVehicleId(registration) === vehicleId;
+  });
+}
+
 export function getRegistrationCategoryLabel(
   registration: DriverRegistration,
 ): string {

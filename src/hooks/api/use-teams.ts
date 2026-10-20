@@ -1,22 +1,23 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { queryKeys } from "@/api/query-keys";
+import { queryKeys } from "../../api/query-keys";
 import {
+  addCoDriver,
   createTeam,
   deleteTeam,
   getMyTeams,
-  inviteCoDriver,
+  // inviteCoDriver,
   updateTeam,
-} from "@/api/services/teams";
+} from "../../api/services/teams";
 import type {
   CreateTeamPayload,
   DeleteTeamResponse,
   GetMyTeamsResponse,
-  InviteCoDriverPayload,
-  InviteCoDriverResponse,
+  // InviteCoDriverPayload,
+  // InviteCoDriverResponse,
   UpdateTeamPayload,
   UpsertTeamResponse,
-} from "@/api/types/teams";
+} from "../../api/types/teams";
 
 export function useMyTeamsQuery(enabled: boolean) {
   return useQuery<GetMyTeamsResponse, Error>({
@@ -33,7 +34,7 @@ export const useMyTeamQuery = useMyTeamsQuery;
 export function useCreateTeamMutation() {
   const queryClient = useQueryClient();
 
-  return useMutation<UpsertTeamResponse, Error, CreateTeamPayload>({
+  return useMutation<UpsertTeamResponse, Error, CreateTeamPayload | FormData>({
     mutationFn: createTeam,
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: queryKeys.teams.all });
@@ -56,6 +57,21 @@ export function useUpdateTeamMutation() {
   });
 }
 
+export function useAddCoDriverMutation() {
+  const queryClient = useQueryClient();
+
+  return useMutation<
+    UpsertTeamResponse,
+    Error,
+    { teamId: string; payload: Record<string, string> | FormData }
+  >({
+    mutationFn: ({ teamId, payload }) => addCoDriver(teamId, payload),
+    onSuccess: () => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.teams.all });
+    },
+  });
+}
+
 export function useDeleteTeamMutation() {
   const queryClient = useQueryClient();
 
@@ -67,17 +83,18 @@ export function useDeleteTeamMutation() {
   });
 }
 
-export function useInviteCoDriverMutation() {
-  const queryClient = useQueryClient();
-
-  return useMutation<
-    InviteCoDriverResponse,
-    Error,
-    { teamId: string; payload: InviteCoDriverPayload }
-  >({
-    mutationFn: ({ teamId, payload }) => inviteCoDriver(teamId, payload),
-    onSuccess: () => {
-      void queryClient.invalidateQueries({ queryKey: queryKeys.teams.all });
-    },
-  });
-}
+// Invite-by-email flow paused for now.
+// export function useInviteCoDriverMutation() {
+//   const queryClient = useQueryClient();
+//
+//   return useMutation<
+//     InviteCoDriverResponse,
+//     Error,
+//     { teamId: string; payload: InviteCoDriverPayload }
+//   >({
+//     mutationFn: ({ teamId, payload }) => inviteCoDriver(teamId, payload),
+//     onSuccess: () => {
+//       void queryClient.invalidateQueries({ queryKey: queryKeys.teams.all });
+//     },
+//   });
+// }

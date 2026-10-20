@@ -1,5 +1,8 @@
-import type { CategoryRecord } from "@/api/types/categories";
-import type { RallyPricingRecord } from "@/api/types/rally";
+import type { CategoryRecord } from "../api/types/categories";
+import type {
+  RallyPricingRecord,
+  RegistrationEntryMode,
+} from "../api/types/rally";
 
 /** Flatten pricing rows into CategoryRecord[] for roster / consent helpers. */
 export function pricingToCategoryRecords(
@@ -33,6 +36,36 @@ export function findPricingByCategoryKey(
 ): RallyPricingRecord | undefined {
   if (!pricing?.length || !categoryKey) return undefined;
   return pricing.find((item) => item.category_id?.key === categoryKey);
+}
+
+/** Prefer new dual amounts; fall back to legacy single `amount`. */
+export function getPricingAmounts(row: RallyPricingRecord | undefined | null): {
+  individual: number;
+  sponsor: number;
+} {
+  if (!row) return { individual: 0, sponsor: 0 };
+  const legacy =
+    typeof row.amount === "number" && !Number.isNaN(row.amount) ? row.amount : 0;
+  const individual =
+    typeof row.individual_amount === "number" &&
+    !Number.isNaN(row.individual_amount)
+      ? row.individual_amount
+      : legacy;
+  const sponsor =
+    typeof row.sponsor_amount === "number" && !Number.isNaN(row.sponsor_amount)
+      ? row.sponsor_amount
+      : 0;
+  return { individual, sponsor };
+}
+
+export function getAmountForEntryMode(
+  row: RallyPricingRecord | undefined | null,
+  mode: RegistrationEntryMode | null | undefined,
+): number {
+  const { individual, sponsor } = getPricingAmounts(row);
+  if (mode === "sponsor") return sponsor;
+  if (mode === "individual") return individual;
+  return 0;
 }
 
 export function formatRallyAmount(amount: number | null | undefined): string {

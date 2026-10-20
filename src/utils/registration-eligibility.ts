@@ -102,15 +102,19 @@ export function teamBelongsToEvent(team: Team, eventId: string | undefined): boo
 /**
  * Profile gaps for a co-driver, judged on the profile fields the teams API
  * actually returns for them (fields it doesn't send can't be verified here).
+ * Images stay optional (backend does not require them).
  */
 export function getCoDriverProfileGaps(person: object): string[] {
   const record = person as Record<string, unknown>;
   const gaps: string[] = [];
   for (const { key, label } of PROFILE_FIELD_LABELS) {
+    if (PROFILE_IMAGE_KEYS.has(key)) continue;
     if (!(key in record)) continue;
     const value = record[key];
     if (typeof value === "number") continue;
-    if (typeof value !== "string" || !value.trim()) gaps.push(label);
+    if (value == null || (typeof value === "string" && !value.trim())) {
+      gaps.push(label);
+    }
   }
   return gaps;
 }
@@ -131,7 +135,7 @@ export function validateTeamForRegistration(
     if (!coDriver) {
       return {
         ok: false,
-        message: `${team.team_name} has no co-driver yet. Invite one from the Teams page. They need to accept before you can register.`,
+        message: `${team.team_name} has no co-driver yet. Add one from the Teams page before you can register.`,
       };
     }
     const gaps = getCoDriverProfileGaps(coDriver);

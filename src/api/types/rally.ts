@@ -101,11 +101,14 @@ export type RallyPricingCategory = {
   key: string;
   image?: string | null;
   description?: string | null;
+  minCC?: number | null;
+  maxCC?: number | null;
   max_members: number;
   navigator_allowed: boolean;
   consent?: string | null;
   consent_document?: string | null;
   isSigned?: boolean;
+  status?: string;
   route_id?: string | null;
   typeId?: RallyType | string | null;
   members?: unknown[];
@@ -114,11 +117,17 @@ export type RallyPricingCategory = {
   __v?: number;
 };
 
+/** Who is paying the registration fee — drives which pricing amount is charged. */
+export type RegistrationEntryMode = "individual" | "sponsor";
+
 export type RallyPricingRecord = {
   _id: string;
   event_id: string;
   category_id: RallyPricingCategory;
-  amount: number;
+  /** Legacy single fee (older API responses). */
+  amount?: number;
+  individual_amount?: number;
+  sponsor_amount?: number;
   created_at?: string;
   updated_at?: string;
   __v?: number;

@@ -9,13 +9,14 @@ export const teamFormSchema = z.object({
   category: z.string().trim().min(1, "Category is required"),
   type: z.string().trim().optional(),
   navigator_id: z.string().optional(),
-  co_driver_email: z
-    .string()
-    .trim()
-    .optional()
-    .refine((v) => !v || z.string().email().safeParse(v).success, {
-      message: "Enter a valid email address",
-    }),
+  // Invite-by-email flow paused for now.
+  // co_driver_email: z
+  //   .string()
+  //   .trim()
+  //   .optional()
+  //   .refine((v) => !v || z.string().email().safeParse(v).success, {
+  //     message: "Enter a valid email address",
+  //   }),
 });
 
 export type TeamFormValues = z.infer<typeof teamFormSchema>;
@@ -26,7 +27,7 @@ export const emptyTeamFormValues: TeamFormValues = {
   category: "",
   type: "",
   navigator_id: "",
-  co_driver_email: "",
+  // co_driver_email: "",
 };
 
 export function teamToFormValues(t: Team): TeamFormValues {
@@ -35,17 +36,25 @@ export function teamToFormValues(t: Team): TeamFormValues {
     team_number: t.team_number,
     category: t.category,
     navigator_id: t.navigator_id?._id ?? "",
-    co_driver_email: "",
+    // co_driver_email: "",
   };
 }
 
-/** Accepted co-driver (new invite flow) or a legacy navigator. */
+/**
+ * Embedded co-driver on the team, else a legacy populated co_driver_id /
+ * navigator member.
+ */
 export function coDriverFromTeam(t: Team) {
-  return t.co_driver_id ?? t.navigator_id ?? null;
+  const embedded = Array.isArray(t.co_drivers) ? t.co_drivers[0] : null;
+  if (embedded) return embedded;
+  if (t.co_driver_id && typeof t.co_driver_id === "object") {
+    return t.co_driver_id;
+  }
+  return t.navigator_id ?? null;
 }
 
-/** Team-dialog create: details + optional co-driver invite for the given event. */
-export function buildCreateTeamWithInvitePayload(
+/** Team-dialog create: details only (co-driver goes in a second step). */
+export function buildCreateTeamPayloadFromForm(
   values: TeamFormValues,
   eventId: string | undefined,
 ): CreateTeamPayload {
@@ -57,12 +66,21 @@ export function buildCreateTeamWithInvitePayload(
   const type = values.type?.trim();
   if (type) payload.type = type;
   if (eventId) payload.event_id = eventId;
-  const email = values.co_driver_email?.trim();
-  if (email) payload.co_driver_email = email;
   return payload;
 }
 
-/** Team-dialog edit: only the details; the co-driver changes through invites. */
+// Invite-by-email flow paused for now.
+// export function buildCreateTeamWithInvitePayload(
+//   values: TeamFormValues,
+//   eventId: string | undefined,
+// ): CreateTeamPayload {
+//   const payload = buildCreateTeamPayloadFromForm(values, eventId);
+//   const email = values.co_driver_email?.trim();
+//   if (email) payload.co_driver_email = email;
+//   return payload;
+// }
+
+/** Team-dialog edit: team details only; co-driver is added in a separate modal. */
 export function buildTeamDetailsUpdatePayload(
   values: TeamFormValues,
 ): UpdateTeamPayload {

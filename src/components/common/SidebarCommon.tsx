@@ -43,7 +43,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Typography } from "@/components/common/Typography";
 import { useSessionUser } from "@/hooks/api/use-session-user";
-import { useInviteNotifications } from "@/hooks/use-invite-notifications";
+// Invite-by-email flow paused for now.
+// import { useInviteNotifications } from "@/hooks/use-invite-notifications";
 import { ROUTES } from "@/utils/constants";
 import { removeAuthToken, toPublicFileUrl } from "@/utils/helpers";
 import Logo from "@/assets/icons/logo.png";
@@ -81,7 +82,9 @@ export default function SidebarCommon() {
   const isCollapsed = state === "collapsed";
   const { data: sessionUser } = useSessionUser();
   const profileImageUrl = toPublicFileUrl(sessionUser?.profile_image);
-  const { hasUnseen: hasUnseenInvites } = useInviteNotifications();
+  // Invite-by-email flow paused for now.
+  // const { hasUnseen: hasUnseenInvites } = useInviteNotifications();
+  const hasUnseenInvites = false;
 
   const closeMobileSidebar = () => {
     if (isMobile) setOpenMobile(false);
