@@ -116,6 +116,7 @@ import {
 } from "@/utils/vehicle-form";
 import {
   CATEGORY_LABELS,
+  registrationSuccessPath,
   ROUTES,
   type Category,
 } from "@/utils/constants";
@@ -1035,9 +1036,14 @@ export default function RegistrationPage() {
         return;
       }
 
+      const paymentEntryMode = entryMode ?? undefined;
+
       // Zero-fee entries skip the payment gateway and register immediately.
       if (!(typeof amount === "number" && amount > 0)) {
-        await createRegistration(payload);
+        const created = await createRegistration({
+          ...payload,
+          payment: { amount: 0, entry_mode: paymentEntryMode },
+        });
         await Promise.all([
           queryClient.invalidateQueries({
             queryKey: queryKeys.registrations.all,
@@ -1047,7 +1053,11 @@ export default function RegistrationPage() {
         toast.success("Registration complete", {
           description: "No payment was required for this entry.",
         });
-        void navigate(ROUTES.MY_REGISTRATIONS, { replace: true });
+        const createdId = created.data?._id;
+        void navigate(
+          createdId ? registrationSuccessPath(createdId) : ROUTES.MY_REGISTRATIONS,
+          { replace: true },
+        );
         return;
       }
 
@@ -1063,7 +1073,11 @@ export default function RegistrationPage() {
       savePendingRegistrationPayment({
         orderId,
         amount,
-        payload,
+        // Transaction id is added from the gateway redirect on success.
+        payload: {
+          ...payload,
+          payment: { amount, order_id: orderId, entry_mode: paymentEntryMode },
+        },
         orderDescription,
         createdAt: Date.now(),
       });

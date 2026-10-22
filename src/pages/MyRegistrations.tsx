@@ -2,7 +2,9 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ClipboardListIcon,
+  DownloadIcon,
   EyeIcon,
+  Loader2Icon,
   PencilIcon,
   PlusIcon,
 } from "lucide-react";
@@ -48,6 +50,7 @@ import {
 import { useRallyEventsQuery } from "@/hooks/api/use-rally-events";
 import { useMyRegistrationsQuery } from "@/hooks/api/use-registrations";
 import { useMyTeamsQuery } from "@/hooks/api/use-teams";
+import { useRegistrationReceiptDownload } from "@/hooks/use-registration-receipt";
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/utils/constants";
 import { fetchAuthToken } from "@/utils/helpers";
@@ -98,6 +101,7 @@ function MyRegistrationsScreen() {
     : [];
 
   const teamsQuery = useMyTeamsQuery(Boolean(token));
+  const receiptDownload = useRegistrationReceiptDownload();
   const teams = Array.isArray(teamsQuery.data?.data)
     ? teamsQuery.data.data
     : [];
@@ -360,6 +364,22 @@ function MyRegistrationsScreen() {
                               onClick={() => setDetail(r)}
                             >
                               <EyeIcon className="size-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon-sm"
+                              aria-label="Download receipt (PDF)"
+                              title="Download receipt (PDF)"
+                              className="text-muted-foreground"
+                              disabled={Boolean(receiptDownload.pendingId)}
+                              onClick={() => void receiptDownload.download(r._id)}
+                            >
+                              {receiptDownload.pendingId === r._id ? (
+                                <Loader2Icon className="size-4 animate-spin" />
+                              ) : (
+                                <DownloadIcon className="size-4" />
+                              )}
                             </Button>
                             <Button
                               type="button"

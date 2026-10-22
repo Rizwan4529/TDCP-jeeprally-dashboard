@@ -22,6 +22,7 @@ const ROUTE_LABELS: { match: RegExp | string; name: string }[] = [
   { match: "/events", name: "Events" },
   { match: ROUTES.NOTIFICATIONS, name: "Notifications" },
   { match: ROUTES.MY_REGISTRATIONS, name: "My entries" },
+  { match: /^\/registration\/success\/[^/]+$/, name: "Registration successful" },
   { match: ROUTES.REGISTRATION, name: "Registration" },
   { match: ROUTES.PAYMENT_CALLBACK, name: "Payment" },
 ];
@@ -45,6 +46,11 @@ const PARENT_BY_PATH: { match: RegExp | string; parentPath: string; parentName: 
     },
     {
       match: ROUTES.REGISTRATION,
+      parentPath: ROUTES.MY_REGISTRATIONS,
+      parentName: "My entries",
+    },
+    {
+      match: /^\/registration\/success\/[^/]+$/,
       parentPath: ROUTES.MY_REGISTRATIONS,
       parentName: "My entries",
     },

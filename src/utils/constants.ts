@@ -28,11 +28,17 @@ export const ROUTES = {
   MY_REGISTRATIONS: "/registrations",
   /** New registration wizard. */
   REGISTRATION: "/registration",
+  /** Confirmation page shown after a registration is created. */
+  REGISTRATION_SUCCESS: "/registration/success/:id",
   PAYMENT_CALLBACK: "/payment-callback",
 } as const;
 
 export function vehicleEditPath(id: string) {
   return `/vehicle/${id}/edit`;
+}
+
+export function registrationSuccessPath(id: string) {
+  return `/registration/success/${encodeURIComponent(id)}`;
 }
 
 /** Relative API paths that may return 401 without treating the user as logged-out. */
