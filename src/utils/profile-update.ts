@@ -15,6 +15,9 @@ export function normDateForProfile(value: string | null | undefined): string {
   return value.trim();
 }
 
+/** Occupation is no longer user-editable; every profile is saved as a driver. */
+export const DRIVER_OCCUPATION = "Driver";
+
 /** Profile photos/documents; each must be saved on the account or uploaded. */
 export const PROFILE_IMAGE_FIELDS = [
   { key: "profile_image", label: "Driver's image" },
@@ -57,7 +60,8 @@ export function buildUpdateProfilePayload(
     license_expiry: normDateForProfile(values.license_expiry),
     cnic: values.cnic.trim(),
     date_of_birth: normDateForProfile(values.date_of_birth),
-    occupation: values.occupation.trim(),
+    // occupation: values.occupation.trim(),
+    occupation: DRIVER_OCCUPATION,
   };
 
   if (!previous) {
@@ -98,6 +102,7 @@ export function buildUpdateProfilePayload(
       next.date_of_birth,
       normDateForProfile(previous.date_of_birth),
     );
+    // Sent whenever the saved value isn't already the hard-coded occupation.
     setTextIfChanged(
       payload,
       "occupation",

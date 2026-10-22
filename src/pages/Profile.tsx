@@ -1,14 +1,18 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
-import { CameraIcon, DotIcon, PencilIcon } from "lucide-react";
+import { CameraIcon, DotIcon, ImageOffIcon, PencilIcon } from "lucide-react";
 
+import {
+  ImageLightbox,
+  type LightboxImage,
+} from "@/components/common/ImageLightbox";
 import { PageHeader } from "@/components/common/NavigationCommon";
 import { Typography } from "@/components/common/Typography";
 import {
   SCROLL_PAGE,
   SIDEBAR_PAGE_PADDING,
 } from "@/components/layout/pageLayout";
-import { OtherRacesSection } from "@/components/profile/OtherRacesSection";
+// import { OtherRacesSection } from "@/components/profile/OtherRacesSection";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -17,6 +21,7 @@ import { cn } from "@/lib/utils";
 import { ROUTES } from "@/utils/constants";
 import { toDateOnlyInputValue, toPublicFileUrl } from "@/utils/helpers";
 import { sessionToProfileDriver } from "@/utils/profile-driver";
+import { PROFILE_IMAGE_FIELDS } from "@/utils/profile-update";
 
 const surface = "bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)]";
 
@@ -38,6 +43,31 @@ function ProfileScreen() {
     .map((p) => p[0]?.toUpperCase())
     .join("");
 
+  const documents = React.useMemo(
+    () =>
+      PROFILE_IMAGE_FIELDS.map(({ key, label }) => ({
+        key,
+        label,
+        src: toPublicFileUrl(driver?.[key] ?? null),
+      })),
+    [driver],
+  );
+  // Only uploaded images take part in lightbox navigation.
+  const lightboxImages = React.useMemo<LightboxImage[]>(
+    () =>
+      documents.flatMap((d) => (d.src ? [{ src: d.src, label: d.label }] : [])),
+    [documents],
+  );
+  const [lightboxIndex, setLightboxIndex] = React.useState<number | null>(
+    null,
+  );
+  const openLightbox = (src: string) => {
+    const index = lightboxImages.findIndex((img) => img.src === src);
+    if (index >= 0) setLightboxIndex(index);
+  };
+
+  const profileImageUrl = toPublicFileUrl(driver?.profile_image ?? null);
+
   return (
     <div className={cn(SCROLL_PAGE, SIDEBAR_PAGE_PADDING)}>
       <div className="space-y-6 pb-6">
@@ -58,12 +88,19 @@ function ProfileScreen() {
             <div className="flex items-center gap-5">
               <div className="relative">
                 <div className="size-[108px] overflow-hidden rounded-full border-2 border-primary bg-primary/10">
-                  {toPublicFileUrl(driver?.profile_image ?? null) ? (
-                    <img
-                      src={toPublicFileUrl(driver?.profile_image ?? null) ?? ""}
-                      alt=""
-                      className="size-full object-cover"
-                    />
+                  {profileImageUrl ? (
+                    <button
+                      type="button"
+                      onClick={() => openLightbox(profileImageUrl)}
+                      className="size-full cursor-zoom-in"
+                      aria-label="View profile photo"
+                    >
+                      <img
+                        src={profileImageUrl}
+                        alt=""
+                        className="size-full object-cover"
+                      />
+                    </button>
                   ) : (
                     <div className="flex h-full w-full items-center justify-center text-[28px] font-semibold text-primary">
                       {initials}
@@ -91,9 +128,9 @@ function ProfileScreen() {
                   >
                     {driver?.name ?? "—"}
                   </Typography>
-                  <span className="inline-flex items-center rounded-full border border-[#F3D7A0] bg-[#FFF6E3] px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#B7791F]">
+                  {/* <span className="inline-flex items-center rounded-full border border-[#F3D7A0] bg-[#FFF6E3] px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-[#B7791F]">
                     {driver?.occupation ?? "DRIVER"}
-                  </span>
+                  </span> */}
                 </div>
 
                 <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-[13px] font-medium text-[#6B7890]">
@@ -162,12 +199,35 @@ function ProfileScreen() {
                   "—"
                 }
               />
-              <Field label="Occupation" value={driver?.occupation ?? "—"} />
+              {/* <Field label="Occupation" value={driver?.occupation ?? "—"} /> */}
             </div>
           </div>
         </Card>
 
         <Card className={cn(surface, "rounded-md")}>
+          <div className="border-b border-[#E8E8E8] px-6 py-5">
+            <Typography
+              as="h3"
+              variant="label"
+              className="text-[14px] font-bold tracking-wide text-[#1F1838]"
+            >
+              DOCUMENTS &amp; PHOTOS
+            </Typography>
+          </div>
+
+          <div className="grid gap-4 px-6 py-6 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+            {documents.map(({ key, label, src }) => (
+              <DocumentThumb
+                key={key}
+                label={label}
+                src={src}
+                onOpen={() => src && openLightbox(src)}
+              />
+            ))}
+          </div>
+        </Card>
+
+        {/* <Card className={cn(surface, "rounded-md")}>
           <SectionTitle>TEAM STANDING</SectionTitle>
           <div className="px-6 pb-6">
             <DataTable
@@ -193,25 +253,69 @@ function ProfileScreen() {
           </div>
         </Card>
 
-        <OtherRacesSection />
+        <OtherRacesSection /> */}
       </div>
+
+      <ImageLightbox
+        images={lightboxImages}
+        index={lightboxIndex}
+        onIndexChange={setLightboxIndex}
+        onClose={() => setLightboxIndex(null)}
+      />
     </div>
   );
 }
 
-function SectionTitle({ children }: { children: React.ReactNode }) {
+function DocumentThumb({
+  label,
+  src,
+  onOpen,
+}: {
+  label: string;
+  src: string | null;
+  onOpen: () => void;
+}) {
   return (
-    <div className="px-6 pt-6">
-      <Typography
-        as="h3"
-        variant="label"
-        className="text-[14px] font-bold tracking-wide text-[#1F1838]"
-      >
-        {children}
+    <div className="space-y-2">
+      <Typography as="p" variant="caption" className="text-[#6B7890]">
+        {label}
       </Typography>
+      {src ? (
+        <button
+          type="button"
+          onClick={onOpen}
+          aria-label={`View ${label}`}
+          className="group block aspect-[4/3] w-full cursor-zoom-in overflow-hidden rounded-md border border-[#E8E8E8] bg-[#FBFBFD]"
+        >
+          <img
+            src={src}
+            alt={label}
+            className="size-full object-cover transition-transform duration-200 group-hover:scale-105"
+          />
+        </button>
+      ) : (
+        <div className="flex aspect-[4/3] w-full flex-col items-center justify-center gap-2 rounded-md border border-dashed border-[#E8E8E8] bg-[#FBFBFD] text-[#9AA4B8]">
+          <ImageOffIcon className="size-6" />
+          <span className="text-[12px] font-medium">Not uploaded</span>
+        </div>
+      )}
     </div>
   );
 }
+
+// function SectionTitle({ children }: { children: React.ReactNode }) {
+//   return (
+//     <div className="px-6 pt-6">
+//       <Typography
+//         as="h3"
+//         variant="label"
+//         className="text-[14px] font-bold tracking-wide text-[#1F1838]"
+//       >
+//         {children}
+//       </Typography>
+//     </div>
+//   );
+// }
 
 function Field({ label, value }: { label: string; value: string }) {
   return (
@@ -228,49 +332,49 @@ function Field({ label, value }: { label: string; value: string }) {
   );
 }
 
-function DataTable({
-  headerVariant,
-  rows,
-}: {
-  headerVariant: "green" | "dark";
-  rows: Array<[string, string, string, string, string]>;
-}) {
-  const headerClass =
-    headerVariant === "green"
-      ? "bg-primary text-white"
-      : "bg-[#2F2F31] text-white";
-
-  return (
-    <div className="overflow-hidden rounded-md border border-[#EDEEF4]">
-      <div
-        className={cn(
-          "grid grid-cols-[1.55fr_0.75fr_1fr_0.6fr_0.7fr] px-5 py-3",
-          headerClass,
-        )}
-      >
-        {["Team", "Position", "Vehicle", "year", "Role"].map((h) => (
-          <p
-            key={h}
-            className="text-[12px] font-semibold uppercase tracking-wide"
-          >
-            {h}
-          </p>
-        ))}
-      </div>
-      <div className="divide-y divide-[#EEF0F7] bg-white">
-        {rows.map((row, index) => (
-          <div
-            key={index}
-            className="grid grid-cols-[1.55fr_0.75fr_1fr_0.6fr_0.7fr] items-center px-5 py-4 text-[13px]"
-          >
-            <p className="font-medium text-[#1F1838]">{row[0]}</p>
-            <p className="text-[#6B7890]">{row[1]}</p>
-            <p className="text-[#6B7890]">{row[2]}</p>
-            <p className="font-semibold text-[#1F1838]">{row[3]}</p>
-            <p className="text-[#6B7890]">{row[4]}</p>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
+// function DataTable({
+//   headerVariant,
+//   rows,
+// }: {
+//   headerVariant: "green" | "dark";
+//   rows: Array<[string, string, string, string, string]>;
+// }) {
+//   const headerClass =
+//     headerVariant === "green"
+//       ? "bg-primary text-white"
+//       : "bg-[#2F2F31] text-white";
+//
+//   return (
+//     <div className="overflow-hidden rounded-md border border-[#EDEEF4]">
+//       <div
+//         className={cn(
+//           "grid grid-cols-[1.55fr_0.75fr_1fr_0.6fr_0.7fr] px-5 py-3",
+//           headerClass,
+//         )}
+//       >
+//         {["Team", "Position", "Vehicle", "year", "Role"].map((h) => (
+//           <p
+//             key={h}
+//             className="text-[12px] font-semibold uppercase tracking-wide"
+//           >
+//             {h}
+//           </p>
+//         ))}
+//       </div>
+//       <div className="divide-y divide-[#EEF0F7] bg-white">
+//         {rows.map((row, index) => (
+//           <div
+//             key={index}
+//             className="grid grid-cols-[1.55fr_0.75fr_1fr_0.6fr_0.7fr] items-center px-5 py-4 text-[13px]"
+//           >
+//             <p className="font-medium text-[#1F1838]">{row[0]}</p>
+//             <p className="text-[#6B7890]">{row[1]}</p>
+//             <p className="text-[#6B7890]">{row[2]}</p>
+//             <p className="font-semibold text-[#1F1838]">{row[3]}</p>
+//             <p className="text-[#6B7890]">{row[4]}</p>
+//           </div>
+//         ))}
+//       </div>
+//     </div>
+//   );
+// }

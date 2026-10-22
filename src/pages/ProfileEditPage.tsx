@@ -28,6 +28,7 @@ import { toDateOnlyInputValue, toPublicFileUrl } from "@/utils/helpers";
 import { sessionToProfileDriver } from "@/utils/profile-driver";
 import {
   buildUpdateProfilePayload,
+  DRIVER_OCCUPATION,
   getMissingProfileImages,
   hasUpdateProfileChanges,
   PROFILE_IMAGE_FIELDS,
@@ -55,7 +56,7 @@ const profileFormDefaults: ProfileUpdateValues = {
   license_expiry: "",
   cnic: "",
   date_of_birth: "",
-  occupation: "",
+  occupation: DRIVER_OCCUPATION,
   profile_image: null,
   cnic_front_image: null,
   cnic_back_image: null,
@@ -98,7 +99,8 @@ function ProfileEditScreen() {
           license_expiry: toDateOnlyInputValue(driver.license_expiry),
           cnic: driver.cnic ?? "",
           date_of_birth: toDateOnlyInputValue(driver.date_of_birth),
-          occupation: driver.occupation ?? "",
+          // occupation: driver.occupation ?? "",
+          occupation: DRIVER_OCCUPATION,
           profile_image: null,
           cnic_front_image: null,
           cnic_back_image: null,
@@ -199,13 +201,13 @@ function ProfileEditScreen() {
                     maxLength={3}
                     className={profileFieldClassName}
                   />
-                  <FormInput
+                  {/* <FormInput
                     control={driverForm.control}
                     name="occupation"
                     label="Occupation"
                     required
                     className={profileFieldClassName}
-                  />
+                  /> */}
                 </div>
                 <Textarea
                   control={driverForm.control}
