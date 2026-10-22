@@ -40,6 +40,8 @@ import {
   buildCreateVehiclePayload,
   buildUpdateVehiclePayload,
   emptyVehicleFormValues,
+  ENGINE_TYPE_OPTIONS,
+  TURBO_CHARGE_OPTIONS,
   vehicleFormFieldProps,
   VEHICLE_FIELD_LIMITS,
   vehicleFormSchema,
@@ -255,6 +257,16 @@ export default function VehicleFormPage() {
               {...vehicleFormFieldProps("engine")}
               className={fieldClassName}
             />
+            <Input
+              control={form.control}
+              name="power"
+              {...vehicleFormFieldProps("power")}
+              type="number"
+              min={VEHICLE_FIELD_LIMITS.power.min}
+              max={VEHICLE_FIELD_LIMITS.power.max}
+              step={1}
+              className={fieldClassName}
+            />
             {activeRallyQuery.isLoading ? (
               <>
                 <SelectFieldSkeleton />
@@ -295,20 +307,31 @@ export default function VehicleFormPage() {
                 />
               </>
             )}
-            <Input
+            <Select
               control={form.control}
-              name="frame"
-              {...vehicleFormFieldProps("frame")}
+              name="engineType"
+              {...vehicleFormFieldProps("engineType")}
+              options={ENGINE_TYPE_OPTIONS}
+              className={fieldClassName}
+            />
+            <Select
+              control={form.control}
+              name="turboCharge"
+              {...vehicleFormFieldProps("turboCharge")}
+              options={TURBO_CHARGE_OPTIONS}
               className={fieldClassName}
             />
             <Input
               control={form.control}
-              name="power"
-              {...vehicleFormFieldProps("power")}
-              type="number"
-              min={VEHICLE_FIELD_LIMITS.power.min}
-              max={VEHICLE_FIELD_LIMITS.power.max}
-              step={1}
+              name="desiredRallyNumber"
+              {...vehicleFormFieldProps("desiredRallyNumber")}
+              className={fieldClassName}
+            />
+            {/* Optional fields hidden for now.
+            <Input
+              control={form.control}
+              name="frame"
+              {...vehicleFormFieldProps("frame")}
               className={fieldClassName}
             />
             <Input
@@ -346,7 +369,7 @@ export default function VehicleFormPage() {
               name="class"
               {...vehicleFormFieldProps("class")}
               className={fieldClassName}
-            />
+            /> */}
           </div>
 
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">

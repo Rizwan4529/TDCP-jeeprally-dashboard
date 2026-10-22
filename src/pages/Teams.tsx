@@ -1,7 +1,7 @@
 import * as React from "react";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type SubmitHandler } from "react-hook-form";
-import { useLocation } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import {
   CompassIcon,
   PlusIcon,
@@ -46,6 +46,10 @@ import {
 import { AddCoDriverDialog } from "@/components/teams/AddCoDriverDialog";
 import { AddUsersToTeamDialog } from "@/components/teams/AddUsersToTeamDialog";
 import {
+  SelectTeamMembersDialog,
+  TeamMemberPicker,
+} from "@/components/teams/TeamMemberPicker";
+import {
   TeamsDataTable,
   TeamsDataTableBody,
   TeamsDataTableHead,
@@ -77,7 +81,7 @@ import {
 import type { TeamMember } from "@/api/types/team-members";
 import type { Team } from "@/api/types/teams";
 import { cn } from "@/lib/utils";
-import { CATEGORY_LABELS, type Category } from "@/utils/constants";
+import { CATEGORY_LABELS, ROUTES, type Category } from "@/utils/constants";
 import {
   buildAddCoDriverBody,
   buildCreateTeamWithCoDriverBody,
@@ -95,7 +99,13 @@ import {
   getRallyTypes,
   refId,
 } from "@/utils/rally-team-options";
-import { buildCategoryMap, needsNavigator } from "@/utils/team-roster-rules";
+import {
+  buildCategoryMap,
+  extraMembersError,
+  getTeamComposition,
+  needsNavigator,
+  SOLO_CATEGORY_MESSAGE,
+} from "@/utils/team-roster-rules";
 import {
   buildTeamDetailsUpdatePayload,
   coDriverFromTeam,
@@ -148,7 +158,7 @@ function TeamsScreen() {
   return (
     <section className={cn(PAGE_SHELL, SIDEBAR_PAGE_PADDING, "gap-4")}>
       <PageHeader
-        title="Teams"
+        title="Co-driver/Navigator"
         description="Manage users and build teams for rally registration."
       />
 
@@ -663,9 +673,15 @@ function RosterSection({ token }: { token: boolean }) {
 function MyTeamsSection({ token }: { token: boolean }) {
   const categoriesQuery = useCategoriesQuery(token);
   const teamsQuery = useMyTeamsQuery(token);
+  const membersQuery = useTeamMembersQuery(token);
   const activeRallyQuery = useActiveRallyQuery(token);
   const activeRally = activeRallyQuery.data?.data ?? null;
   const activeEventId = getRallyEventId(activeRally);
+  const rosterMembers = React.useMemo(
+    () =>
+      Array.isArray(membersQuery.data?.data) ? membersQuery.data.data : [],
+    [membersQuery.data?.data],
+  );
 
   const categories = React.useMemo(
     () =>
@@ -714,6 +730,15 @@ function MyTeamsSection({ token }: { token: boolean }) {
   /** Existing team that needs a co-driver added later. */
   const [coDriverTargetTeam, setCoDriverTargetTeam] =
     React.useState<Team | null>(null);
+  /** Co-driver details held while the user-selection step is open (create flow). */
+  const [pendingCoDriverValues, setPendingCoDriverValues] =
+    React.useState<CoDriverFormValues | null>(null);
+  const [membersDialogOpen, setMembersDialogOpen] = React.useState(false);
+  /** Users selected in the edit dialog (excludes the driver and co-driver). */
+  const [editMemberIds, setEditMemberIds] = React.useState<string[]>([]);
+  const [editMembersError, setEditMembersError] = React.useState<
+    string | null
+  >(null);
 
   const form = useForm<TeamFormValues>({
     resolver: zodResolver(teamFormSchema),
@@ -724,9 +749,23 @@ function MyTeamsSection({ token }: { token: boolean }) {
   const selectedCategoryValue = form.watch("category");
   const selectedCategory = lookupCategory(selectedCategoryValue);
   const categoryNeedsCoDriver = needsNavigator(selectedCategory);
+  const composition = getTeamComposition(selectedCategory);
+  const isSoloCategory = Boolean(selectedCategory) && !composition.teamAllowed;
+  const pendingComposition = getTeamComposition(
+    lookupCategory(pendingTeamValues?.category),
+  );
+  const pendingExtraMembers = pendingComposition.teamAllowed
+    ? pendingComposition.extraMembers
+    : 0;
 
   const isEdit = Boolean(editingTeam);
   const editingCoDriver = editingTeam ? coDriverFromTeam(editingTeam) : null;
+  /** Legacy teams store the co-driver as a navigator member; keep it out of the picker. */
+  const editingNavigatorId = editingTeam?.navigator_id?._id ?? "";
+  const editPickerMembers = React.useMemo(
+    () => rosterMembers.filter((m) => m._id !== editingNavigatorId),
+    [rosterMembers, editingNavigatorId],
+  );
 
   /** Editing a team whose category isn't in the active rally: keep it selectable. */
   const legacyCategoryOption = React.useMemo(() => {
@@ -770,7 +809,7 @@ function MyTeamsSection({ token }: { token: boolean }) {
         t.category;
       const haystack = [
         t.team_name,
-        String(t.team_number),
+        t.team_number,
         t.category,
         catTitle,
         coDriverFromTeam(t)?.name,
@@ -817,6 +856,8 @@ function MyTeamsSection({ token }: { token: boolean }) {
   const openNew = () => {
     if (!ensureTeamCreationAllowed()) return;
     setEditingTeam(null);
+    setPendingTeamValues(null);
+    setPendingCoDriverValues(null);
     form.reset({
       ...emptyTeamFormValues,
       type: rallyTypes.length === 1 ? rallyTypes[0]._id : "",
@@ -834,13 +875,65 @@ function MyTeamsSection({ token }: { token: boolean }) {
         (rallyCategory ? getCategoryTypeId(rallyCategory) : ""),
       category: rallyCategory?._id ?? team.category,
     });
+    const navId = team.navigator_id?._id;
+    setEditMemberIds(
+      (team.member_ids ?? []).map((m) => m._id).filter((id) => id !== navId),
+    );
+    setEditMembersError(null);
     setDialogOpen(true);
   };
 
   const closeDialog = () => {
     setDialogOpen(false);
     setEditingTeam(null);
+    setEditMemberIds([]);
+    setEditMembersError(null);
     form.reset(emptyTeamFormValues);
+  };
+
+  /** Ends the create flow (all steps) after success or when dismissed. */
+  const resetCreateFlow = () => {
+    setDialogOpen(false);
+    setCoDriverDialogOpen(false);
+    setMembersDialogOpen(false);
+    setPendingTeamValues(null);
+    setPendingCoDriverValues(null);
+    setCoDriverTargetTeam(null);
+    setEditingTeam(null);
+    form.reset(emptyTeamFormValues);
+  };
+
+  const createTeamWith = async (
+    teamValues: TeamFormValues,
+    coDriver: CoDriverFormValues | null,
+    memberIds: string[],
+  ) => {
+    const teamPayload = {
+      ...teamDetailsForCreate(teamValues, activeEventId),
+      member_ids: memberIds,
+    };
+    try {
+      await createMutation.mutateAsync(
+        coDriver
+          ? buildCreateTeamWithCoDriverBody(teamPayload, coDriver)
+          : teamPayload,
+      );
+      toast.success(coDriver ? "Team created with co-driver." : "Team created.");
+      resetCreateFlow();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Could not create team.");
+    }
+  };
+
+  /** Back from the user-selection step to the co-driver or team details step. */
+  const handleMembersBack = () => {
+    setMembersDialogOpen(false);
+    if (pendingComposition.teamAllowed && pendingComposition.needsCoDriver) {
+      setCoDriverDialogOpen(true);
+    } else if (pendingTeamValues) {
+      form.reset(pendingTeamValues);
+      setDialogOpen(true);
+    }
   };
 
   const closeCoDriverDialog = () => {
@@ -879,23 +972,51 @@ function MyTeamsSection({ token }: { token: boolean }) {
     }
     const cat = lookupCategory(values.category);
     const requiresCoDriver = needsNavigator(cat);
+    const teamComposition = getTeamComposition(cat);
+
+    if (!teamComposition.teamAllowed) {
+      form.setError("category", { message: SOLO_CATEGORY_MESSAGE });
+      return;
+    }
 
     if (!isEdit && !ensureTeamCreationAllowed()) return;
 
-    // Create + needs navigator: collect co-driver in a second modal, then POST together.
-    if (!isEdit && requiresCoDriver) {
+    // Create: team details → co-driver (if required) → users (if any) → POST together.
+    if (!isEdit) {
       setPendingTeamValues(values);
       setCoDriverTargetTeam(null);
       setDialogOpen(false);
-      setCoDriverDialogOpen(true);
+      if (teamComposition.needsCoDriver) {
+        setCoDriverDialogOpen(true);
+      } else if (teamComposition.extraMembers > 0) {
+        setMembersDialogOpen(true);
+      } else {
+        await createTeamWith(values, null, []);
+      }
+      return;
+    }
+
+    const membersError = extraMembersError(teamComposition, editMemberIds.length);
+    if (membersError) {
+      setEditMembersError(membersError);
       return;
     }
 
     try {
       if (isEdit && editingTeam) {
+        // A legacy navigator-as-co-driver stays on the roster alongside the picked users.
+        const keptNavigatorId = teamComposition.needsCoDriver
+          ? editingNavigatorId
+          : "";
         await updateMutation.mutateAsync({
           id: editingTeam._id,
-          payload: buildTeamDetailsUpdatePayload(values),
+          payload: {
+            ...buildTeamDetailsUpdatePayload(values),
+            member_ids: keptNavigatorId
+              ? [...editMemberIds, keptNavigatorId]
+              : editMemberIds,
+            navigator_id: keptNavigatorId || null,
+          },
         });
         toast.success("Team updated.");
         const stillNeedsCoDriver =
@@ -904,12 +1025,6 @@ function MyTeamsSection({ token }: { token: boolean }) {
         if (stillNeedsCoDriver) {
           openAddCoDriver(editingTeam);
         }
-      } else {
-        await createMutation.mutateAsync(
-          teamDetailsForCreate(values, activeEventId),
-        );
-        toast.success("Team created.");
-        closeDialog();
       }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Could not save team.");
@@ -919,16 +1034,14 @@ function MyTeamsSection({ token }: { token: boolean }) {
   const onSubmitCoDriver = async (values: CoDriverFormValues) => {
     try {
       if (pendingTeamValues) {
-        const teamPayload = teamDetailsForCreate(
-          pendingTeamValues,
-          activeEventId,
-        );
-        await createMutation.mutateAsync(
-          buildCreateTeamWithCoDriverBody(teamPayload, values),
-        );
-        toast.success("Team created with co-driver.");
-        form.reset(emptyTeamFormValues);
-        setEditingTeam(null);
+        if (pendingExtraMembers > 0) {
+          setPendingCoDriverValues(values);
+          setCoDriverDialogOpen(false);
+          setMembersDialogOpen(true);
+        } else {
+          await createTeamWith(pendingTeamValues, values, []);
+        }
+        return;
       } else if (coDriverTargetTeam) {
         await addCoDriverMutation.mutateAsync({
           teamId: coDriverTargetTeam._id,
@@ -962,7 +1075,7 @@ function MyTeamsSection({ token }: { token: boolean }) {
             aria-disabled={teamCreationBlocked || undefined}
           >
             <PlusIcon className="size-4" />
-            Add team
+            Add Co-driver/Navigator
           </Button>
         }
       />
@@ -992,7 +1105,7 @@ function MyTeamsSection({ token }: { token: boolean }) {
                 aria-disabled={teamCreationBlocked || undefined}
               >
                 <PlusIcon className="size-4" />
-                Create first team
+                Add Co-driver/Navigator
               </Button>
             }
           />
@@ -1008,7 +1121,7 @@ function MyTeamsSection({ token }: { token: boolean }) {
             <TeamsDataTableHeader>
               <TeamsDataTableHeaderRow>
                 <TeamsDataTableHead>Team name</TeamsDataTableHead>
-                <TeamsDataTableHead>Number</TeamsDataTableHead>
+                {/* <TeamsDataTableHead>Number</TeamsDataTableHead> */}
                 <TeamsDataTableHead>Category</TeamsDataTableHead>
                 <TeamsDataTableHead>Members</TeamsDataTableHead>
                 <TeamsDataTableHead>Co-driver</TeamsDataTableHead>
@@ -1032,9 +1145,9 @@ function MyTeamsSection({ token }: { token: boolean }) {
                     <TableCell className="px-4 font-semibold text-[#1F1838]">
                       {t.team_name}
                     </TableCell>
-                    <TableCell className="px-4 font-medium text-[#1F1838]">
+                    {/* <TableCell className="px-4 font-medium text-[#1F1838]">
                       #{t.team_number}
-                    </TableCell>
+                    </TableCell> */}
                     <TableCell className="px-4 text-[#6B7890]">
                       {catTitle}
                     </TableCell>
@@ -1100,13 +1213,15 @@ function MyTeamsSection({ token }: { token: boolean }) {
       <DialogCommon
         open={dialogOpen}
         onOpenChange={handleDialogOpenChange}
-        headerTitle={isEdit ? "Edit team" : "Add team"}
+        headerTitle={isEdit ? "Edit team" : "Add Co-driver/Navigator"}
         headerDescription={
           isEdit
             ? "Update this team’s details. Add a co-driver from the team list if this category needs one."
             : categoryNeedsCoDriver
               ? "Enter team details first. Next you’ll add your co-driver’s profile."
-              : "Create a team for the active event."
+              : composition.teamAllowed && composition.extraMembers > 0
+                ? "Enter team details first. Next you’ll select your team users."
+                : "Create a team for the active event."
         }
         className="sm:max-w-[520px]"
       >
@@ -1118,13 +1233,14 @@ function MyTeamsSection({ token }: { token: boolean }) {
             required
             className={fieldClassName}
           />
+          {/* Team number is optional; hidden for now.
           <Input
             control={form.control}
             name="team_number"
             label="Team number"
             required
             className={fieldClassName}
-          />
+          /> */}
           <Select
             control={form.control}
             name="type"
@@ -1153,6 +1269,14 @@ function MyTeamsSection({ token }: { token: boolean }) {
               No categories are open for this type in the active event.
             </p>
           ) : null}
+          {isSoloCategory ? (
+            <p className="-mt-3 text-sm font-medium text-destructive">
+              {SOLO_CATEGORY_MESSAGE}{" "}
+              <Link to={ROUTES.REGISTRATION} className="underline">
+                Go to registration
+              </Link>
+            </p>
+          ) : null}
 
           {categoryNeedsCoDriver && isEdit && editingCoDriver ? (
             <div className="space-y-1 rounded-md border border-primary/20 bg-primary/5 p-3">
@@ -1166,6 +1290,20 @@ function MyTeamsSection({ token }: { token: boolean }) {
                 {editingCoDriver.email}
               </Typography>
             </div>
+          ) : null}
+
+          {isEdit && composition.teamAllowed && composition.extraMembers > 0 ? (
+            <TeamMemberPicker
+              members={editPickerMembers}
+              selectedIds={editMemberIds}
+              onChange={(ids) => {
+                setEditMemberIds(ids);
+                setEditMembersError(null);
+              }}
+              required={composition.extraMembers}
+              disabled={isSaving}
+              error={editMembersError}
+            />
           ) : null}
 
           {/* Invite-by-email flow paused for now.
@@ -1189,12 +1327,14 @@ function MyTeamsSection({ token }: { token: boolean }) {
             >
               Cancel
             </Button>
-            <Button type="submit" disabled={isSaving}>
+            <Button type="submit" disabled={isSaving || isSoloCategory}>
               {isEdit
                 ? "Update team"
                 : categoryNeedsCoDriver
                   ? "Continue to co-driver"
-                  : "Save team"}
+                  : composition.teamAllowed && composition.extraMembers > 0
+                    ? "Continue to users"
+                    : "Save team"}
             </Button>
           </div>
         </FormCommon>
@@ -1213,7 +1353,36 @@ function MyTeamsSection({ token }: { token: boolean }) {
           undefined
         }
         isSubmitting={isSavingCoDriver}
+        initialValues={pendingTeamValues ? pendingCoDriverValues : null}
+        submitLabel={
+          !pendingTeamValues
+            ? "Save co-driver"
+            : pendingExtraMembers > 0
+              ? "Continue to users"
+              : "Create team"
+        }
         onSubmit={onSubmitCoDriver}
+      />
+
+      <SelectTeamMembersDialog
+        open={membersDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) resetCreateFlow();
+          else setMembersDialogOpen(true);
+        }}
+        teamName={pendingTeamValues?.team_name?.trim() || undefined}
+        members={rosterMembers}
+        required={pendingExtraMembers}
+        isSubmitting={createMutation.isPending}
+        onBack={handleMembersBack}
+        onSubmit={(memberIds) => {
+          if (!pendingTeamValues) return;
+          return createTeamWith(
+            pendingTeamValues,
+            pendingCoDriverValues,
+            memberIds,
+          );
+        }}
       />
     </Card>
   );

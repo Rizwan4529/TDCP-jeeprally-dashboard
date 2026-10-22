@@ -15,11 +15,11 @@ import { Typography } from "../common/Typography";
 import { Button } from "../ui/button";
 import { GENDER_OPTIONS } from "../../utils/constants";
 import {
+  CO_DRIVER_IMAGE_FIELDS,
   coDriverFormSchema,
   emptyCoDriverFormValues,
   type CoDriverFormValues,
 } from "../../utils/co-driver-form";
-import { PROFILE_IMAGE_FIELDS } from "../../utils/profile-update";
 
 const fieldClassName =
   "h-11 w-full rounded-md border-[#E8E8E8] bg-white px-3 text-[14px] text-[#1F1838]";
@@ -37,6 +37,9 @@ type AddCoDriverDialogProps = {
   /** Shown in the header description (team name when adding later). */
   teamName?: string;
   isSubmitting?: boolean;
+  /** Values to restore when returning to this step (e.g. back from user selection). */
+  initialValues?: CoDriverFormValues | null;
+  submitLabel?: string;
   onSubmit: (values: CoDriverFormValues) => void | Promise<void>;
 };
 
@@ -46,6 +49,8 @@ export function AddCoDriverDialog({
   onCancel,
   teamName,
   isSubmitting = false,
+  initialValues,
+  submitLabel = "Save co-driver",
   onSubmit,
 }: AddCoDriverDialogProps) {
   const form = useForm<CoDriverFormValues>({
@@ -55,9 +60,9 @@ export function AddCoDriverDialog({
 
   React.useEffect(() => {
     if (open) {
-      form.reset(emptyCoDriverFormValues);
+      form.reset(initialValues ?? emptyCoDriverFormValues);
     }
-  }, [open, form]);
+  }, [open, form, initialValues]);
 
   const handleSubmit: SubmitHandler<CoDriverFormValues> = async (values) => {
     await onSubmit(values);
@@ -123,13 +128,13 @@ export function AddCoDriverDialog({
             maxLength={3}
             className={fieldClassName}
           />
-          <Input
+          {/* <Input
             control={form.control}
             name="occupation"
             label="Occupation"
             required
             className={fieldClassName}
-          />
+          /> */}
           <Input
             control={form.control}
             name="contact_number"
@@ -196,7 +201,7 @@ export function AddCoDriverDialog({
             </Typography>
           </div>
           <div className="grid gap-4 sm:grid-cols-2">
-            {PROFILE_IMAGE_FIELDS.map(({ key, label }) => (
+            {CO_DRIVER_IMAGE_FIELDS.map(({ key, label }) => (
               <ImagePicker
                 key={key}
                 control={form.control}
@@ -221,7 +226,7 @@ export function AddCoDriverDialog({
             Cancel
           </Button>
           <Button type="submit" disabled={isSubmitting}>
-            Save co-driver
+            {submitLabel}
           </Button>
         </div>
       </FormCommon>

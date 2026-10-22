@@ -15,17 +15,22 @@ import {
   Textarea,
 } from "../common/FormCommon";
 import { Typography } from "../common/Typography";
+import { TeamMemberPicker } from "../teams/TeamMemberPicker";
 import { Button } from "../ui/button";
-import { Checkbox } from "../ui/checkbox";
 import { cn } from "../../lib/utils";
 import { GENDER_OPTIONS } from "../../utils/constants";
 import {
+  CO_DRIVER_IMAGE_FIELDS,
   coDriverFormSchema,
   emptyCoDriverFormValues,
   type CoDriverFormValues,
 } from "../../utils/co-driver-form";
-import { PROFILE_IMAGE_FIELDS } from "../../utils/profile-update";
 import { teamMemberIdsFromTeam } from "../../utils/team-form";
+import {
+  extraMembersError,
+  SOLO_CATEGORY_MESSAGE,
+  type TeamComposition,
+} from "../../utils/team-roster-rules";
 
 const fieldClassName =
   "h-11 w-full rounded-md border-[#E8E8E8] bg-white px-3 text-[14px] text-[#1F1838]";
@@ -37,14 +42,16 @@ const genderSelectOptions = GENDER_OPTIONS.map((o) => ({
 
 const teamBasicsSchema = z.object({
   team_name: z.string().trim().min(1, "Team name is required"),
-  team_number: z.string().trim().min(1, "Team number is required"),
+  // Team number is optional; hidden for now.
+  // team_number: z.string().trim().min(1, "Team number is required"),
+  team_number: z.string().trim().optional(),
 });
 
 type TeamBasicsValues = z.infer<typeof teamBasicsSchema>;
 
 export type CreateTeamRegistrationResult = {
   team_name: string;
-  team_number: string;
+  team_number?: string;
   member_ids: string[];
   coDriver: CoDriverFormValues | null;
 };
@@ -53,9 +60,8 @@ type CreateTeamRegistrationDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   categoryTitle: string;
-  needsCoDriver: boolean;
-  /** Cap for optional roster users (excluding the driver). */
-  maxExtraMembers: number;
+  /** Team size rules for the category (driver + co-driver + users). */
+  composition: TeamComposition;
   existingTeams: Team[];
   rosterMembers: TeamMember[];
   isSubmitting?: boolean;
@@ -66,8 +72,7 @@ export function CreateTeamRegistrationDialog({
   open,
   onOpenChange,
   categoryTitle,
-  needsCoDriver,
-  maxExtraMembers,
+  composition,
   existingTeams,
   rosterMembers,
   isSubmitting = false,
@@ -86,11 +91,17 @@ export function CreateTeamRegistrationDialog({
   const [selectedMemberIds, setSelectedMemberIds] = React.useState<string[]>(
     [],
   );
+  const [membersError, setMembersError] = React.useState<string | null>(null);
+
+  const needsCoDriver = composition.teamAllowed && composition.needsCoDriver;
+  const requiredExtraMembers = composition.teamAllowed
+    ? composition.extraMembers
+    : 0;
 
   const sourceTeamOptions = React.useMemo(
     () =>
       existingTeams.map((t) => ({
-        label: `${t.team_name} · #${t.team_number}`,
+        label: t.team_number ? `${t.team_name} · #${t.team_number}` : t.team_name,
         value: t._id,
       })),
     [existingTeams],
@@ -102,6 +113,7 @@ export function CreateTeamRegistrationDialog({
     coDriverForm.reset(emptyCoDriverFormValues);
     setSourceTeamId("");
     setSelectedMemberIds([]);
+    setMembersError(null);
   }, [open, teamForm, coDriverForm]);
 
   const applyMembersFromTeam = (teamId: string) => {
@@ -112,18 +124,11 @@ export function CreateTeamRegistrationDialog({
     }
     const team = existingTeams.find((t) => t._id === teamId);
     if (!team) return;
-    const ids = teamMemberIdsFromTeam(team);
-    const capped =
-      maxExtraMembers > 0 ? ids.slice(0, maxExtraMembers) : ids.slice(0, 0);
-    setSelectedMemberIds(capped);
-  };
-
-  const toggleMember = (id: string) => {
-    setSelectedMemberIds((prev) => {
-      if (prev.includes(id)) return prev.filter((x) => x !== id);
-      if (maxExtraMembers > 0 && prev.length >= maxExtraMembers) return prev;
-      return [...prev, id];
-    });
+    // Legacy teams keep the co-driver as a navigator member; don't copy it as a user.
+    const navId = team.navigator_id?._id;
+    const ids = teamMemberIdsFromTeam(team).filter((id) => id !== navId);
+    setSelectedMemberIds(ids.slice(0, requiredExtraMembers));
+    setMembersError(null);
   };
 
   const handleCancel = () => {
@@ -132,8 +137,15 @@ export function CreateTeamRegistrationDialog({
   };
 
   const handleCreate = async () => {
+    if (!composition.teamAllowed) return;
     const teamOk = await teamForm.trigger();
     if (!teamOk) return;
+
+    const countError = extraMembersError(composition, selectedMemberIds.length);
+    if (countError) {
+      setMembersError(countError);
+      return;
+    }
 
     let coDriver: CoDriverFormValues | null = null;
     if (needsCoDriver) {
@@ -145,14 +157,13 @@ export function CreateTeamRegistrationDialog({
     const basics = teamForm.getValues();
     await onSubmit({
       team_name: basics.team_name.trim(),
-      team_number: basics.team_number.trim(),
+      // team_number: basics.team_number.trim(),
       member_ids: selectedMemberIds,
       coDriver,
     });
   };
 
-  const showRoster =
-    maxExtraMembers > 0 && (rosterMembers.length > 0 || existingTeams.length > 0);
+  const showRoster = requiredExtraMembers > 0;
 
   return (
     <DialogCommon
@@ -161,11 +172,16 @@ export function CreateTeamRegistrationDialog({
         if (!next) handleCancel();
         else onOpenChange(true);
       }}
-      headerTitle="Add team"
+      headerTitle="Add Co-driver/Navigator"
       headerDescription={`Create a team for ${categoryTitle}. You (the driver) are included automatically.`}
       className="sm:max-w-[640px]"
     >
       <div className="space-y-5">
+        {!composition.teamAllowed ? (
+          <p className="text-sm font-medium text-destructive">
+            {SOLO_CATEGORY_MESSAGE}
+          </p>
+        ) : null}
         <FormCommon
           form={teamForm}
           onSubmit={(() => undefined) as SubmitHandler<TeamBasicsValues>}
@@ -178,35 +194,22 @@ export function CreateTeamRegistrationDialog({
             required
             className={fieldClassName}
           />
+          {/* Team number is optional; hidden for now.
           <Input
             control={teamForm.control}
             name="team_number"
             label="Team number"
             required
             className={fieldClassName}
-          />
+          /> */}
         </FormCommon>
 
         {showRoster ? (
-          <div className="space-y-3 rounded-md border border-[#E4E7EE] bg-[#F9FAFD] p-4">
-            <div className="space-y-1">
-              <Typography
-                variant="label"
-                className="text-[13px] font-bold tracking-wide text-[#1F1838]"
-              >
-                Users from an existing team
-              </Typography>
-              <Typography variant="body-sm" className="text-[#6B7890]">
-                Optionally copy users from another team, or pick from your
-                roster. Max {maxExtraMembers} besides you
-                {needsCoDriver ? " (co-driver is separate below)" : ""}.
-              </Typography>
-            </div>
-
+          <div className="space-y-3">
             {sourceTeamOptions.length > 0 ? (
               <div className="space-y-1.5">
                 <label className="text-sm font-medium text-[#25314D]">
-                  Copy from team
+                  Copy users from team (optional)
                 </label>
                 <select
                   className={cn(fieldClassName, "appearance-auto")}
@@ -223,46 +226,17 @@ export function CreateTeamRegistrationDialog({
                 </select>
               </div>
             ) : null}
-
-            {rosterMembers.length > 0 ? (
-              <div className="max-h-40 space-y-2 overflow-y-auto">
-                {rosterMembers.map((m) => {
-                  const checked = selectedMemberIds.includes(m._id);
-                  const atCap =
-                    !checked &&
-                    maxExtraMembers > 0 &&
-                    selectedMemberIds.length >= maxExtraMembers;
-                  return (
-                    <label
-                      key={m._id}
-                      className={cn(
-                        "flex cursor-pointer items-center gap-3 rounded-md border bg-white px-3 py-2",
-                        atCap ? "opacity-50" : "border-[#E4E7EE]",
-                      )}
-                    >
-                      <Checkbox
-                        checked={checked}
-                        disabled={atCap || isSubmitting}
-                        onCheckedChange={() => toggleMember(m._id)}
-                      />
-                      <span className="min-w-0">
-                        <span className="block text-sm font-medium text-[#25314D]">
-                          {m.name}
-                        </span>
-                        <span className="block truncate text-xs text-[#8B96AD]">
-                          {m.email}
-                        </span>
-                      </span>
-                    </label>
-                  );
-                })}
-              </div>
-            ) : (
-              <Typography variant="body-sm" className="text-[#8B96AD]">
-                No users in your roster yet. Add users on the Teams page, or
-                continue with just a co-driver.
-              </Typography>
-            )}
+            <TeamMemberPicker
+              members={rosterMembers}
+              selectedIds={selectedMemberIds}
+              onChange={(ids) => {
+                setSelectedMemberIds(ids);
+                setMembersError(null);
+              }}
+              required={requiredExtraMembers}
+              disabled={isSubmitting}
+              error={membersError}
+            />
           </div>
         ) : null}
 
@@ -319,13 +293,13 @@ export function CreateTeamRegistrationDialog({
                   maxLength={3}
                   className={fieldClassName}
                 />
-                <Input
+                {/* <Input
                   control={coDriverForm.control}
                   name="occupation"
                   label="Occupation"
                   required
                   className={fieldClassName}
-                />
+                /> */}
                 <Input
                   control={coDriverForm.control}
                   name="contact_number"
@@ -378,7 +352,7 @@ export function CreateTeamRegistrationDialog({
                 className={fieldClassName}
               />
               <div className="grid gap-3 sm:grid-cols-2">
-                {PROFILE_IMAGE_FIELDS.map(({ key, label }) => (
+                {CO_DRIVER_IMAGE_FIELDS.map(({ key, label }) => (
                   <ImagePicker
                     key={key}
                     control={coDriverForm.control}
@@ -404,8 +378,12 @@ export function CreateTeamRegistrationDialog({
           >
             Cancel
           </Button>
-          <Button type="button" onClick={() => void handleCreate()} disabled={isSubmitting}>
-            Create team
+          <Button
+            type="button"
+            onClick={() => void handleCreate()}
+            disabled={isSubmitting || !composition.teamAllowed}
+          >
+            Add Co-driver/Navigator
           </Button>
         </div>
       </div>

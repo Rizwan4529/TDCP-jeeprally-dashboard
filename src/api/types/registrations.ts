@@ -1,12 +1,17 @@
 /** POST /registrations — keys match the registration API body. */
 export type CreateRegistrationPayload = {
-  team_id: string;
+  /** Omitted for solo categories (max_members ≤ 1), which register without a team. */
+  team_id?: string;
   event_id: string;
   /** Type of the selected category (category.typeId). */
   type_id: string;
   category_id: string;
   vehicle_id: string;
   navigator_id?: string;
+  /** "Other information" from the consent step (required for new registrations). */
+  emergency_contact_person?: string;
+  emergency_contact_number?: string;
+  participation_remarks?: string;
 };
 
 /** PUT /registrations/:id — team, category, and event stay locked; no payment. */
@@ -46,7 +51,7 @@ export type RegistrationPerson = {
 export type RegistrationTeam = {
   _id: string;
   team_name: string;
-  team_number: string;
+  team_number?: string | null;
   category: string;
   driver_id?: RegistrationPerson | string | null;
   navigator_id?: RegistrationPerson | string | null;

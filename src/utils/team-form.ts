@@ -5,7 +5,9 @@ import type { Category as TeamCategory } from "@/utils/constants";
 
 export const teamFormSchema = z.object({
   team_name: z.string().trim().min(1, "Team name is required"),
-  team_number: z.string().trim().min(1, "Team number is required"),
+  // Team number is optional and hidden from the forms.
+  // team_number: z.string().trim().min(1, "Team number is required"),
+  team_number: z.string().trim().optional(),
   category: z.string().trim().min(1, "Category is required"),
   type: z.string().trim().optional(),
   navigator_id: z.string().optional(),
@@ -33,7 +35,7 @@ export const emptyTeamFormValues: TeamFormValues = {
 export function teamToFormValues(t: Team): TeamFormValues {
   return {
     team_name: t.team_name,
-    team_number: t.team_number,
+    team_number: t.team_number ?? "",
     category: t.category,
     navigator_id: t.navigator_id?._id ?? "",
     // co_driver_email: "",
@@ -60,7 +62,7 @@ export function buildCreateTeamPayloadFromForm(
 ): CreateTeamPayload {
   const payload: CreateTeamPayload = {
     team_name: values.team_name.trim(),
-    team_number: values.team_number.trim(),
+    // team_number: values.team_number.trim(),
     category: values.category,
   };
   const type = values.type?.trim();
@@ -86,7 +88,7 @@ export function buildTeamDetailsUpdatePayload(
 ): UpdateTeamPayload {
   const payload: UpdateTeamPayload = {
     team_name: values.team_name.trim(),
-    team_number: values.team_number.trim(),
+    // team_number: values.team_number.trim(),
     category: values.category,
   };
   const type = values.type?.trim();
@@ -122,7 +124,7 @@ export function buildCreateTeamPayload(
 ): CreateTeamPayload {
   const payload: CreateTeamPayload = {
     team_name: values.team_name.trim(),
-    team_number: values.team_number.trim(),
+    // team_number: values.team_number.trim(),
     category: values.category as TeamCategory,
     member_ids: memberIds,
   };
@@ -137,7 +139,7 @@ export function buildUpdateTeamPayload(
 ): UpdateTeamPayload {
   const payload: UpdateTeamPayload = {
     team_name: values.team_name.trim(),
-    team_number: values.team_number.trim(),
+    // team_number: values.team_number.trim(),
     category: values.category as TeamCategory,
     member_ids: memberIds,
   };

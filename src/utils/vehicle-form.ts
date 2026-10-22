@@ -5,13 +5,15 @@ import type {
   CreateVehiclePayload,
   UpdateVehiclePayload,
   Vehicle,
+  VehicleEngineType,
 } from "@/api/types/vehicles";
 import { toPublicFileUrl } from "@/utils/helpers";
 import { refId } from "@/utils/rally-team-options";
 
 /** Suggested ranges — used for validation and form hints. */
 export const VEHICLE_FIELD_LIMITS = {
-  power: { min: 20, max: 2000, unit: "HP", integer: true },
+  // `power` holds the engine capacity in cc.
+  power: { min: 50, max: 10000, unit: "cc", integer: true },
   weight: { min: 100, max: 15000, unit: "kg", integer: true },
   length: { min: 0.5, max: 20, unit: "m", integer: false },
   tank_capacity: { min: 1, max: 500, unit: "L", integer: true },
@@ -25,16 +27,16 @@ type VehicleFieldHint = {
 };
 
 export const VEHICLE_FIELD_HINTS = {
+  // `model` and `engine` keep their API names; shown as Make and Reg no.
   model: {
-    label: "Model",
+    label: "Make",
     required: true,
-    placeholder: "e.g. Jeep Wrangler Rubicon",
+    placeholder: "e.g. Toyota Land Cruiser",
   },
   engine: {
-    label: "Engine",
+    label: "Reg no.",
     required: true,
-    placeholder: "e.g. 3.6L Pentastar V6",
-    description: "Engine type or displacement — not horsepower.",
+    placeholder: "e.g. LEA-1234",
   },
   category: {
     label: "Category",
@@ -48,10 +50,9 @@ export const VEHICLE_FIELD_HINTS = {
     description: "Chassis, roll cage, and major build or safety details.",
   },
   power: {
-    label: "Power (HP)",
-    required: false,
-    placeholder: "e.g. 285",
-    description: "Engine output in horsepower — not cc or kW.",
+    label: "Engine capacity (cc)",
+    required: true,
+    placeholder: "e.g. 2800",
   },
   weight: {
     label: "Weight (kg)",
@@ -79,7 +80,34 @@ export const VEHICLE_FIELD_HINTS = {
     description:
       "Competition division for grouping/results (Stock, Modified, Open) — separate from category above.",
   },
+  engineType: {
+    label: "Vehicle type",
+    required: true,
+    placeholder: "Select diesel or petrol",
+  },
+  turboCharge: {
+    label: "Turbo charged",
+    required: true,
+    placeholder: "Select yes or no",
+  },
+  desiredRallyNumber: {
+    label: "Desired rally no. (Subject to availability)",
+    required: true,
+    placeholder: "e.g. 27",
+  },
 } as const satisfies Record<string, VehicleFieldHint>;
+
+export const ENGINE_TYPE_OPTIONS: { label: string; value: VehicleEngineType }[] =
+  [
+    { label: "Diesel", value: "diesel" },
+    { label: "Petrol", value: "petrol" },
+  ];
+
+/** Turbo is a boolean in the API; the form shows Yes / No. */
+export const TURBO_CHARGE_OPTIONS = [
+  { label: "Yes", value: "yes" },
+  { label: "No", value: "no" },
+];
 
 /** Shared label / placeholder / description / required for vehicle form fields. */
 export function vehicleFormFieldProps<
@@ -136,9 +164,19 @@ function optionalNumericField(
     });
 }
 
+function requiredNumericField(
+  fieldLabel: string,
+  config: Parameters<typeof optionalNumericField>[1],
+) {
+  return optionalNumericField(fieldLabel, config).refine(
+    (value) => (value ?? "").trim() !== "",
+    `${fieldLabel} is required`,
+  );
+}
+
 export const vehicleFormSchema = z.object({
-  model: z.string().trim().min(1, "Model is required"),
-  engine: z.string().trim().min(1, "Engine is required"),
+  model: z.string().trim().min(1, "Make is required"),
+  engine: z.string().trim().min(1, "Reg no. is required"),
   category_id: z.string().trim().min(1, "Select a valid category"),
   typeId: z.string().trim().optional(),
   frame: z
@@ -153,7 +191,18 @@ export const vehicleFormSchema = z.object({
         });
       }
     }),
-  power: optionalNumericField("Power", VEHICLE_FIELD_LIMITS.power),
+  power: requiredNumericField("Engine capacity", VEHICLE_FIELD_LIMITS.power),
+  engineType: z
+    .string()
+    .refine((v) => ["diesel", "petrol"].includes(v), "Select diesel or petrol"),
+  turboCharge: z
+    .string()
+    .refine((v) => ["yes", "no"].includes(v), "Select yes or no"),
+  desiredRallyNumber: z
+    .string()
+    .trim()
+    .min(1, "Desired rally no. is required")
+    .max(20, "Desired rally no. must be 20 characters or fewer"),
   weight: optionalNumericField("Weight", VEHICLE_FIELD_LIMITS.weight),
   length: optionalNumericField("Length", VEHICLE_FIELD_LIMITS.length),
   tank_capacity: optionalNumericField(
@@ -186,6 +235,9 @@ export const emptyVehicleFormValues: VehicleFormValues = {
   typeId: "",
   frame: "",
   power: "",
+  engineType: "",
+  turboCharge: "",
+  desiredRallyNumber: "",
   weight: "",
   length: "",
   tank_capacity: "",
@@ -243,7 +295,7 @@ export function getVehicleCategoryTitle(vehicle: Vehicle): string {
   );
 }
 
-/** POST /vehicles — required category_id, model, engine; optional rest only if set. */
+/** POST /vehicles — required fields always; optional rest only if set. */
 export function buildCreateVehiclePayload(
   values: VehicleFormValues,
 ): CreateVehiclePayload {
@@ -251,6 +303,9 @@ export function buildCreateVehiclePayload(
     category_id: values.category_id.trim(),
     model: values.model.trim(),
     engine: values.engine.trim(),
+    engineType: values.engineType as VehicleEngineType,
+    turboCharge: values.turboCharge === "yes",
+    desiredRallyNumber: values.desiredRallyNumber.trim(),
   };
 
   const typeId = optionalTrimmed(values.typeId);
@@ -262,7 +317,7 @@ export function buildCreateVehiclePayload(
   const power = parseOptionalNumber(
     values.power,
     VEHICLE_FIELD_LIMITS.power,
-    "Power",
+    "Engine capacity",
   );
   if (power !== undefined) payload.power = power;
 
@@ -308,6 +363,10 @@ export function vehicleToFormValues(v: Vehicle): VehicleFormValues {
     typeId: getVehicleTypeRef(v),
     frame: v.frame ?? "",
     power: v.power != null ? String(v.power) : "",
+    engineType: v.engineType ?? "",
+    turboCharge:
+      v.turboCharge === true ? "yes" : v.turboCharge === false ? "no" : "",
+    desiredRallyNumber: v.desiredRallyNumber ?? "",
     weight: v.weight != null ? String(v.weight) : "",
     length: v.length != null ? String(v.length) : "",
     tank_capacity: v.tank_capacity != null ? String(v.tank_capacity) : "",

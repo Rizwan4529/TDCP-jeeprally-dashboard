@@ -38,7 +38,7 @@ import {
   CreateTeamRegistrationDialog,
   type CreateTeamRegistrationResult,
 } from "@/components/registration/CreateTeamRegistrationDialog";
-import { CreateVehicleRegistrationDialog } from "@/components/registration/CreateVehicleRegistrationDialog";
+import { VehicleFormDialog } from "@/components/vehicles/VehicleFormDialog";
 import {
   buildEntryCategoryOptions,
   RegistrationEntryStep,
@@ -104,6 +104,8 @@ import {
   buildCreateVehiclePayload,
   buildUpdateVehiclePayload,
   emptyVehicleFormValues,
+  ENGINE_TYPE_OPTIONS,
+  TURBO_CHARGE_OPTIONS,
   getVehicleCategoryKey,
   getVehicleCategoryTitle,
   vehicleFormFieldProps,
@@ -142,7 +144,11 @@ import {
   isTeamRegisteredInEvent,
   isVehicleRegisteredInEvent,
 } from "@/utils/registration-entries";
-import { buildCategoryMap, needsNavigator } from "@/utils/team-roster-rules";
+import {
+  buildCategoryMap,
+  getTeamComposition,
+  needsNavigator,
+} from "@/utils/team-roster-rules";
 
 type Step = 1 | 2 | 3 | 4;
 
@@ -153,6 +159,25 @@ const consentSchema = z.object({
   acceptedTerms: z
     .boolean()
     .refine((v) => v === true, "You must accept the Terms & Conditions."),
+  emergency_contact_person: z.string(),
+  emergency_contact_number: z.string(),
+  participation_remarks: z.string(),
+});
+
+/** New registrations also collect the "Other information" fields. */
+const newRegistrationConsentSchema = consentSchema.extend({
+  emergency_contact_person: z
+    .string()
+    .trim()
+    .min(1, "Enter the emergency contact name"),
+  emergency_contact_number: z
+    .string()
+    .trim()
+    .regex(/^03\d{9}$/, "Enter a valid mobile number (e.g. 03001234567)"),
+  participation_remarks: z
+    .string()
+    .trim()
+    .min(1, "This field is required"),
 });
 
 type ConsentFormValues = z.infer<typeof consentSchema>;
@@ -298,7 +323,16 @@ export default function RegistrationPage() {
     () => getAmountForEntryMode(selectedPricing, entryMode),
     [selectedPricing, entryMode],
   );
-  const requiresNavigator = needsNavigator(categoryRecord);
+  /** Solo categories (max_members ≤ 1) register the driver alone: no team step, no team_id. */
+  const isSoloCategory =
+    Boolean(categoryRecord) && !getTeamComposition(categoryRecord).teamAllowed;
+  const requiresNavigator = needsNavigator(categoryRecord) && !isSoloCategory;
+  /** Rally type of the entry; new vehicles are created under it. */
+  const registrationTypeId =
+    selectedTypeId ||
+    getTypeIdForCategory(activeRally, categoryRecord?._id) ||
+    getTypeIdForCategory(activeRally, category ?? undefined) ||
+    "";
   const categoryConsentHtml = categoryRecord?.consent?.trim() ?? "";
 
   const entryCategoryOptions = useMemo(
@@ -549,7 +583,7 @@ export default function RegistrationPage() {
       if (getVehicleCategoryKey(v) !== category) return false;
       // Unassigned vehicles (team_id null) are eligible for any team in this category.
       if (!v.team_id) return true;
-      if (!selectedRegistrationTeamId) return isEditMode;
+      if (!selectedRegistrationTeamId) return isEditMode || isSoloCategory;
       return v.team_id === selectedRegistrationTeamId;
     };
 
@@ -761,8 +795,15 @@ export default function RegistrationPage() {
   ]);
 
   const consentForm = useForm<ConsentFormValues>({
-    resolver: zodResolver(consentSchema),
-    defaultValues: { acceptedTerms: false },
+    resolver: zodResolver(
+      isEditMode ? consentSchema : newRegistrationConsentSchema,
+    ),
+    defaultValues: {
+      acceptedTerms: false,
+      emergency_contact_person: "",
+      emergency_contact_number: "",
+      participation_remarks: "",
+    },
   });
 
   useEffect(() => {
@@ -847,7 +888,9 @@ export default function RegistrationPage() {
   const [isSubmittingRegistration, setIsSubmittingRegistration] =
     useState(false);
 
-  const onSubmitConsent: SubmitHandler<ConsentFormValues> = async () => {
+  const onSubmitConsent: SubmitHandler<ConsentFormValues> = async (
+    consentValues,
+  ) => {
     if (!registrationWindow.isOpen) {
       toast.error(registrationClosedMessage.description);
       return;
@@ -864,7 +907,7 @@ export default function RegistrationPage() {
 
     if (
       !activeRallyEventId ||
-      !selectedRegistrationTeamId ||
+      (!isSoloCategory && !selectedRegistrationTeamId) ||
       !activeVehicleId
     ) {
       toast.error(
@@ -896,10 +939,13 @@ export default function RegistrationPage() {
       }
     }
 
-    const selectedTeam = teams.find(
-      (t) => t._id === selectedRegistrationTeamId,
-    );
-    if (!selectedTeam || selectedTeam.category !== category) {
+    const selectedTeam = isSoloCategory
+      ? null
+      : teams.find((t) => t._id === selectedRegistrationTeamId);
+    if (
+      !isSoloCategory &&
+      (!selectedTeam || selectedTeam.category !== category)
+    ) {
       toast.error("Selected team must match your registration category.");
       return;
     }
@@ -913,14 +959,16 @@ export default function RegistrationPage() {
       return;
     }
 
-    const rosterValidation = validateTeamForRegistration(
-      categoryRecord,
-      selectedTeam,
-    );
-    if (!rosterValidation.ok) {
+    const rosterValidation = selectedTeam
+      ? validateTeamForRegistration(categoryRecord, selectedTeam)
+      : null;
+    if (rosterValidation && !rosterValidation.ok) {
       toast.error(rosterValidation.message);
       return;
     }
+    const teamNavigatorId = selectedTeam
+      ? coDriverFromTeam(selectedTeam)?._id
+      : undefined;
 
     setIsSubmittingRegistration(true);
     try {
@@ -928,8 +976,7 @@ export default function RegistrationPage() {
         const updatePayload: UpdateRegistrationPayload = {
           vehicle_id: activeVehicleId,
         };
-        const navigatorId = coDriverFromTeam(selectedTeam)?._id;
-        if (navigatorId) updatePayload.navigator_id = navigatorId;
+        if (teamNavigatorId) updatePayload.navigator_id = teamNavigatorId;
 
         await updateRegistrationMutation.mutateAsync({
           registrationId: editRegistrationId,
@@ -951,15 +998,18 @@ export default function RegistrationPage() {
         getTypeIdForCategory(activeRally, categoryRecord.key) ||
         refId(selectedPricing?.category_id?.typeId ?? null);
       const payload: CreateRegistrationPayload = {
-        team_id: selectedRegistrationTeamId,
         event_id: activeRallyEventId,
         type_id: typeId,
         category_id: categoryRecord._id,
         vehicle_id: activeVehicleId,
+        emergency_contact_person: consentValues.emergency_contact_person.trim(),
+        emergency_contact_number: consentValues.emergency_contact_number.trim(),
+        participation_remarks: consentValues.participation_remarks.trim(),
       };
+      if (!isSoloCategory) payload.team_id = selectedRegistrationTeamId;
       const missingFields = (
         [
-          ["team", payload.team_id],
+          ...(isSoloCategory ? [] : [["team", payload.team_id] as const]),
           ["event", payload.event_id],
           ["vehicle type", payload.type_id],
           ["category", payload.category_id],
@@ -975,9 +1025,8 @@ export default function RegistrationPage() {
         setIsSubmittingRegistration(false);
         return;
       }
-      const navigatorId = coDriverFromTeam(selectedTeam)?._id;
-      if (navigatorId) {
-        payload.navigator_id = navigatorId;
+      if (teamNavigatorId) {
+        payload.navigator_id = teamNavigatorId;
       } else if (requiresNavigator) {
         toast.error(
           "Selected team must have a co-driver before registering.",
@@ -1006,7 +1055,7 @@ export default function RegistrationPage() {
       const orderDescription = buildJeepRallyOrderDescription([
         categoryRecord.title,
         entryMode === "sponsor" ? "Sponsor" : "Individual",
-        selectedTeam.team_name,
+        selectedTeam?.team_name,
         selectedVehicle.model,
         activeRally?.name,
       ]);
@@ -1066,11 +1115,13 @@ export default function RegistrationPage() {
                 isDone={isEditMode || step > 1}
                 label="Category"
               />
-              <StepPill
-                isActive={!isEditMode && step === 2}
-                isDone={isEditMode || step > 2}
-                label="Team"
-              />
+              {!isSoloCategory ? (
+                <StepPill
+                  isActive={!isEditMode && step === 2}
+                  isDone={isEditMode || step > 2}
+                  label="Team"
+                />
+              ) : null}
               <StepPill
                 isActive={isVehicleStep}
                 isDone={step > 3}
@@ -1286,7 +1337,7 @@ export default function RegistrationPage() {
                         return;
                       }
                       setProfileGateVisible(false);
-                      setStep(2);
+                      setStep(isSoloCategory ? 3 : 2);
                     }}
                   >
                     Continue
@@ -1350,7 +1401,7 @@ export default function RegistrationPage() {
                     onClick={() => setCreateTeamOpen(true)}
                   >
                     <PlusIcon className="size-4" />
-                    Add team
+                    Add Co-driver/Navigator
                   </Button>
                 </div>
               </div>
@@ -1382,7 +1433,7 @@ export default function RegistrationPage() {
                       onClick={() => setCreateTeamOpen(true)}
                     >
                       <PlusIcon className="size-4" />
-                      Add team
+                      Add Co-driver/Navigator
                     </Button>
                   }
                 />
@@ -1441,8 +1492,8 @@ export default function RegistrationPage() {
                             >
                               {categoryRecord?.title ??
                                 CATEGORY_LABELS[t.category as Category] ??
-                                t.category}{" "}
-                              · #{t.team_number}
+                                t.category}
+                              {t.team_number ? ` · #${t.team_number}` : ""}
                             </Typography>
                             <Typography
                               variant="body-sm"
@@ -1537,6 +1588,7 @@ export default function RegistrationPage() {
 
               {teamsForCategory.length > 0 ? (
                 <div className="flex flex-col items-stretch justify-end gap-3 pt-2 sm:flex-row sm:items-center sm:gap-4">
+                  {/* Duplicate of the header "Add Co-driver/Navigator" button; hidden.
                   <Button
                     type="button"
                     variant="primary-outline"
@@ -1544,8 +1596,8 @@ export default function RegistrationPage() {
                     onClick={() => setCreateTeamOpen(true)}
                   >
                     <PlusIcon className="size-4" />
-                    Add team
-                  </Button>
+                    Add Co-driver/Navigator
+                  </Button> */}
                   <Button
                     type="button"
                     className="w-full sm:w-auto"
@@ -1685,8 +1737,12 @@ export default function RegistrationPage() {
                         Team:{" "}
                         <span className="font-semibold">
                           {registrationSummary.team
-                            ? `${registrationSummary.team.team_name} · #${registrationSummary.team.team_number}`
-                            : "-"}
+                            ? registrationSummary.team.team_number
+                              ? `${registrationSummary.team.team_name} · #${registrationSummary.team.team_number}`
+                              : registrationSummary.team.team_name
+                            : isSoloCategory
+                              ? "Not needed (solo entry)"
+                              : "-"}
                         </span>
                         {isEditMode ? (
                           <span className="ml-2 text-[#8B96AD]">(locked)</span>
@@ -1742,6 +1798,45 @@ export default function RegistrationPage() {
                   </div>
                 </div>
 
+                {!isEditMode ? (
+                  <div className="rounded-md border border-[#E8E8E8] bg-white p-4 sm:p-6">
+                    <Typography
+                      variant="body-lg"
+                      className="font-semibold text-[#25314D]"
+                    >
+                      Other information
+                    </Typography>
+                    <div className="mt-4 grid gap-4 md:grid-cols-2">
+                      <Input
+                        control={consentForm.control}
+                        name="emergency_contact_person"
+                        label="Emergency contact name"
+                        required
+                        className={fieldClassName}
+                      />
+                      <Input
+                        control={consentForm.control}
+                        name="emergency_contact_number"
+                        label="Emergency contact no."
+                        required
+                        inputMode="numeric"
+                        maxLength={11}
+                        placeholder="03001234567"
+                        className={fieldClassName}
+                      />
+                      <div className="md:col-span-2">
+                        <Input
+                          control={consentForm.control}
+                          name="participation_remarks"
+                          label="I am participating 1st time/ no. of time"
+                          required
+                          className={fieldClassName}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+
                 <div className="rounded-md bg-[#F9FAFD] p-4 sm:p-6">
                   <Typography
                     variant="body-lg"
@@ -1777,14 +1872,18 @@ export default function RegistrationPage() {
                       isSubmittingRegistration ||
                       !activeRallyEventId ||
                       !categoryConsentHtml ||
-                      !selectedRegistrationTeamId ||
+                      (!isSoloCategory && !selectedRegistrationTeamId) ||
                       !activeVehicleId ||
-                      (!isEditMode && !selectedTeamValidation?.ok) ||
+                      (!isEditMode &&
+                        !isSoloCategory &&
+                        !selectedTeamValidation?.ok) ||
                       (!isEditMode && !entryMode) ||
                       (!isEditMode &&
+                        !isSoloCategory &&
                         isTeamLocked(selectedRegistrationTeamId)) ||
                       (!isEditMode && isVehicleLocked(activeVehicleId)) ||
                       (!isEditMode &&
+                        !isSoloCategory &&
                         !teamsForCategory.some(
                           (t) => t._id === selectedRegistrationTeamId,
                         )) ||
@@ -1835,12 +1934,20 @@ export default function RegistrationPage() {
                         void navigate(ROUTES.MY_REGISTRATIONS);
                         return;
                       }
-                      setStep(2);
+                      setStep(isSoloCategory ? 1 : 2);
                     }}
                   >
                     {isEditMode ? "Cancel" : "Back"}
                   </Button>
-                  {!isEditMode ? (
+                  {/* Hidden while the "No matching vehicle" empty state shows its own Add vehicle button. */}
+                  {!isEditMode &&
+                  !(
+                    token &&
+                    !myVehicleQuery.isLoading &&
+                    !myVehicleQuery.isError &&
+                    vehicleMode === "list" &&
+                    vehiclesForRegistration.length === 0
+                  ) ? (
                     <Button
                       type="button"
                       className="w-full sm:w-auto"
@@ -1973,8 +2080,8 @@ export default function RegistrationPage() {
                                 )}
                               >
                                 {getVehicleCategoryTitle(v)}
-                                {v.class ? ` · ${v.class}` : ""}
-                                {v.power != null ? ` · Power ${v.power}` : ""}
+                                {v.engine ? ` · ${v.engine}` : ""}
+                                {v.power != null ? ` · ${v.power} cc` : ""}
                               </Typography>
                               {locked ? (
                                 <Typography
@@ -2063,12 +2170,6 @@ export default function RegistrationPage() {
                       />
                       <Input
                         control={vehicleForm.control}
-                        name={"frame"}
-                        {...vehicleFormFieldProps("frame")}
-                        className={fieldClassName}
-                      />
-                      <Input
-                        control={vehicleForm.control}
                         name={"power"}
                         {...vehicleFormFieldProps("power")}
                         className={fieldClassName}
@@ -2076,6 +2177,33 @@ export default function RegistrationPage() {
                         min={VEHICLE_FIELD_LIMITS.power.min}
                         max={VEHICLE_FIELD_LIMITS.power.max}
                         step={1}
+                      />
+                      <Select
+                        control={vehicleForm.control}
+                        name="engineType"
+                        {...vehicleFormFieldProps("engineType")}
+                        options={ENGINE_TYPE_OPTIONS}
+                        className={fieldClassName}
+                      />
+                      <Select
+                        control={vehicleForm.control}
+                        name="turboCharge"
+                        {...vehicleFormFieldProps("turboCharge")}
+                        options={TURBO_CHARGE_OPTIONS}
+                        className={fieldClassName}
+                      />
+                      <Input
+                        control={vehicleForm.control}
+                        name="desiredRallyNumber"
+                        {...vehicleFormFieldProps("desiredRallyNumber")}
+                        className={fieldClassName}
+                      />
+                      {/* Optional fields hidden for now.
+                      <Input
+                        control={vehicleForm.control}
+                        name={"frame"}
+                        {...vehicleFormFieldProps("frame")}
+                        className={fieldClassName}
                       />
                       <Input
                         control={vehicleForm.control}
@@ -2112,7 +2240,7 @@ export default function RegistrationPage() {
                         name={"class"}
                         {...vehicleFormFieldProps("class")}
                         className={fieldClassName}
-                      />
+                      /> */}
                     </div>
                   </div>
 
@@ -2152,6 +2280,7 @@ export default function RegistrationPage() {
 
               {vehicleMode === "list" && (
                 <div className="flex flex-col items-stretch justify-end gap-3 pt-2 sm:flex-row sm:items-center sm:gap-4">
+                  {/* Duplicate of the header "Add vehicle" button; hidden.
                   {!isEditMode ? (
                     <Button
                       type="button"
@@ -2162,7 +2291,7 @@ export default function RegistrationPage() {
                       <PlusIcon className="size-4" />
                       Add vehicle
                     </Button>
-                  ) : null}
+                  ) : null} */}
                   {vehiclesForRegistration.length > 0 ? (
                     <Button
                       type="button"
@@ -2204,28 +2333,26 @@ export default function RegistrationPage() {
           categoryRecord?.title ??
           (category ? CATEGORY_LABELS[category as Category] ?? category : "this category")
         }
-        needsCoDriver={requiresNavigator}
-        maxExtraMembers={categoryRecord?.max_members ?? 0}
+        composition={getTeamComposition(categoryRecord)}
         existingTeams={teams}
         rosterMembers={rosterMembers}
         isSubmitting={createTeamMutation.isPending}
         onSubmit={handleCreateTeamInRegistration}
       />
 
-      <CreateVehicleRegistrationDialog
+      <VehicleFormDialog
         open={createVehicleOpen}
         onOpenChange={setCreateVehicleOpen}
-        categoryId={categoryRecord?._id ?? ""}
-        categoryTitle={
-          categoryRecord?.title ??
-          (category ? CATEGORY_LABELS[category as Category] ?? category : "this category")
-        }
-        typeId={
-          selectedTypeId ||
-          getTypeIdForCategory(activeRally, categoryRecord?._id) ||
-          getTypeIdForCategory(activeRally, category ?? undefined) ||
-          ""
-        }
+        rally={activeRally}
+        locked={{
+          typeId: registrationTypeId,
+          categoryId: categoryRecord?._id ?? "",
+          categoryTitle:
+            categoryRecord?.title ??
+            (category
+              ? CATEGORY_LABELS[category as Category] ?? category
+              : "this category"),
+        }}
         isSubmitting={
           createVehicleMutation.isPending || uploadImageMutation.isPending
         }

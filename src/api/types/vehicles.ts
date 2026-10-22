@@ -8,6 +8,9 @@ export type VehicleOwner = {
   contact_number?: string;
 };
 
+/** Fuel type, labelled "Vehicle type" in the forms. */
+export type VehicleEngineType = "diesel" | "petrol";
+
 export type Vehicle = {
   _id: string;
   owner_id?: VehicleOwner;
@@ -25,6 +28,9 @@ export type Vehicle = {
   tank_capacity?: number;
   class?: string | null;
   image?: string | null;
+  engineType?: VehicleEngineType | null;
+  turboCharge?: boolean | null;
+  desiredRallyNumber?: string | null;
   created_at?: string;
   updated_at?: string;
   __v?: number;
@@ -56,6 +62,9 @@ export type CreateVehiclePayload = {
   tank_capacity?: number;
   class?: string;
   image?: string;
+  engineType?: VehicleEngineType;
+  turboCharge?: boolean;
+  desiredRallyNumber?: string;
 };
 
 /** PUT /vehicles/:id — any subset of allowed fields (≥1). */

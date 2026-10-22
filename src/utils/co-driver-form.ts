@@ -7,6 +7,21 @@ import type { TeamFormValues } from "./team-form";
 const requiredString = (message = "This field is required") =>
   z.string().trim().min(1, message);
 
+/** Occupation is no longer asked for; every co-driver is saved as this. */
+export const CO_DRIVER_OCCUPATION = "Co-driver";
+
+/** Document fields for the co-driver form, labelled for the co-driver. */
+export const CO_DRIVER_IMAGE_FIELDS = [
+  { key: "profile_image", label: "Co-driver's image" },
+  { key: "cnic_front_image", label: "Co-driver's CNIC (front)" },
+  { key: "cnic_back_image", label: "Co-driver's CNIC (back)" },
+  { key: "license_front_image", label: "Co-driver's license (front)" },
+  { key: "license_back_image", label: "Co-driver's license (back)" },
+] as const satisfies ReadonlyArray<{
+  key: (typeof PROFILE_IMAGE_FIELDS)[number]["key"];
+  label: string;
+}>;
+
 const optionalImage = z.union([z.instanceof(File), z.null()]).optional();
 
 const dateOfBirthSchema = z
@@ -62,7 +77,8 @@ export const coDriverFormSchema = z.object({
     .trim()
     .regex(/^\d{13}$/, "CNIC must be exactly 13 digits"),
   date_of_birth: dateOfBirthSchema,
-  occupation: requiredString("Enter occupation"),
+  // occupation: requiredString("Enter occupation"),
+  occupation: z.string().trim(),
   profile_image: optionalImage,
   cnic_front_image: optionalImage,
   cnic_back_image: optionalImage,
@@ -83,7 +99,7 @@ export const emptyCoDriverFormValues: CoDriverFormValues = {
   license_expiry: "",
   cnic: "",
   date_of_birth: "",
-  occupation: "",
+  occupation: CO_DRIVER_OCCUPATION,
   profile_image: null,
   cnic_front_image: null,
   cnic_back_image: null,
@@ -117,7 +133,8 @@ function toCoDriverTextFields(values: CoDriverFormValues): CoDriverTextFields {
     license_number: values.license_number.trim(),
     license_expiry: values.license_expiry.trim(),
     date_of_birth: values.date_of_birth.trim(),
-    occupation: values.occupation.trim(),
+    // occupation: values.occupation.trim(),
+    occupation: CO_DRIVER_OCCUPATION,
   };
 }
 
@@ -141,7 +158,7 @@ export function teamDetailsForCreate(
 ): CreateTeamPayload {
   const payload: CreateTeamPayload = {
     team_name: values.team_name.trim(),
-    team_number: values.team_number.trim(),
+    // team_number: values.team_number.trim(),
     category: values.category,
   };
   const type = values.type?.trim();
@@ -165,7 +182,7 @@ export function buildCreateTeamWithCoDriverBody(
 
   const formData = new FormData();
   formData.append("team_name", team.team_name);
-  formData.append("team_number", team.team_number);
+  // formData.append("team_number", team.team_number);
   formData.append("category", String(team.category));
   if (team.type) formData.append("type", team.type);
   if (team.event_id) formData.append("event_id", team.event_id);

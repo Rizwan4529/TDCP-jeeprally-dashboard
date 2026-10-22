@@ -266,7 +266,7 @@ export function AddUsersToTeamDialog({
         payload: buildUpdateTeamPayload(
           {
             team_name: existingTeam.team_name,
-            team_number: existingTeam.team_number,
+            team_number: existingTeam.team_number ?? "",
             category: existingTeam.category,
           },
           merge.ids,
@@ -367,7 +367,8 @@ export function AddUsersToTeamDialog({
                     ) : (
                       teamOptions.map((t) => (
                         <SelectItem key={t._id} value={t._id}>
-                          {t.team_name} · #{t.team_number} ·{" "}
+                          {t.team_name}
+                          {t.team_number ? ` · #${t.team_number}` : ""} ·{" "}
                           {categoryByKey.get(t.category)?.title ??
                             CATEGORY_LABELS[t.category as Category] ??
                             t.category}
@@ -401,13 +402,14 @@ export function AddUsersToTeamDialog({
                 required
                 className={fieldClassName}
               />
+              {/* Team number is optional; hidden for now.
               <Input
                 control={form.control}
                 name="team_number"
                 label="Team number"
                 required
                 className={fieldClassName}
-              />
+              /> */}
               <FormSelect
                 control={form.control}
                 name="category"

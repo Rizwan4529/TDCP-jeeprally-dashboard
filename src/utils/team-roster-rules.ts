@@ -12,6 +12,52 @@ export function needsNavigator(
   return Boolean(cat?.navigator_allowed && (cat?.max_members ?? 0) > 0);
 }
 
+/**
+ * Team make-up for a category. `max_members` is the total team size: the
+ * driver, the co-driver (when the category takes a navigator), and users
+ * picked from the Users tab fill the remaining slots.
+ */
+export type TeamComposition =
+  | { teamAllowed: false; totalMembers: number }
+  | {
+      teamAllowed: true;
+      totalMembers: number;
+      needsCoDriver: boolean;
+      /** Users from the Users tab, excluding the driver and co-driver. */
+      extraMembers: number;
+    };
+
+export function getTeamComposition(
+  cat: Partial<Pick<CategoryRecord, "navigator_allowed" | "max_members">> | undefined,
+): TeamComposition {
+  const totalMembers = cat?.max_members ?? 0;
+  // Solo categories register the driver directly; no team is needed.
+  if (totalMembers <= 1) return { teamAllowed: false, totalMembers };
+  const needsCoDriver = Boolean(cat?.navigator_allowed);
+  return {
+    teamAllowed: true,
+    totalMembers,
+    needsCoDriver,
+    extraMembers: Math.max(0, totalMembers - 1 - (needsCoDriver ? 1 : 0)),
+  };
+}
+
+export const SOLO_CATEGORY_MESSAGE =
+  "Only 1 member is required for this category, so no team is needed. Go to registration directly.";
+
+/** Message describing a wrong selected-user count, or null when it matches. */
+export function extraMembersError(
+  composition: Extract<TeamComposition, { teamAllowed: true }>,
+  selectedCount: number,
+): string | null {
+  const { extraMembers, totalMembers, needsCoDriver } = composition;
+  if (selectedCount === extraMembers) return null;
+  const breakdown = needsCoDriver
+    ? `you, your co-driver and ${extraMembers} user${extraMembers === 1 ? "" : "s"}`
+    : `you and ${extraMembers} user${extraMembers === 1 ? "" : "s"}`;
+  return `This category needs ${totalMembers} members (${breakdown}). Select exactly ${extraMembers} user${extraMembers === 1 ? "" : "s"}; ${selectedCount} selected.`;
+}
+
 export type TeamRosterValidationResult =
   | { ok: true }
   | { ok: false; message: string };

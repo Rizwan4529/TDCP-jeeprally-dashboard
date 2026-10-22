@@ -58,7 +58,7 @@ type SidebarNavItem = {
 const NAV_ITEMS: SidebarNavItem[] = [
   { label: "Dashboard", to: ROUTES.DASHBOARD, icon: LayoutGridIcon },
   { label: "Profile", to: ROUTES.PROFILE, icon: UserIcon },
-  { label: "Teams", to: ROUTES.TEAMS, icon: UsersIcon },
+  { label: "Co-driver/Navigator", to: ROUTES.TEAMS, icon: UsersIcon },
   { label: "Vehicle", to: ROUTES.VEHICLE, icon: CarIcon },
   { label: "Events", to: ROUTES.EVENTS, icon: CalendarDaysIcon },
   { label: "Notifications", to: ROUTES.NOTIFICATIONS, icon: BellIcon },

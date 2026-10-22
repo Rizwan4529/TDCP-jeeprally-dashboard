@@ -88,7 +88,8 @@ export type Team = {
   /** Vehicle type key (my-teams returns e.g. "premium"), id, or populated type. */
   type?: string | { _id: string; name?: string } | null;
   team_name: string;
-  team_number: string;
+  /** Optional; no longer collected from the driver. */
+  team_number?: string | null;
   category: TeamCategory;
   created_at?: string;
   updated_at?: string;
@@ -107,7 +108,8 @@ export type GetMyTeamResponse = GetMyTeamsResponse;
 
 export type CreateTeamPayload = {
   team_name: string;
-  team_number: string;
+  // Team number is optional and no longer sent.
+  team_number?: string;
   /** Category key (legacy) or the active rally's category id. */
   category: TeamCategory | string;
   /** Active rally type id. */

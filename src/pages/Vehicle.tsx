@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { CameraIcon, CarIcon, PlusIcon } from "lucide-react";
 import { toast } from "sonner";
 
@@ -27,17 +27,24 @@ import {
   TableCell,
   TableRow,
 } from "@/components/teams/TeamsDataTable";
+import { VehicleFormDialog } from "@/components/vehicles/VehicleFormDialog";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { useActiveRallyQuery } from "@/hooks/api/use-active-rally";
 import {
+  useCreateVehicleMutation,
   useDeleteVehicleMutation,
   useMyVehiclesQuery,
   useUploadVehicleImageMutation,
 } from "@/hooks/api/use-vehicles";
 import { cn } from "@/lib/utils";
-import { ROUTES, vehicleEditPath } from "@/utils/constants";
+import { vehicleEditPath } from "@/utils/constants";
 import { fetchAuthToken, toPublicFileUrl } from "@/utils/helpers";
-import { getVehicleCategoryTitle } from "@/utils/vehicle-form";
+import {
+  buildCreateVehiclePayload,
+  getVehicleCategoryTitle,
+  type VehicleFormValues,
+} from "@/utils/vehicle-form";
 
 const surface = "bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)]";
 
@@ -75,6 +82,34 @@ function VehicleScreen() {
 
   const deleteVehicleMutation = useDeleteVehicleMutation();
   const uploadImageMutation = useUploadVehicleImageMutation();
+  const createVehicleMutation = useCreateVehicleMutation();
+
+  // Types and categories come from the active rally (same as registration).
+  const activeRallyQuery = useActiveRallyQuery(Boolean(token));
+  const [createOpen, setCreateOpen] = useState(false);
+
+  const handleCreateVehicle = async (values: VehicleFormValues) => {
+    const imageFile =
+      values.vehicleImage instanceof File ? values.vehicleImage : null;
+    try {
+      const created = await createVehicleMutation.mutateAsync(
+        buildCreateVehiclePayload(values),
+      );
+      const newId = created.data?._id;
+      if (imageFile && newId) {
+        await uploadImageMutation.mutateAsync({
+          vehicleId: newId,
+          file: imageFile,
+        });
+      }
+      setCreateOpen(false);
+      toast.success("Vehicle created.");
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not create vehicle.",
+      );
+    }
+  };
 
   const description = vehiclesQuery.isLoading
     ? undefined
@@ -93,11 +128,14 @@ function VehicleScreen() {
             onSearchChange={setSearch}
             searchPlaceholder="Search vehicles..."
             addAction={
-              <Button asChild variant="primary-outline" className="shrink-0">
-                <Link to={ROUTES.VEHICLE_NEW}>
-                  <PlusIcon className="size-4" />
-                  Add vehicle
-                </Link>
+              <Button
+                type="button"
+                variant="primary-outline"
+                className="shrink-0"
+                onClick={() => setCreateOpen(true)}
+              >
+                <PlusIcon className="size-4" />
+                Add vehicle
               </Button>
             }
           />
@@ -119,11 +157,13 @@ function VehicleScreen() {
                 title="No vehicles yet"
                 description="Add your first vehicle to use it when registering for events."
                 action={
-                  <Button asChild size="default">
-                    <Link to={ROUTES.VEHICLE_NEW}>
-                      <PlusIcon className="size-4" />
-                      Add first vehicle
-                    </Link>
+                  <Button
+                    type="button"
+                    size="default"
+                    onClick={() => setCreateOpen(true)}
+                  >
+                    <PlusIcon className="size-4" />
+                    Add first vehicle
                   </Button>
                 }
               />
@@ -141,11 +181,11 @@ function VehicleScreen() {
                     <TeamsDataTableHead className="w-[88px]">
                       Photo
                     </TeamsDataTableHead>
-                    <TeamsDataTableHead>Model</TeamsDataTableHead>
+                    <TeamsDataTableHead>Make</TeamsDataTableHead>
                     <TeamsDataTableHead>Category</TeamsDataTableHead>
-                    <TeamsDataTableHead>Class</TeamsDataTableHead>
-                    <TeamsDataTableHead>Engine</TeamsDataTableHead>
-                    <TeamsDataTableHead>Power</TeamsDataTableHead>
+                    {/* <TeamsDataTableHead>Class</TeamsDataTableHead> */}
+                    <TeamsDataTableHead>Reg no.</TeamsDataTableHead>
+                    <TeamsDataTableHead>Engine capacity</TeamsDataTableHead>
                     <TeamsDataTableHead className="min-w-[96px] text-right">
                       Actions
                     </TeamsDataTableHead>
@@ -217,11 +257,11 @@ function VehicleScreen() {
                             {getVehicleCategoryTitle(v)}
                           </span>
                         </TableCell>
-                        <TableCell className="max-w-0 px-4 text-[#6B7890]">
+                        {/* <TableCell className="max-w-0 px-4 text-[#6B7890]">
                           <span className="block truncate">
                             {v.class?.trim() ? v.class : "—"}
                           </span>
-                        </TableCell>
+                        </TableCell> */}
                         <TableCell className="max-w-0 px-4 text-[#6B7890]">
                           <span className="block truncate">
                             {v.engine?.trim() ? v.engine : "—"}
@@ -229,7 +269,7 @@ function VehicleScreen() {
                         </TableCell>
                         <TableCell className="max-w-0 px-4 text-[#6B7890]">
                           <span className="block truncate">
-                            {v.power != null ? v.power : "—"}
+                            {v.power != null ? `${v.power} cc` : "—"}
                           </span>
                         </TableCell>
                         <TableCell className="w-24 px-4 text-right align-middle whitespace-nowrap">
@@ -276,6 +316,16 @@ function VehicleScreen() {
           </div>
         </Card>
       </div>
+
+      <VehicleFormDialog
+        open={createOpen}
+        onOpenChange={setCreateOpen}
+        rally={activeRallyQuery.data?.data ?? null}
+        isSubmitting={
+          createVehicleMutation.isPending || uploadImageMutation.isPending
+        }
+        onSubmit={handleCreateVehicle}
+      />
     </div>
   );
 }

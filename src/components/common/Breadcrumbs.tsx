@@ -15,7 +15,7 @@ const ROUTE_LABELS: { match: RegExp | string; name: string }[] = [
   { match: ROUTES.DASHBOARD, name: "Dashboard" },
   { match: ROUTES.PROFILE + "/edit", name: "Edit profile" },
   { match: ROUTES.PROFILE, name: "Profile" },
-  { match: ROUTES.TEAMS, name: "Teams" },
+  { match: ROUTES.TEAMS, name: "Co-driver/Navigator" },
   { match: ROUTES.VEHICLE + "/new", name: "Add vehicle" },
   { match: /^\/vehicle\/[^/]+\/edit$/, name: "Edit vehicle" },
   { match: ROUTES.VEHICLE, name: "Vehicle" },
