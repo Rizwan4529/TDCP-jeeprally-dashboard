@@ -7,6 +7,7 @@ import type {
 } from "@/api/types/registrations";
 import { CATEGORY_LABELS, type Category } from "@/utils/constants";
 import { formatRallyAmount } from "@/utils/rally-pricing";
+import { consentHtmlToBlocks, type ConsentBlock } from "@/utils/consent-html";
 import { formatRegistrationStatus } from "@/utils/registration-entries";
 
 /**
@@ -15,24 +16,32 @@ import { formatRegistrationStatus } from "@/utils/registration-entries";
  */
 export type ReceiptRow = { label: string; value: string };
 
-export type ReceiptSection = { title: string; rows: ReceiptRow[] };
-
-export type ReceiptPerson = { role: string; name: string; rows: ReceiptRow[] };
+/** One person in the Team card (driver, co-driver, roster users). */
+export type ReceiptPerson = { heading: string; name: string; rows: ReceiptRow[] };
 
 export type ReceiptPaymentTone = "paid" | "free" | "unknown";
 
 export type RegistrationReceipt = {
   rallyName: string;
   issuedOn: string;
+  registrationStatus: string;
+  /** "Individual" / "Sponsored", or null when not recorded. */
+  entryModeLabel: string | null;
   payment: {
     tone: ReceiptPaymentTone;
     statusLabel: string;
     amountLabel: string;
     rows: ReceiptRow[];
   };
-  registrationStatus: string;
-  sections: ReceiptSection[];
-  people: ReceiptPerson[];
+  rallyDetails: ReceiptRow[];
+  team: { name: string; people: ReceiptPerson[] };
+  vehicle: ReceiptRow[];
+  otherInfo: ReceiptRow[];
+  consent: {
+    blocks: ConsentBlock[];
+    acceptance: string;
+    acceptedOn: string;
+  };
 };
 
 const EMPTY = "—";
@@ -169,13 +178,14 @@ function categoryLabel(registration: DriverRegistration, team: RegistrationTeam 
   return key ? (CATEGORY_LABELS[key as Category] ?? key) : EMPTY;
 }
 
-const PIPELINE_LABELS: Record<string, string> = {
-  registered: "Registered",
-  inspection: "Inspection",
-  qualification: "Qualification",
-  firing_order: "Firing order",
-  rally_number: "Rally number",
+const ENTRY_MODE_LABELS: Record<string, string> = {
+  individual: "Individual",
+  sponsor: "Sponsored",
 };
+
+/** Same wording as the consent checkbox on the registration form. */
+const CONSENT_ACCEPTANCE =
+  "I have read and agree to the undertaking above for this category.";
 
 export function buildRegistrationReceipt(
   registration: DriverRegistration,
@@ -183,11 +193,12 @@ export function buildRegistrationReceipt(
   const event = refObject<RegistrationEvent>(registration.event_id);
   const team = refObject<RegistrationTeam>(registration.team_id);
   const vehicle = refObject<RegistrationVehicle>(registration.vehicle_id);
+  const category = refObject(registration.category_id);
   const payment = registration.payment ?? null;
 
-  const entryMode = payment?.entry_mode
-    ? capitalize(payment.entry_mode)
-    : EMPTY;
+  const entryModeLabel = payment?.entry_mode
+    ? (ENTRY_MODE_LABELS[payment.entry_mode] ?? capitalize(payment.entry_mode))
+    : null;
 
   const paymentTone: ReceiptPaymentTone = !payment
     ? "unknown"
@@ -209,89 +220,33 @@ export function buildRegistrationReceipt(
       label: "Amount",
       value: payment ? formatRallyAmount(payment.amount) : EMPTY,
     },
-    { label: "Entry mode", value: entryMode },
     { label: "Order ID", value: text(payment?.order_id) },
     { label: "Transaction ID", value: text(payment?.transaction_id) },
     { label: "Paid on", value: formatDateTime(payment?.paid_at) },
   ];
 
-  const entryRows: ReceiptRow[] = [
+  const rallyDetails: ReceiptRow[] = [
+    { label: "Rally name", value: text(event?.name) },
+    { label: "Location", value: text(event?.location) },
+    {
+      label: "Rally date",
+      value: dateRange(event?.rally_start_date, event?.rally_end_date),
+    },
+    { label: "Registered on", value: formatReceiptDate(registration.registered_at) },
     { label: "Rally type", value: refName(registration.type_id) },
     { label: "Category", value: categoryLabel(registration, team) },
-    { label: "Entry mode", value: entryMode },
-    {
-      label: "Team",
-      value: team?.is_solo ? "Solo entry (driver only)" : text(team?.team_name),
-    },
-  ];
-  if (team?.team_number) {
-    entryRows.push({ label: "Team number", value: `#${team.team_number}` });
-  }
-  entryRows.push(
-    {
-      label: "Registration status",
-      value: formatRegistrationStatus(registration.status),
-    },
-    {
-      label: "Stage",
-      value:
-        PIPELINE_LABELS[registration.pipeline_stage ?? ""] ??
-        capitalize(registration.pipeline_stage),
-    },
-    { label: "Registered on", value: formatDateTime(registration.registered_at) },
-  );
-  if (registration.firing_order != null) {
-    entryRows.push({ label: "Firing order", value: String(registration.firing_order) });
-  }
-  if (registration.rally_number) {
-    entryRows.push({ label: "Rally number", value: text(registration.rally_number) });
-  }
-
-  const sections: ReceiptSection[] = [
-    {
-      title: "Rally",
-      rows: [
-        { label: "Rally", value: text(event?.name) },
-        { label: "Location", value: text(event?.location) },
-        {
-          label: "Rally dates",
-          value: dateRange(event?.rally_start_date, event?.rally_end_date),
-        },
-        {
-          label: "Registration window",
-          value: dateRange(
-            event?.registration_start_date,
-            event?.registration_end_date,
-          ),
-        },
-        { label: "Rally status", value: capitalize(event?.status) },
-      ],
-    },
-    { title: "Entry", rows: entryRows },
-    { title: "Vehicle", rows: vehicleRows(vehicle) },
-    {
-      title: "Other information",
-      rows: [
-        {
-          label: "Emergency contact name",
-          value: text(registration.emergency_contact_person),
-        },
-        {
-          label: "Emergency contact no.",
-          value: text(registration.emergency_contact_number),
-        },
-        {
-          label: "Participation (1st time / no. of times)",
-          value: text(registration.participation_remarks),
-        },
-      ],
-    },
+    { label: "Registered as", value: entryModeLabel ?? EMPTY },
   ];
 
+  // Team card: driver, co-driver, then roster users numbered after them.
   const people: ReceiptPerson[] = [];
   const driver = refObject<RegistrationPerson>(team?.driver_id ?? null);
   if (driver) {
-    people.push({ role: "Driver", name: text(driver.name), rows: personRows(driver) });
+    people.push({
+      heading: "Driver Details",
+      name: text(driver.name),
+      rows: personRows(driver),
+    });
   }
 
   // Co-driver: embedded profile, else a legacy roster navigator.
@@ -299,7 +254,7 @@ export function buildRegistrationReceipt(
   const coDriver = team?.co_drivers?.[0] ?? legacyNavigator;
   if (coDriver) {
     people.push({
-      role: "Co-driver / Navigator",
+      heading: "Co-Driver/Navigator Details",
       name: text(coDriver.name),
       rows: personRows(coDriver),
     });
@@ -308,9 +263,11 @@ export function buildRegistrationReceipt(
   const members = (team?.member_ids ?? []).filter(
     (m) => !legacyNavigator || m._id !== legacyNavigator._id,
   );
+  // Driver is member 1 and the co-driver member 2, so users continue from there.
+  const firstMemberNumber = 1 + (driver ? 1 : 0) + (coDriver ? 1 : 0);
   members.forEach((member, index) => {
     people.push({
-      role: `Team member ${index + 1}`,
+      heading: `Team member ${firstMemberNumber + index}`,
       name: text(member.name),
       rows: personRows(member),
     });
@@ -319,6 +276,8 @@ export function buildRegistrationReceipt(
   return {
     rallyName: text(event?.name),
     issuedOn: formatDateTime(new Date().toISOString()),
+    registrationStatus: formatRegistrationStatus(registration.status),
+    entryModeLabel,
     payment: {
       tone: paymentTone,
       statusLabel:
@@ -330,9 +289,34 @@ export function buildRegistrationReceipt(
       amountLabel: payment ? formatRallyAmount(payment.amount) : EMPTY,
       rows: paymentRows,
     },
-    registrationStatus: formatRegistrationStatus(registration.status),
-    sections,
-    people,
+    rallyDetails,
+    team: {
+      name: team?.is_solo ? "Solo entry (driver only)" : text(team?.team_name),
+      people,
+    },
+    vehicle: vehicleRows(vehicle),
+    otherInfo: [
+      {
+        label: "Emergency contact name",
+        value: text(registration.emergency_contact_person),
+      },
+      {
+        label: "Emergency contact no.",
+        value: text(registration.emergency_contact_number),
+      },
+      {
+        label: "I am participating 1st time/ no. of time",
+        value: text(registration.participation_remarks),
+      },
+    ],
+    // Submitting a registration requires ticking the category undertaking.
+    consent: {
+      blocks: consentHtmlToBlocks(
+        category && "consent" in category ? category.consent : null,
+      ),
+      acceptance: CONSENT_ACCEPTANCE,
+      acceptedOn: formatDateTime(registration.registered_at),
+    },
   };
 }
 

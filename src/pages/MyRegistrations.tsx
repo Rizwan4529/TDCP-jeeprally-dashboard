@@ -59,10 +59,10 @@ import {
   canUpdateRegistration,
   formatRegisteredAt,
   formatRegistrationStatus,
-  getPersonName,
   getRegistrationCategoryLabel,
+  getRegistrationCoDriverName,
   getRegistrationEventId,
-  resolveRegistrationNavigator,
+  getRegistrationTypeLabel,
   resolveRegistrationTeam,
   registrationStatusTone,
 } from "@/utils/registration-entries";
@@ -137,13 +137,12 @@ function MyRegistrationsScreen() {
     if (!q) return byEvent;
     return byEvent.filter((r) => {
       const team = resolveRegistrationTeam(r, teams);
-      const navigator = resolveRegistrationNavigator(r, team);
       const haystack = [
         team?.team_name,
-        team?.team_number,
+        getRegistrationTypeLabel(r),
         getRegistrationCategoryLabel(r),
         r.status,
-        getPersonName(navigator),
+        getRegistrationCoDriverName(r, team),
         formatRegisteredAt(r.registered_at),
       ]
         .filter(Boolean)
@@ -289,14 +288,17 @@ function MyRegistrationsScreen() {
                     <TeamsDataTableHead className="w-[18%]">
                       Team
                     </TeamsDataTableHead>
-                    <TeamsDataTableHead className="w-[10%]">
+                    {/* <TeamsDataTableHead className="w-[10%]">
                       Number
+                    </TeamsDataTableHead> */}
+                    <TeamsDataTableHead className="w-[10%]">
+                      Type
                     </TeamsDataTableHead>
                     <TeamsDataTableHead className="w-[16%]">
                       Category
                     </TeamsDataTableHead>
                     <TeamsDataTableHead className="w-[16%]">
-                      Navigator
+                      Co-driver/Navigator
                     </TeamsDataTableHead>
                     <TeamsDataTableHead className="w-[12%]">
                       Status
@@ -312,7 +314,6 @@ function MyRegistrationsScreen() {
                 <TeamsDataTableBody>
                   {filtered.map((r) => {
                     const team = resolveRegistrationTeam(r, teams);
-                    const navigator = resolveRegistrationNavigator(r, team);
                     const rally = resolveRallyForRegistration(r);
                     const updateGate = canUpdateRegistration(r, rally);
                     return (
@@ -325,8 +326,13 @@ function MyRegistrationsScreen() {
                             {team?.team_name ?? "—"}
                           </span>
                         </TableCell>
-                        <TableCell className="px-3 font-medium text-[#1F1838]">
+                        {/* <TableCell className="px-3 font-medium text-[#1F1838]">
                           {team?.team_number ? `#${team.team_number}` : "—"}
+                        </TableCell> */}
+                        <TableCell className="max-w-0 px-3 text-[#6B7890]">
+                          <span className="block truncate">
+                            {getRegistrationTypeLabel(r)}
+                          </span>
                         </TableCell>
                         <TableCell className="max-w-0 px-3 text-[#6B7890]">
                           <span className="block truncate">
@@ -335,7 +341,7 @@ function MyRegistrationsScreen() {
                         </TableCell>
                         <TableCell className="max-w-0 px-3 text-[#6B7890]">
                           <span className="block truncate">
-                            {getPersonName(navigator)}
+                            {getRegistrationCoDriverName(r, team)}
                           </span>
                         </TableCell>
                         <TableCell className="px-3">
@@ -445,7 +451,6 @@ function RegistrationDetailDialog({
   }
 
   const team = resolveRegistrationTeam(registration, teams);
-  const navigator = resolveRegistrationNavigator(registration, team);
   const members = team?.member_ids ?? [];
 
   return (
@@ -474,8 +479,11 @@ function RegistrationDetailDialog({
         <DetailRow label="Category">
           {getRegistrationCategoryLabel(registration)}
         </DetailRow>
-        <DetailRow label="Navigator">
-          {getPersonName(navigator)}
+        <DetailRow label="Type">
+          {getRegistrationTypeLabel(registration)}
+        </DetailRow>
+        <DetailRow label="Co-driver/Navigator">
+          {getRegistrationCoDriverName(registration, team)}
         </DetailRow>
         <DetailRow label="Registered">
           {formatRegisteredAt(registration.registered_at)}

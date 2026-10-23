@@ -3,16 +3,20 @@ import {
   Font,
   Image,
   Page,
+  Polyline,
   StyleSheet,
+  Svg,
   Text,
   View,
 } from "@react-pdf/renderer";
+import type { ComponentProps, ReactNode } from "react";
 import poppins400 from "@fontsource/poppins/files/poppins-latin-400-normal.woff?url";
 import poppins500 from "@fontsource/poppins/files/poppins-latin-500-normal.woff?url";
 import poppins600 from "@fontsource/poppins/files/poppins-latin-600-normal.woff?url";
 import poppins700 from "@fontsource/poppins/files/poppins-latin-700-normal.woff?url";
 
 import Logo from "@/assets/icons/logo.png";
+import type { ConsentBlock } from "@/utils/consent-html";
 import type {
   ReceiptPaymentTone,
   ReceiptRow,
@@ -133,8 +137,9 @@ const styles = StyleSheet.create({
     color: COLORS.heading,
     marginTop: 2,
   },
+  pillRow: { flexDirection: "row", marginTop: 6 },
   pill: {
-    marginTop: 6,
+    marginLeft: 5,
     paddingVertical: 3,
     paddingHorizontal: 9,
     borderRadius: 10,
@@ -184,21 +189,62 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   cellValue: { fontSize: 9, color: COLORS.heading, marginTop: 1 },
-  groupHeading: {
-    fontSize: 11,
+  personHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 12,
+    paddingTop: 10,
+  },
+  personHeading: { fontSize: 9.5, fontWeight: 700, color: COLORS.primaryDark },
+  personName: { fontSize: 9.5, fontWeight: 600, color: COLORS.heading },
+  // Inset divider: stops short of the card borders on both sides.
+  separator: {
+    height: 1,
+    backgroundColor: COLORS.border,
+    marginHorizontal: 12,
+    marginTop: 4,
+  },
+  consentBody: { paddingHorizontal: 12, paddingTop: 10, paddingBottom: 4 },
+  consentHeading: {
+    fontSize: 9.5,
     fontWeight: 700,
     color: COLORS.heading,
-    marginTop: 4,
-    marginBottom: 8,
+    marginBottom: 4,
   },
-  note: {
+  consentParagraph: {
+    fontSize: 8.5,
+    lineHeight: 1.5,
+    color: COLORS.body,
+    marginBottom: 6,
+  },
+  consentListItem: { flexDirection: "row", marginBottom: 4 },
+  consentMarker: { width: 14, fontSize: 8.5, lineHeight: 1.5, color: COLORS.body },
+  consentListText: { flex: 1, fontSize: 8.5, lineHeight: 1.5, color: COLORS.body },
+  consentEmpty: { fontSize: 8.5, color: COLORS.muted, marginBottom: 6 },
+  acceptance: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginHorizontal: 12,
     marginTop: 4,
-    padding: 10,
-    borderRadius: 8,
+    marginBottom: 12,
+    padding: 9,
+    borderRadius: 6,
     backgroundColor: COLORS.surface,
-    fontSize: 8,
-    color: COLORS.muted,
+    borderWidth: 1,
+    borderColor: COLORS.border,
   },
+  checkbox: {
+    width: 13,
+    height: 13,
+    borderRadius: 3,
+    backgroundColor: COLORS.primary,
+    alignItems: "center",
+    justifyContent: "center",
+    marginRight: 8,
+  },
+  acceptanceText: { fontSize: 8.5, fontWeight: 600, color: COLORS.heading },
+  acceptanceMeta: { fontSize: 7.5, color: COLORS.muted, marginTop: 1 },
   footer: {
     position: "absolute",
     bottom: 18,
@@ -214,9 +260,9 @@ const styles = StyleSheet.create({
   },
 });
 
-function Rows({ rows }: { rows: ReceiptRow[] }) {
+function Rows({ rows, style }: { rows: ReceiptRow[]; style?: Style }) {
   return (
-    <View style={styles.grid}>
+    <View style={style ? [styles.grid, style] : styles.grid}>
       {rows.map((row) => (
         <View key={row.label} style={styles.cell} wrap={false}>
           <Text style={styles.cellLabel}>{row.label}</Text>
@@ -224,6 +270,31 @@ function Rows({ rows }: { rows: ReceiptRow[] }) {
         </View>
       ))}
     </View>
+  );
+}
+
+type Style = NonNullable<ComponentProps<typeof View>["style"]>;
+
+/** Fields kept on the same page as their heading, so a heading is never stranded. */
+const FIRST_ROW = 2;
+
+function HeadedRows({
+  heading,
+  rows,
+}: {
+  heading: ReactNode;
+  rows: ReceiptRow[];
+}) {
+  return (
+    <>
+      <View wrap={false}>
+        {heading}
+        <Rows rows={rows.slice(0, FIRST_ROW)} style={{ paddingBottom: 0 }} />
+      </View>
+      {rows.length > FIRST_ROW ? (
+        <Rows rows={rows.slice(FIRST_ROW)} style={{ paddingTop: 0 }} />
+      ) : null}
+    </>
   );
 }
 
@@ -237,12 +308,73 @@ function Section({
   rows: ReceiptRow[];
 }) {
   return (
-    <View style={styles.section} wrap={false}>
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>{title}</Text>
-        {name ? <Text style={styles.sectionName}>{name}</Text> : null}
-      </View>
-      <Rows rows={rows} />
+    // Cards flow across pages; single fields never split.
+    <View style={styles.section}>
+      <HeadedRows
+        heading={
+          <View style={styles.sectionHeader}>
+            <Text style={styles.sectionTitle}>{title}</Text>
+            {name ? <Text style={styles.sectionName}>{name}</Text> : null}
+          </View>
+        }
+        rows={rows}
+      />
+    </View>
+  );
+}
+
+function ConsentText({ blocks }: { blocks: ConsentBlock[] }) {
+  if (blocks.length === 0) {
+    return (
+      <Text style={styles.consentEmpty}>
+        Consent text is not available for this category.
+      </Text>
+    );
+  }
+  return (
+    <>
+      {blocks.map((block, index) => {
+        const inline = block.segments.map((seg, i) => (
+          <Text key={i} style={seg.bold ? { fontWeight: 600 } : undefined}>
+            {seg.text}
+          </Text>
+        ));
+        if (block.kind === "heading") {
+          return (
+            <Text key={index} style={styles.consentHeading} minPresenceAhead={30}>
+              {inline}
+            </Text>
+          );
+        }
+        if (block.kind === "listItem") {
+          return (
+            <View key={index} style={styles.consentListItem} wrap={false}>
+              <Text style={styles.consentMarker}>{block.marker ?? "•"}</Text>
+              <Text style={styles.consentListText}>{inline}</Text>
+            </View>
+          );
+        }
+        return (
+          <Text key={index} style={styles.consentParagraph}>
+            {inline}
+          </Text>
+        );
+      })}
+    </>
+  );
+}
+
+function CheckedBox() {
+  return (
+    <View style={styles.checkbox}>
+      <Svg width={9} height={9} viewBox="0 0 12 12">
+        <Polyline
+          points="2,6.5 5,9.5 10,3"
+          stroke="#ffffff"
+          strokeWidth={2}
+          fill="none"
+        />
+      </Svg>
     </View>
   );
 }
@@ -289,41 +421,88 @@ export function RegistrationReceiptDocument({
             <View style={styles.summarySide}>
               <Text style={styles.summaryLabel}>Amount</Text>
               <Text style={styles.amount}>{receipt.payment.amountLabel}</Text>
-              <Text
-                style={[
-                  styles.pill,
-                  { color: tone.color, backgroundColor: tone.background },
-                ]}
-              >
-                {receipt.payment.statusLabel}
-              </Text>
+              <View style={styles.pillRow}>
+                <Text
+                  style={[
+                    styles.pill,
+                    { color: tone.color, backgroundColor: tone.background },
+                  ]}
+                >
+                  {receipt.payment.statusLabel}
+                </Text>
+                {receipt.entryModeLabel ? (
+                  <Text
+                    style={[
+                      styles.pill,
+                      // Same light red as the card headers.
+                      {
+                        color: COLORS.primaryDark,
+                        backgroundColor: COLORS.primarySoft,
+                      },
+                    ]}
+                  >
+                    {receipt.entryModeLabel}
+                  </Text>
+                ) : null}
+              </View>
             </View>
           </View>
 
-          <Section title="Payment" rows={receipt.payment.rows} />
-          {receipt.sections.map((section) => (
-            <Section key={section.title} title={section.title} rows={section.rows} />
-          ))}
+          <Section title="Rally Details" rows={receipt.rallyDetails} />
 
-          {receipt.people.length > 0 ? (
-            <Text style={styles.groupHeading} minPresenceAhead={80}>
-              Team
-            </Text>
+          {receipt.team.people.length > 0 ? (
+            <View style={styles.section}>
+              {receipt.team.people.map((person, index) => (
+                <View key={person.heading}>
+                  {index > 0 ? <View style={styles.separator} /> : null}
+                  <HeadedRows
+                    heading={
+                      <>
+                        {/* Card header travels with the first person. */}
+                        {index === 0 ? (
+                          <View style={styles.sectionHeader}>
+                            <Text style={styles.sectionTitle}>Team</Text>
+                            <Text style={styles.sectionName}>
+                              {receipt.team.name}
+                            </Text>
+                          </View>
+                        ) : null}
+                        <View style={styles.personHeader}>
+                          <Text style={styles.personHeading}>{person.heading}</Text>
+                          <Text style={styles.personName}>{person.name}</Text>
+                        </View>
+                      </>
+                    }
+                    rows={person.rows}
+                  />
+                </View>
+              ))}
+            </View>
           ) : null}
-          {receipt.people.map((person) => (
-            <Section
-              key={person.role}
-              title={person.role}
-              name={person.name}
-              rows={person.rows}
-            />
-          ))}
 
-          <Text style={styles.note} wrap={false}>
-            Registration is subject to organiser approval, vehicle inspection
-            and qualification. The desired rally number is subject to
-            availability. Keep this receipt for your records.
-          </Text>
+          <Section title="Vehicle Details" rows={receipt.vehicle} />
+          <Section title="Payment Details" rows={receipt.payment.rows} />
+          <Section title="Other Information" rows={receipt.otherInfo} />
+
+          <View style={styles.section}>
+            <View style={styles.sectionHeader} wrap={false} minPresenceAhead={80}>
+              <Text style={styles.sectionTitle}>Consent</Text>
+            </View>
+            <View style={styles.consentBody}>
+              <ConsentText blocks={receipt.consent.blocks} />
+            </View>
+            <View style={styles.acceptance} wrap={false}>
+              <CheckedBox />
+              <View style={{ flex: 1 }}>
+                <Text style={styles.acceptanceText}>
+                  {receipt.consent.acceptance}
+                </Text>
+                <Text style={styles.acceptanceMeta}>
+                  Accepted on {receipt.consent.acceptedOn}
+                </Text>
+              </View>
+            </View>
+          </View>
         </View>
 
         <View style={styles.footer} fixed>

@@ -122,9 +122,13 @@ export default function RegistrationSuccessPage() {
                     value={receipt.payment.amountLabel}
                     emphasis
                   />
+                  <SummaryItem
+                    label="Registered as"
+                    value={receipt.entryModeLabel ?? "—"}
+                  />
                   {receipt.payment.rows
                     .filter((row) =>
-                      ["Entry mode", "Order ID", "Transaction ID", "Paid on"].includes(
+                      ["Order ID", "Transaction ID", "Paid on"].includes(
                         row.label,
                       ),
                     )

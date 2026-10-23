@@ -81,6 +81,8 @@ export type RegistrationTeam = {
   team_name: string;
   team_number?: string | null;
   category: string;
+  /** Vehicle type key, e.g. "stock". */
+  type?: string | null;
   driver_id?: RegistrationPerson | string | null;
   navigator_id?: RegistrationPerson | string | null;
   member_ids?: RegistrationPerson[];

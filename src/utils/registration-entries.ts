@@ -45,6 +45,7 @@ export function resolveRegistrationTeam(
       ? toRegistrationPerson(coDriverFromTeam(team)!)
       : null,
     member_ids: team.member_ids.map(toRegistrationPerson),
+    co_drivers: (team.co_drivers ?? []).map(toRegistrationPerson),
   };
 }
 
@@ -256,6 +257,35 @@ export function getRegistrationCategoryLabel(
     return CATEGORY_LABELS[team.category as Category] ?? team.category;
   }
   return "—";
+}
+
+/** Rally type name (`type_id`), else the vehicle's type, else the team's type key. */
+export function getRegistrationTypeLabel(
+  registration: DriverRegistration,
+): string {
+  const type = registration.type_id;
+  if (type && typeof type === "object" && type.name?.trim()) return type.name;
+  const vehicle = registration.vehicle_id;
+  const vehicleType =
+    vehicle && typeof vehicle === "object" ? vehicle.typeId : null;
+  if (vehicleType && typeof vehicleType === "object" && vehicleType.name?.trim()) {
+    return vehicleType.name;
+  }
+  const key = getRegistrationTeam(registration)?.type;
+  return key ? key.charAt(0).toUpperCase() + key.slice(1) : "—";
+}
+
+/**
+ * Co-driver from the team's embedded `co_drivers` only (navigator_id is
+ * ignored). Falls back to the matching my-teams entry when not populated.
+ */
+export function getRegistrationCoDriverName(
+  registration: DriverRegistration,
+  team: RegistrationTeam | null,
+): string {
+  const coDriver =
+    getRegistrationTeam(registration)?.co_drivers?.[0] ?? team?.co_drivers?.[0];
+  return coDriver?.name?.trim() || "—";
 }
 
 export function getPersonName(
