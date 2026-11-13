@@ -21,8 +21,9 @@ export async function beginGatewayPayment(args: {
   orderId: string;
   amount: number;
   orderDescription: string;
+  booking: DriverRegistration;
 }): Promise<void> {
-  const { registrationId, orderId, amount, orderDescription } = args;
+  const { registrationId, orderId, amount, orderDescription, booking } = args;
 
   savePendingRegistrationPayment({
     orderId,
@@ -38,6 +39,7 @@ export async function beginGatewayPayment(args: {
     returnUrl: buildPaymentReturnUrl(orderId),
     source: "jeeprally",
     orderDescription,
+    booking,
   });
 
   const paymentUrl = session?.data?.paymentUrl;
@@ -79,10 +81,22 @@ export async function retryRegistrationPayment(
     event?.name,
   ]);
 
+  const booking: DriverRegistration = {
+    ...registration,
+    payment: registration.payment
+      ? { ...registration.payment, order_id: orderId, status: "unpaid" }
+      : {
+          status: "unpaid",
+          amount,
+          order_id: orderId,
+        },
+  };
+
   await beginGatewayPayment({
     registrationId: registration._id,
     orderId,
     amount,
     orderDescription,
+    booking,
   });
 }

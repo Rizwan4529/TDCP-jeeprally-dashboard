@@ -1087,11 +1087,16 @@ export default function RegistrationPage() {
 
       try {
         toast.message("Entry saved as unpaid. Redirecting to secure payment...");
+        const booking = created.data;
+        if (!booking) {
+          throw new Error("Registration was created but booking data is missing.");
+        }
         await beginGatewayPayment({
           registrationId,
           orderId,
           amount,
           orderDescription,
+          booking,
         });
       } catch (paymentErr) {
         toast.error(

@@ -1,3 +1,5 @@
+import type { DriverRegistration } from "./registrations";
+
 export type PaymentSource = "jeeprally";
 
 export type CreatePaymentSessionPayload = {
@@ -6,6 +8,8 @@ export type CreatePaymentSessionPayload = {
   returnUrl: string;
   source: PaymentSource;
   orderDescription: string;
+  /** Full unpaid registration — used by central payments / booking sync. */
+  booking: DriverRegistration;
 };
 
 export type CreatePaymentSessionData = {
