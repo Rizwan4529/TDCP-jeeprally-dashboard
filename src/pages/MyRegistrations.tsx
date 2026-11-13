@@ -2,6 +2,7 @@ import { useMemo, useState, type ReactNode } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
   ClipboardListIcon,
+  CreditCardIcon,
   DownloadIcon,
   EyeIcon,
   Loader2Icon,
@@ -55,6 +56,10 @@ import { cn } from "@/lib/utils";
 import { ROUTES } from "@/utils/constants";
 import { fetchAuthToken } from "@/utils/helpers";
 import { getRallyEventId } from "@/utils/rally-event";
+import {
+  isRegistrationUnpaid,
+  retryRegistrationPayment,
+} from "@/utils/start-registration-payment";
 import {
   canUpdateRegistration,
   formatRegisteredAt,
@@ -174,6 +179,20 @@ function MyRegistrationsScreen() {
     return (
       events.find((e) => getRallyEventId(e) === registrationEventId) ?? null
     );
+  };
+
+  const [payingId, setPayingId] = useState<string | null>(null);
+  const handlePayNow = async (registration: DriverRegistration) => {
+    setPayingId(registration._id);
+    try {
+      toast.message("Redirecting to secure payment...");
+      await retryRegistrationPayment(registration);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not start the payment.",
+      );
+      setPayingId(null);
+    }
   };
 
   const handleUpdateClick = (registration: DriverRegistration) => {
@@ -353,6 +372,11 @@ function MyRegistrationsScreen() {
                           >
                             {formatRegistrationStatus(r.status)}
                           </span>
+                          {isRegistrationUnpaid(r) ? (
+                            <span className="mt-1 flex w-fit rounded-md border border-[#F2D6D6] bg-[#FFF5F5] px-2 py-0.5 text-[12px] font-medium text-[#B91C1C]">
+                              Unpaid
+                            </span>
+                          ) : null}
                         </TableCell>
                         <TableCell className="max-w-0 px-3 text-[#6B7890]">
                           <span className="block truncate">
@@ -361,6 +385,22 @@ function MyRegistrationsScreen() {
                         </TableCell>
                         <TableCell className="px-3 text-right whitespace-nowrap">
                           <div className="flex items-center justify-end gap-1">
+                            {isRegistrationUnpaid(r) ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                aria-label="Pay now"
+                                disabled={Boolean(payingId)}
+                                onClick={() => void handlePayNow(r)}
+                              >
+                                {payingId === r._id ? (
+                                  <Loader2Icon className="size-4 animate-spin" />
+                                ) : (
+                                  <CreditCardIcon className="size-4" />
+                                )}
+                                Pay now
+                              </Button>
+                            ) : null}
                             <Button
                               type="button"
                               variant="ghost"
@@ -471,6 +511,15 @@ function RegistrationDetailDialog({
           >
             {formatRegistrationStatus(registration.status)}
           </span>
+        </DetailRow>
+        <DetailRow label="Payment">
+          {registration.payment?.status === "paid"
+            ? "Paid"
+            : registration.payment?.status === "unpaid"
+              ? "Unpaid — payment pending"
+              : registration.payment?.status === "free"
+                ? "Free entry"
+                : "—"}
         </DetailRow>
         <DetailRow label="Team">{team?.team_name ?? "—"}</DetailRow>
         <DetailRow label="Team number">

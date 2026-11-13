@@ -4,9 +4,12 @@ import {
   AlertCircleIcon,
   CheckCircle2Icon,
   ClipboardListIcon,
+  CreditCardIcon,
   DownloadIcon,
   Loader2Icon,
 } from "lucide-react";
+import { useState } from "react";
+import { toast } from "sonner";
 
 import {
   EmptyState,
@@ -25,6 +28,10 @@ import { useRegistrationReceiptDownload } from "@/hooks/use-registration-receipt
 import { cn } from "@/lib/utils";
 import { ROUTES } from "@/utils/constants";
 import {
+  isRegistrationUnpaid,
+  retryRegistrationPayment,
+} from "@/utils/start-registration-payment";
+import {
   buildRegistrationReceipt,
   type ReceiptPaymentTone,
   // type ReceiptRow,
@@ -35,6 +42,7 @@ const surface = "bg-white shadow-[0_10px_30px_rgba(15,23,42,0.06)]";
 const PAYMENT_BADGE: Record<ReceiptPaymentTone, string> = {
   paid: "border-[#BFE3CF] bg-[#E7F5EE] text-[#1F7A4D]",
   free: "border-[#F0DFA8] bg-[#FFF8E8] text-[#9A6B00]",
+  unpaid: "border-[#F2D6D6] bg-[#FFF5F5] text-[#B91C1C]",
   unknown: "border-[#E8E8E8] bg-[#F9FAFD] text-[#6B7890]",
 };
 
@@ -48,6 +56,20 @@ export default function RegistrationSuccessPage() {
   );
   const { download, pendingId } = useRegistrationReceiptDownload();
   const downloading = pendingId === id;
+  const unpaid = isRegistrationUnpaid(registration);
+  const [paying, setPaying] = useState(false);
+  const handlePayNow = async () => {
+    if (!registration) return;
+    setPaying(true);
+    try {
+      await retryRegistrationPayment(registration);
+    } catch (err) {
+      toast.error(
+        err instanceof Error ? err.message : "Could not start the payment.",
+      );
+      setPaying(false);
+    }
+  };
 
   return (
     <div className={cn(SCROLL_PAGE, SIDEBAR_PAGE_PADDING)}>
@@ -86,7 +108,7 @@ export default function RegistrationSuccessPage() {
                     variant="h4"
                     className="text-[24px] font-semibold text-[#1F1838] sm:text-[28px]"
                   >
-                    Registration successful
+                    {unpaid ? "Registration saved — payment pending" : "Registration successful"}
                   </Typography>
                   <Typography
                     variant="body-sm"
@@ -96,8 +118,9 @@ export default function RegistrationSuccessPage() {
                     <span className="font-semibold text-[#25314D]">
                       {receipt.rallyName}
                     </span>{" "}
-                    has been submitted. You&apos;ll be notified once the
-                    organisers review it.
+                    {unpaid
+                      ? "is saved as Unpaid. Complete the payment to confirm your entry."
+                      : "has been submitted. You'll be notified once the organisers review it."}
                   </Typography>
                 </div>
                 <div className="flex flex-wrap justify-center gap-2">
@@ -152,6 +175,20 @@ export default function RegistrationSuccessPage() {
                     View my entries
                   </Link>
                 </Button>
+                {unpaid ? (
+                  <Button
+                    type="button"
+                    disabled={paying}
+                    onClick={() => void handlePayNow()}
+                  >
+                    {paying ? (
+                      <Loader2Icon className="size-4 animate-spin" />
+                    ) : (
+                      <CreditCardIcon className="size-4" />
+                    )}
+                    {paying ? "Starting payment…" : "Pay now"}
+                  </Button>
+                ) : null}
                 <Button
                   type="button"
                   disabled={downloading}

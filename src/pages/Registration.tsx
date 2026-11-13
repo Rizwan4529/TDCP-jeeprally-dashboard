@@ -65,7 +65,6 @@ import {
   useUpdateVehicleMutation,
   useUploadVehicleImageMutation,
 } from "@/hooks/api/use-vehicles";
-import { createPaymentSession } from "@/api/services/payments";
 import { createRegistration } from "@/api/services/registrations";
 import type {
   CreateRegistrationPayload,
@@ -94,10 +93,9 @@ import {
 } from "@/utils/rally-pricing";
 import {
   buildJeepRallyOrderDescription,
-  buildPaymentReturnUrl,
   createJeepRallyOrderId,
-  savePendingRegistrationPayment,
 } from "@/utils/pending-registration-payment";
+import { beginGatewayPayment } from "@/utils/start-registration-payment";
 import { useActiveRallyQuery } from "@/hooks/api/use-active-rally";
 import {
   buildCategorySelectOptions,
@@ -1070,33 +1068,44 @@ export default function RegistrationPage() {
         activeRally?.name,
       ]);
 
-      savePendingRegistrationPayment({
-        orderId,
-        amount,
-        // Transaction id is added from the gateway redirect on success.
-        payload: {
-          ...payload,
-          payment: { amount, order_id: orderId, entry_mode: paymentEntryMode },
-        },
-        orderDescription,
-        createdAt: Date.now(),
+      // Create the registration as UNPAID first; the payment success page marks it paid.
+      const created = await createRegistration({
+        ...payload,
+        payment: { amount, order_id: orderId, entry_mode: paymentEntryMode },
       });
-
-      const session = await createPaymentSession({
-        amount,
-        orderId,
-        returnUrl: buildPaymentReturnUrl(orderId),
-        source: "jeeprally",
-        orderDescription,
+      const registrationId = created.data?._id;
+      await queryClient.invalidateQueries({
+        queryKey: queryKeys.registrations.all,
       });
-
-      const paymentUrl = session?.data?.paymentUrl;
-      if (!paymentUrl) {
-        throw new Error("Payment URL not found in response");
+      if (!registrationId) {
+        toast.error("Registration was created but could not be loaded.", {
+          description: "Open My entries to pay for it.",
+        });
+        void navigate(ROUTES.MY_REGISTRATIONS, { replace: true });
+        return;
       }
 
-      toast.message("Redirecting to secure payment...");
-      window.location.assign(paymentUrl);
+      try {
+        toast.message("Entry saved as unpaid. Redirecting to secure payment...");
+        await beginGatewayPayment({
+          registrationId,
+          orderId,
+          amount,
+          orderDescription,
+        });
+      } catch (paymentErr) {
+        toast.error(
+          paymentErr instanceof Error
+            ? paymentErr.message
+            : "Could not start the payment.",
+          {
+            description:
+              "Your entry is saved as Unpaid. You can pay from My entries.",
+          },
+        );
+        setIsSubmittingRegistration(false);
+        void navigate(ROUTES.MY_REGISTRATIONS, { replace: true });
+      }
     } catch (err) {
       const msg =
         err instanceof Error

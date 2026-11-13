@@ -14,8 +14,16 @@ import {
 import { Typography } from "@/components/common/Typography";
 import { Button } from "@/components/ui/button";
 import { queryKeys } from "@/api/query-keys";
-import { createRegistration } from "@/api/services/registrations";
+import {
+  confirmRegistrationPayment,
+  getRegistrationByOrderId,
+} from "@/api/services/registrations";
+import type { DriverRegistration } from "@/api/types/registrations";
 import { registrationSuccessPath, ROUTES } from "@/utils/constants";
+import {
+  isRegistrationUnpaid,
+  retryRegistrationPayment,
+} from "@/utils/start-registration-payment";
 import {
   parsePaymentCallbackParams,
   resolvePaymentCallbackOutcome,
@@ -23,7 +31,6 @@ import {
 import {
   clearPendingRegistrationPayment,
   loadPendingRegistrationPayment,
-  type PendingRegistrationPayment,
 } from "@/utils/pending-registration-payment";
 import { formatRallyAmount } from "@/utils/rally-pricing";
 
@@ -55,18 +62,15 @@ function getApiErrorMessage(error: unknown): string {
   return "Something went wrong. Please try again.";
 }
 
-function toOrderSummary(
-  pending: PendingRegistrationPayment,
-  href: string,
-): OrderSummary {
+/** Order id from our own return URL (?orderId=JEEPRALLY-...), or the gateway's echo of it. */
+function resolveOrderId(href: string, pendingOrderId?: string): string {
   const parsed = parsePaymentCallbackParams(href);
-  return {
-    orderId: pending.orderId,
-    amount: pending.amount,
-    description: pending.orderDescription,
-    gatewayStatus: parsed.status,
-    transactionId: parsed.transactionId,
-  };
+  return (
+    pendingOrderId ||
+    parsed.orderIds.find((id) => /^jeeprally[-_]/i.test(id.trim())) ||
+    parsed.orderIds[0] ||
+    ""
+  );
 }
 
 export default function PaymentCallbackPage() {
@@ -78,6 +82,10 @@ export default function PaymentCallbackPage() {
     message: "Confirming your payment…",
   });
   const [order, setOrder] = useState<OrderSummary | null>(null);
+  const [registration, setRegistration] = useState<DriverRegistration | null>(
+    null,
+  );
+  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
     if (handledRef.current) return;
@@ -85,26 +93,62 @@ export default function PaymentCallbackPage() {
 
     const run = async () => {
       const pending = loadPendingRegistrationPayment();
-      if (!pending) {
+      const href = window.location.href;
+      const orderId = resolveOrderId(href, undefined);
+
+      if (!orderId && !pending) {
         setState({
           kind: "error",
           message:
-            "No pending registration payment was found. Please start registration again.",
+            "No payment order was found in this link. Check My entries for your registration status.",
         });
         return;
       }
 
-      const summary = toOrderSummary(pending, window.location.href);
+      // The registration already exists (unpaid) on the backend; look it up by order id.
+      let found: DriverRegistration | null;
+      try {
+        const res = await getRegistrationByOrderId(orderId || pending!.orderId);
+        found = res.data ?? null;
+      } catch (err) {
+        setState({
+          kind: "error",
+          message:
+            getApiErrorMessage(err) +
+            " If you were charged, contact support with your order ID.",
+        });
+        return;
+      }
+      if (!found) {
+        setState({
+          kind: "error",
+          message: "We could not find a registration for this payment.",
+        });
+        return;
+      }
+      setRegistration(found);
+
+      const effectiveOrderId = found.payment?.order_id || orderId;
+      const parsed = parsePaymentCallbackParams(href);
+      const summary: OrderSummary = {
+        orderId: effectiveOrderId,
+        amount: Number(found.payment?.amount ?? pending?.amount ?? 0),
+        description: pending?.orderDescription ?? "Jeep Rally registration",
+        gatewayStatus: parsed.status,
+        transactionId: parsed.transactionId,
+      };
       setOrder(summary);
 
-      const outcome = resolvePaymentCallbackOutcome(
-        window.location.href,
-        pending.orderId,
-      );
+      // Already paid (page reload / double visit): nothing more to do.
+      if (found.payment?.status === "paid") {
+        clearPendingRegistrationPayment();
+        navigate(registrationSuccessPath(found._id), { replace: true });
+        return;
+      }
 
+      const outcome = resolvePaymentCallbackOutcome(href, effectiveOrderId);
       const looksFailed =
-        outcome === "unknown" &&
-        /fail|cancel|declined/.test(window.location.href.toLowerCase());
+        outcome === "unknown" && /fail|cancel|declined/.test(href.toLowerCase());
 
       if (outcome === "failure" || looksFailed) {
         clearPendingRegistrationPayment();
@@ -114,7 +158,7 @@ export default function PaymentCallbackPage() {
         setState({
           kind: "failure",
           message:
-            "Your payment didn't go through or was cancelled, so your registration was not submitted. You can try again from registration.",
+            "Your payment didn't go through or was cancelled. Your entry is saved as Unpaid — you can pay again below or later from My entries.",
         });
         return;
       }
@@ -123,55 +167,57 @@ export default function PaymentCallbackPage() {
         setState({
           kind: "error",
           message:
-            "We could not confirm the payment status from the gateway response. If you were charged, contact support with your order ID, or return to registration to try again.",
+            "We could not confirm the payment status from the gateway response. Your entry stays Unpaid. If you were charged, contact support with your order ID.",
         });
         return;
       }
 
       setState({
         kind: "loading",
-        message: "Payment received. Submitting your registration…",
+        message: "Payment received. Confirming your registration…",
       });
 
       try {
-        const created = await createRegistration({
-          ...pending.payload,
-          payment: {
-            ...pending.payload.payment,
-            amount: pending.amount,
-            order_id: pending.orderId,
-            transaction_id: summary.transactionId,
-          },
+        await confirmRegistrationPayment(found._id, {
+          order_id: effectiveOrderId,
+          transaction_id: summary.transactionId,
         });
         clearPendingRegistrationPayment();
         await queryClient.invalidateQueries({
           queryKey: queryKeys.registrations.all,
         });
-        toast.success("Registration submitted", {
-          description: "Your Jeep Rally entry has been received.",
+        toast.success("Payment confirmed", {
+          description: "Your Jeep Rally entry is now paid.",
         });
         setState({
           kind: "success",
-          message: "Payment successful. Your registration has been submitted.",
+          message: "Payment successful. Your registration is now paid.",
         });
-        const createdId = created.data?._id;
-        navigate(
-          createdId ? registrationSuccessPath(createdId) : ROUTES.MY_REGISTRATIONS,
-          { replace: true },
-        );
+        navigate(registrationSuccessPath(found._id), { replace: true });
       } catch (err) {
         toast.error(getApiErrorMessage(err));
         setState({
           kind: "error",
           message:
             getApiErrorMessage(err) +
-            " Payment may have succeeded — contact support with your order ID if this persists.",
+            " Payment may have succeeded — your entry is still Unpaid. Contact support with your order ID if this persists.",
         });
       }
     };
 
     void run();
   }, [navigate, queryClient]);
+
+  const handlePayAgain = async () => {
+    if (!registration) return;
+    setRetrying(true);
+    try {
+      await retryRegistrationPayment(registration);
+    } catch (err) {
+      toast.error(getApiErrorMessage(err));
+      setRetrying(false);
+    }
+  };
 
   const icon =
     state.kind === "loading" ? (
@@ -219,7 +265,7 @@ export default function PaymentCallbackPage() {
           </Typography>
           {state.kind === "failure" ? (
             <span className="inline-flex rounded-full border border-[#F2D6D6] bg-[#FFF5F5] px-3 py-1 text-[12px] font-semibold tracking-wide text-[#B42323] uppercase">
-              Unpaid · Not registered
+              Unpaid · Payment pending
             </span>
           ) : null}
         </div>
@@ -242,12 +288,29 @@ export default function PaymentCallbackPage() {
 
         {state.kind === "failure" || state.kind === "error" ? (
           <div className="flex flex-col gap-3 border-t border-[#E8E8E8] px-6 py-5 sm:flex-row sm:justify-center sm:px-8">
-            <Button asChild size="lg" className="w-full sm:w-auto">
-              <Link to={ROUTES.REGISTRATION}>
-                <RotateCcwIcon className="size-4" />
-                Try again
-              </Link>
-            </Button>
+            {isRegistrationUnpaid(registration) ? (
+              <Button
+                type="button"
+                size="lg"
+                className="w-full sm:w-auto"
+                disabled={retrying}
+                onClick={() => void handlePayAgain()}
+              >
+                {retrying ? (
+                  <Loader2Icon className="size-4 animate-spin" />
+                ) : (
+                  <RotateCcwIcon className="size-4" />
+                )}
+                {retrying ? "Starting payment…" : "Pay again"}
+              </Button>
+            ) : (
+              <Button asChild size="lg" className="w-full sm:w-auto">
+                <Link to={ROUTES.REGISTRATION}>
+                  <RotateCcwIcon className="size-4" />
+                  Back to registration
+                </Link>
+              </Button>
+            )}
             <Button asChild variant="outline" size="lg" className="w-full sm:w-auto">
               <Link to={ROUTES.MY_REGISTRATIONS}>My entries</Link>
             </Button>

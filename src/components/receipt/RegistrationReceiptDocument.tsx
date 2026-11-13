@@ -49,11 +49,14 @@ const COLORS = {
   paidSoft: "#E7F5EE",
   free: "#9A6B00",
   freeSoft: "#FFF8E8",
+  unpaid: "#B91C1C",
+  unpaidSoft: "#FFF5F5",
 };
 
 const PAYMENT_TONE: Record<ReceiptPaymentTone, { color: string; background: string }> = {
   paid: { color: COLORS.paid, background: COLORS.paidSoft },
   free: { color: COLORS.free, background: COLORS.freeSoft },
+  unpaid: { color: COLORS.unpaid, background: COLORS.unpaidSoft },
   unknown: { color: COLORS.muted, background: COLORS.surface },
 };
 

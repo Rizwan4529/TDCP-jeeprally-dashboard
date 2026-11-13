@@ -1,10 +1,12 @@
 import { apiClient } from "@/api/client";
 import type {
+  ConfirmRegistrationPaymentPayload,
   CreateRegistrationPayload,
   CreateRegistrationResponse,
   GetEventRegistrationsResponse,
   GetMyRegistrationsResponse,
   GetRegistrationByIdResponse,
+  SetRegistrationPaymentOrderPayload,
   UpdateRegistrationPayload,
   UpdateRegistrationResponse,
 } from "@/api/types/registrations";
@@ -53,6 +55,40 @@ export async function getEventRegistrations(
 ): Promise<GetEventRegistrationsResponse> {
   const { data } = await apiClient.get<GetEventRegistrationsResponse>(
     `/rally/${encodeURIComponent(eventId)}/registrations`,
+  );
+  return data;
+}
+
+/** GET /registrations/by-order/:orderId — the driver's registration for a gateway order. */
+export async function getRegistrationByOrderId(
+  orderId: string,
+): Promise<GetRegistrationByIdResponse> {
+  const { data } = await apiClient.get<GetRegistrationByIdResponse>(
+    `/registrations/by-order/${encodeURIComponent(orderId)}`,
+  );
+  return data;
+}
+
+/** PATCH /registrations/:id/payment-order — start a new payment attempt for an unpaid entry. */
+export async function setRegistrationPaymentOrder(
+  registrationId: string,
+  payload: SetRegistrationPaymentOrderPayload,
+): Promise<GetRegistrationByIdResponse> {
+  const { data } = await apiClient.patch<GetRegistrationByIdResponse>(
+    `/registrations/${encodeURIComponent(registrationId)}/payment-order`,
+    payload,
+  );
+  return data;
+}
+
+/** POST /registrations/:id/confirm-payment — marks an unpaid entry as paid. Idempotent. */
+export async function confirmRegistrationPayment(
+  registrationId: string,
+  payload: ConfirmRegistrationPaymentPayload,
+): Promise<GetRegistrationByIdResponse> {
+  const { data } = await apiClient.post<GetRegistrationByIdResponse>(
+    `/registrations/${encodeURIComponent(registrationId)}/confirm-payment`,
+    payload,
   );
   return data;
 }

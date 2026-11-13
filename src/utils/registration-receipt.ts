@@ -19,7 +19,7 @@ export type ReceiptRow = { label: string; value: string };
 /** One person in the Team card (driver, co-driver, roster users). */
 export type ReceiptPerson = { heading: string; name: string; rows: ReceiptRow[] };
 
-export type ReceiptPaymentTone = "paid" | "free" | "unknown";
+export type ReceiptPaymentTone = "paid" | "unpaid" | "free" | "unknown";
 
 export type RegistrationReceipt = {
   rallyName: string;
@@ -204,7 +204,9 @@ export function buildRegistrationReceipt(
     ? "unknown"
     : payment.status === "paid"
       ? "paid"
-      : "free";
+      : payment.status === "unpaid"
+        ? "unpaid"
+        : "free";
 
   const paymentRows: ReceiptRow[] = [
     {
@@ -212,9 +214,11 @@ export function buildRegistrationReceipt(
       value:
         paymentTone === "paid"
           ? "Paid"
-          : paymentTone === "free"
-            ? "No fee (free entry)"
-            : "Not recorded",
+          : paymentTone === "unpaid"
+            ? "Unpaid (payment pending)"
+            : paymentTone === "free"
+              ? "No fee (free entry)"
+              : "Not recorded",
     },
     {
       label: "Amount",
@@ -283,9 +287,11 @@ export function buildRegistrationReceipt(
       statusLabel:
         paymentTone === "paid"
           ? "Paid"
-          : paymentTone === "free"
-            ? "Free entry"
-            : "Payment not recorded",
+          : paymentTone === "unpaid"
+            ? "Unpaid"
+            : paymentTone === "free"
+              ? "Free entry"
+              : "Payment not recorded",
       amountLabel: payment ? formatRallyAmount(payment.amount) : EMPTY,
       rows: paymentRows,
     },

@@ -26,13 +26,25 @@ export type RegistrationPaymentInput = {
 
 /** Stored payment; null on registrations created before payments were recorded. */
 export type RegistrationPayment = {
-  status: "paid" | "free";
+  /** "unpaid" until the gateway success is confirmed via POST /registrations/:id/confirm-payment. */
+  status: "paid" | "unpaid" | "free";
   amount: number;
   currency?: string;
   order_id?: string | null;
   transaction_id?: string | null;
   entry_mode?: "individual" | "sponsor" | null;
   paid_at?: string | null;
+};
+
+/** POST /registrations/:id/confirm-payment */
+export type ConfirmRegistrationPaymentPayload = {
+  order_id: string;
+  transaction_id?: string;
+};
+
+/** PATCH /registrations/:id/payment-order — new gateway order for an unpaid entry. */
+export type SetRegistrationPaymentOrderPayload = {
+  order_id: string;
 };
 
 /** PUT /registrations/:id — team, category, and event stay locked; no payment. */
