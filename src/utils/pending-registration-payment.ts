@@ -1,13 +1,19 @@
+import type { CreateRegistrationPayload } from "@/api/types/registrations";
+
 const STORAGE_KEY = "jeeprally_pending_payment";
 
 /**
- * Light client-side record of the payment in progress. The registration itself is
- * created (as unpaid) on the backend before the gateway redirect, so this only
- * lets the callback page show order details if the lookup is slow or fails.
+ * Client-side record of the payment in progress.
+ * - New entries: `payload` is kept here (and sent as `booking` in create-session). The
+ *   registration is created by central payments AFTER payment — no unpaid one beforehand.
+ * - Retrying an existing unpaid entry: `registrationId` points at that entry instead.
  */
 export type PendingRegistrationPayment = {
   orderId: string;
-  registrationId: string;
+  /** Set only when paying for an already-saved unpaid entry (retry). */
+  registrationId?: string;
+  /** Set for new entries: created after payment succeeds. */
+  payload?: CreateRegistrationPayload;
   amount: number;
   orderDescription: string;
   createdAt: number;
@@ -37,7 +43,9 @@ export function loadPendingRegistrationPayment(): PendingRegistrationPayment | n
     const raw = storage.getItem(STORAGE_KEY);
     if (!raw) return null;
     const parsed = JSON.parse(raw) as PendingRegistrationPayment;
-    if (!parsed?.orderId || !parsed?.registrationId) return null;
+    if (!parsed?.orderId || (!parsed?.registrationId && !parsed?.payload)) {
+      return null;
+    }
     return parsed;
   } catch {
     return null;

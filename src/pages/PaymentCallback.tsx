@@ -14,6 +14,7 @@ import {
 import { Typography } from "@/components/common/Typography";
 import { Button } from "@/components/ui/button";
 import { queryKeys } from "@/api/query-keys";
+import { confirmBooking } from "@/api/services/payments";
 import {
   confirmRegistrationPayment,
   getRegistrationByOrderId,
@@ -48,6 +49,33 @@ type OrderSummary = {
   gatewayStatus?: string;
   transactionId?: string;
 };
+
+/**
+ * confirm-booking's `data` shape isn't documented, so look for a registration (an object
+ * with an `_id`/`id`) at the usual spots instead of assuming one.
+ */
+function pickRegistration(data: unknown): DriverRegistration | null {
+  const asRecord = (v: unknown): Record<string, unknown> | null =>
+    v && typeof v === "object" && !Array.isArray(v)
+      ? (v as Record<string, unknown>)
+      : null;
+  const root = asRecord(data);
+  if (!root) return null;
+  const candidates = [
+    root,
+    asRecord(root.registration),
+    asRecord(root.booking),
+    asRecord(root.data),
+    asRecord(root.result),
+  ];
+  for (const c of candidates) {
+    if (!c) continue;
+    const id =
+      typeof c._id === "string" ? c._id : typeof c.id === "string" ? c.id : "";
+    if (id) return { ...(c as object), _id: id } as DriverRegistration;
+  }
+  return null;
+}
 
 function getApiErrorMessage(error: unknown): string {
   if (isAxiosError(error)) {
@@ -105,7 +133,155 @@ export default function PaymentCallbackPage() {
         return;
       }
 
-      // The registration already exists (unpaid) on the backend; look it up by order id.
+      // New entry (pay first): nothing exists on the backend yet. Create the
+      // registration only once the gateway confirms the payment.
+      if (pending?.payload) {
+        const parsedNew = parsePaymentCallbackParams(href);
+        const newSummary: OrderSummary = {
+          orderId: pending.orderId,
+          amount: pending.amount,
+          description: pending.orderDescription,
+          gatewayStatus: parsedNew.status,
+          transactionId: parsedNew.transactionId,
+        };
+        setOrder(newSummary);
+
+        const newOutcome = resolvePaymentCallbackOutcome(href, pending.orderId);
+        const newLooksFailed =
+          newOutcome === "unknown" &&
+          /fail|cancel|declined/.test(href.toLowerCase());
+
+        if (newOutcome === "failure" || newLooksFailed) {
+          clearPendingRegistrationPayment();
+          toast.error("Payment failed", {
+            description: "Payment failed or was cancelled.",
+          });
+          setState({
+            kind: "failure",
+            message:
+              "Your payment didn't go through or was cancelled, so your registration was not submitted. You can try again from registration.",
+          });
+          return;
+        }
+
+        if (newOutcome === "unknown") {
+          setState({
+            kind: "error",
+            message:
+              "We could not confirm the payment status from the gateway response. If you were charged, contact support with your order ID, or return to registration to try again.",
+          });
+          return;
+        }
+
+        setState({
+          kind: "loading",
+          message: "Payment received. Finalising your registration…",
+        });
+
+        // The portal does NOT call POST /registrations. Central payments creates the
+        // registration on the Jeep Rally backend (it was given the driver's token +
+        // booking in create-session); we only ask it to confirm: confirm-booking.
+        // 200 = done, 202 = still processing (ask again), 409 = no captured payment.
+        let confirmed = await confirmBooking({
+          orderId: pending.orderId,
+          source: "jeeprally",
+        });
+        for (
+          let attempt = 1;
+          attempt < 10 &&
+          (confirmed.outcome === "processing" || confirmed.outcome === "error");
+          attempt += 1
+        ) {
+          await new Promise((r) => setTimeout(r, 2000));
+          confirmed = await confirmBooking({
+            orderId: pending.orderId,
+            source: "jeeprally",
+          });
+        }
+
+        if (confirmed.outcome === "not_captured") {
+          // Nothing was charged for this order: safe to try again.
+          clearPendingRegistrationPayment();
+          toast.error("Payment not confirmed", {
+            description: confirmed.message || "No completed payment was found.",
+          });
+          setState({
+            kind: "failure",
+            message:
+              "We couldn't find a completed payment for this order, so your registration was not submitted. You can try again from registration.",
+          });
+          return;
+        }
+
+        // confirm-booking's `data` shape isn't documented: find a registration id in it,
+        // else fall back to a (read-only) lookup by order id for the success screen.
+        let createdRegistration: DriverRegistration | null = null;
+        if (confirmed.outcome === "success") {
+          createdRegistration = pickRegistration(confirmed.data);
+          if (!createdRegistration) {
+            try {
+              const res = await getRegistrationByOrderId(pending.orderId);
+              createdRegistration = res.data ?? null;
+            } catch {
+              /* the booking exists; only the receipt link is missing */
+            }
+          }
+        }
+        const lookupError: unknown =
+          confirmed.outcome === "error" && confirmed.message
+            ? new Error(confirmed.message)
+            : null;
+
+        if (confirmed.outcome === "success" && !createdRegistration) {
+          // Booking confirmed but no id to deep-link: show the list.
+          clearPendingRegistrationPayment();
+          await queryClient.invalidateQueries({
+            queryKey: queryKeys.registrations.all,
+          });
+          toast.success("Registration submitted", {
+            description: "Your Jeep Rally entry has been received.",
+          });
+          navigate(ROUTES.MY_REGISTRATIONS, { replace: true });
+          return;
+        }
+
+        if (createdRegistration) {
+          clearPendingRegistrationPayment();
+          await queryClient.invalidateQueries({
+            queryKey: queryKeys.registrations.all,
+          });
+          toast.success("Registration submitted", {
+            description: "Your Jeep Rally entry has been received.",
+          });
+          setState({
+            kind: "success",
+            message: "Payment successful. Your registration has been submitted.",
+          });
+          navigate(registrationSuccessPath(createdRegistration._id), {
+            replace: true,
+          });
+          return;
+        }
+
+        // Paid, but the registration isn't visible yet: never ask them to pay again.
+        clearPendingRegistrationPayment();
+        await queryClient.invalidateQueries({
+          queryKey: queryKeys.registrations.all,
+        });
+        toast.message("Payment received", {
+          description:
+            "Your registration is still being finalised. Check My entries shortly.",
+        });
+        setState({
+          kind: "error",
+          message:
+            (lookupError ? getApiErrorMessage(lookupError) + " " : "") +
+            "Your payment was received, but your registration is still being finalised. Check My entries in a moment. If it doesn't appear, contact support with your order ID.",
+        });
+        return;
+      }
+
+      // Retry of an existing unpaid entry: look it up by order id.
       let found: DriverRegistration | null;
       try {
         const res = await getRegistrationByOrderId(orderId || pending!.orderId);
@@ -265,7 +441,7 @@ export default function PaymentCallbackPage() {
           </Typography>
           {state.kind === "failure" ? (
             <span className="inline-flex rounded-full border border-[#F2D6D6] bg-[#FFF5F5] px-3 py-1 text-[12px] font-semibold tracking-wide text-[#B42323] uppercase">
-              Unpaid · Payment pending
+              {registration ? "Unpaid · Payment pending" : "Unpaid · Not registered"}
             </span>
           ) : null}
         </div>

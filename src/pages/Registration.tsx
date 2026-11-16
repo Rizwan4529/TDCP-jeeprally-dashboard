@@ -95,7 +95,7 @@ import {
   buildJeepRallyOrderDescription,
   createJeepRallyOrderId,
 } from "@/utils/pending-registration-payment";
-import { beginGatewayPayment } from "@/utils/start-registration-payment";
+import { beginNewRegistrationPayment } from "@/utils/start-registration-payment";
 import { useActiveRallyQuery } from "@/hooks/api/use-active-rally";
 import {
   buildCategorySelectOptions,
@@ -1068,35 +1068,64 @@ export default function RegistrationPage() {
         activeRally?.name,
       ]);
 
-      // Create the registration as UNPAID first; the payment success page marks it paid.
-      const created = await createRegistration({
-        ...payload,
-        payment: { amount, order_id: orderId, entry_mode: paymentEntryMode },
-      });
-      const registrationId = created.data?._id;
-      await queryClient.invalidateQueries({
-        queryKey: queryKeys.registrations.all,
-      });
-      if (!registrationId) {
-        toast.error("Registration was created but could not be loaded.", {
-          description: "Open My entries to pay for it.",
-        });
-        void navigate(ROUTES.MY_REGISTRATIONS, { replace: true });
-        return;
-      }
+      // DISABLED: no unpaid registration is created on the backend before create-session.
+      // The portal never calls POST /registrations for a paid entry: create-session gets
+      // the driver's token + booking and central payments creates the registration after
+      // payment (PaymentCallback only looks it up). Previous unpaid-first flow, for reference:
+      //
+      // const created = await createRegistration({
+      //   ...payload,
+      //   payment: { amount, order_id: orderId, entry_mode: paymentEntryMode },
+      // });
+      // const registrationId = created.data?._id;
+      // await queryClient.invalidateQueries({
+      //   queryKey: queryKeys.registrations.all,
+      // });
+      // if (!registrationId) {
+      //   toast.error("Registration was created but could not be loaded.", {
+      //     description: "Open My entries to pay for it.",
+      //   });
+      //   void navigate(ROUTES.MY_REGISTRATIONS, { replace: true });
+      //   return;
+      // }
+      // try {
+      //   toast.message("Entry saved as unpaid. Redirecting to secure payment...");
+      //   const booking = created.data;
+      //   if (!booking) {
+      //     throw new Error("Registration was created but booking data is missing.");
+      //   }
+      //   await beginGatewayPayment({
+      //     registrationId,
+      //     orderId,
+      //     amount,
+      //     orderDescription,
+      //     booking,
+      //   });
+      // } catch (paymentErr) {
+      //   toast.error(
+      //     paymentErr instanceof Error
+      //       ? paymentErr.message
+      //       : "Could not start the payment.",
+      //     {
+      //       description:
+      //         "Your entry is saved as Unpaid. You can pay from My entries.",
+      //     },
+      //   );
+      //   setIsSubmittingRegistration(false);
+      //   void navigate(ROUTES.MY_REGISTRATIONS, { replace: true });
+      // }
 
       try {
-        toast.message("Entry saved as unpaid. Redirecting to secure payment...");
-        const booking = created.data;
-        if (!booking) {
-          throw new Error("Registration was created but booking data is missing.");
-        }
-        await beginGatewayPayment({
-          registrationId,
+        toast.message("Redirecting to secure payment...");
+        await beginNewRegistrationPayment({
           orderId,
           amount,
           orderDescription,
-          booking,
+          // Sent as `booking` in create-session and kept for after the payment.
+          payload: {
+            ...payload,
+            payment: { amount, order_id: orderId, entry_mode: paymentEntryMode },
+          },
         });
       } catch (paymentErr) {
         toast.error(
@@ -1105,11 +1134,10 @@ export default function RegistrationPage() {
             : "Could not start the payment.",
           {
             description:
-              "Your entry is saved as Unpaid. You can pay from My entries.",
+              "Nothing was submitted or charged. You can try again from registration.",
           },
         );
         setIsSubmittingRegistration(false);
-        void navigate(ROUTES.MY_REGISTRATIONS, { replace: true });
       }
     } catch (err) {
       const msg =

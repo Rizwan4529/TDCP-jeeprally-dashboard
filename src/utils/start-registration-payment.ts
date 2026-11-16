@@ -1,6 +1,10 @@
 import { createPaymentSession } from "@/api/services/payments";
 import { setRegistrationPaymentOrder } from "@/api/services/registrations";
-import type { DriverRegistration } from "@/api/types/registrations";
+import { fetchAuthToken } from "@/utils/helpers";
+import type {
+  CreateRegistrationPayload,
+  DriverRegistration,
+} from "@/api/types/registrations";
 import {
   buildJeepRallyOrderDescription,
   buildPaymentReturnUrl,
@@ -13,8 +17,56 @@ import {
 } from "@/utils/registration-entries";
 
 /**
- * Opens a gateway session for an already-created (unpaid) registration and
- * redirects the browser to it. The success page confirms the payment afterwards.
+ * Pay FIRST, register after: nothing is created on the Jeep Rally backend before the
+ * gateway, and the portal never calls POST /registrations for it. create-session gets
+ * the driver's Jeep Rally token + the registration as `booking`; central payments creates
+ * the registration once the payment is confirmed and the callback page looks it up.
+ */
+export async function beginNewRegistrationPayment(args: {
+  orderId: string;
+  amount: number;
+  orderDescription: string;
+  payload: CreateRegistrationPayload;
+}): Promise<void> {
+  const { orderId, amount, orderDescription, payload } = args;
+
+  const jeepRallyToken = fetchAuthToken();
+  if (!jeepRallyToken) {
+    throw new Error("Your session has expired. Please sign in again.");
+  }
+
+  savePendingRegistrationPayment({
+    orderId,
+    amount,
+    orderDescription,
+    // Transaction id is added from the gateway redirect on success.
+    payload,
+    createdAt: Date.now(),
+  });
+
+  const session = await createPaymentSession({
+    amount,
+    orderId,
+    returnUrl: buildPaymentReturnUrl(orderId),
+    source: "jeeprally",
+    orderDescription,
+    jeepRallyToken,
+    // Exactly the object that would have been POSTed to /registrations.
+    booking: payload,
+  });
+
+  const paymentUrl = session?.data?.paymentUrl;
+  if (!paymentUrl) {
+    throw new Error("Payment URL not found in response");
+  }
+
+  window.location.assign(paymentUrl);
+}
+
+/**
+ * Opens a gateway session for an already-saved UNPAID registration (retry from
+ * "My entries" / "Pay again") and redirects the browser to it. The callback page
+ * confirms the payment afterwards.
  */
 export async function beginGatewayPayment(args: {
   registrationId: string;
