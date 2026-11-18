@@ -1,7 +1,9 @@
+import { useState } from "react";
 import {
   Building2Icon,
   CheckIcon,
   GaugeIcon,
+  ImageOffIcon,
   UserIcon,
   UsersIcon,
 } from "lucide-react";
@@ -19,6 +21,35 @@ import {
   getPricingAmounts,
 } from "../../utils/rally-pricing";
 import { refId } from "../../utils/rally-team-options";
+
+function CategoryImage({
+  src,
+  title,
+}: {
+  src?: string | null;
+  title: string;
+}) {
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const showImage = Boolean(src) && failedSrc !== src;
+
+  return (
+    <div className="aspect-[16/10] w-full shrink-0 overflow-hidden border-b border-[#E8E8E8] bg-[#F3F4F8]">
+      {showImage ? (
+        <img
+          src={src as string}
+          alt={title}
+          className="size-full object-cover"
+          onError={() => setFailedSrc(src ?? null)}
+        />
+      ) : (
+        <div className="flex size-full flex-col items-center justify-center gap-1.5 text-[#A3ACC0]">
+          <ImageOffIcon className="size-8" strokeWidth={1.5} />
+          <span className="text-[12px] font-medium">No image available</span>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export type EntryCategoryOption = {
   key: string;
@@ -278,7 +309,7 @@ export function RegistrationEntryStep({
                     if (!blocked) onSelectCategory(c.value);
                   }}
                   className={cn(
-                    "overflow-hidden rounded-md border text-left transition-all duration-200",
+                    "flex flex-col overflow-hidden rounded-md border text-left transition-all duration-200",
                     blocked
                       ? "cursor-not-allowed border-[#E8E8E8] bg-[#F4F5F8] opacity-60"
                       : active
@@ -286,16 +317,8 @@ export function RegistrationEntryStep({
                         : "border-[#E4E7EE] bg-white hover:border-[#C9CFDA]",
                   )}
                 >
-                  {c.imageUrl ? (
-                    <div className="aspect-[16/10] w-full overflow-hidden border-b border-[#E8E8E8] bg-[#F3F4F8]">
-                      <img
-                        src={c.imageUrl}
-                        alt=""
-                        className="size-full object-cover"
-                      />
-                    </div>
-                  ) : null}
-                  <div className="flex items-start justify-between gap-3 p-4">
+                  <CategoryImage src={c.imageUrl} title={c.title} />
+                  <div className="flex flex-1 items-start justify-between gap-3 p-4">
                     <div className="min-w-0 space-y-2">
                       <Typography
                         as="div"

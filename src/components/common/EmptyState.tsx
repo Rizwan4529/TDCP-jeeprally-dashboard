@@ -48,7 +48,6 @@ const variantStyles: Record<
   EmptyStateVariant,
   {
     shell: string;
-    halo: string;
     iconWrap: string;
     icon: string;
     title: string;
@@ -57,7 +56,6 @@ const variantStyles: Record<
 > = {
   default: {
     shell: "border-[#DDE3EC] bg-[linear-gradient(180deg,#FCFDFE_0%,#F5F8FC_100%)]",
-    halo: "bg-primary/10",
     iconWrap:
       "bg-primary/10 text-primary shadow-[0_10px_24px_rgba(180,68,35,0.14)] ring-1 ring-primary/20",
     icon: "text-primary",
@@ -66,7 +64,6 @@ const variantStyles: Record<
   },
   muted: {
     shell: "border-[#E4E8EF] bg-[#FAFBFD]",
-    halo: "bg-[#94A3B8]/10",
     iconWrap:
       "bg-[linear-gradient(145deg,#F3F5F9_0%,#E8ECF2_100%)] text-[#64748B] shadow-[0_8px_20px_rgba(15,23,42,0.06)] ring-1 ring-[#CBD5E1]/80",
     icon: "text-[#64748B]",
@@ -75,7 +72,6 @@ const variantStyles: Record<
   },
   error: {
     shell: "border-[#F2D6D6] bg-[linear-gradient(180deg,#FFF8F8_0%,#FFF1F1_100%)]",
-    halo: "bg-[#EF4444]/10",
     iconWrap:
       "bg-[linear-gradient(145deg,#FEE2E2_0%,#FECACA_100%)] text-[#B91C1C] shadow-[0_10px_24px_rgba(239,68,68,0.12)] ring-1 ring-[#FCA5A5]/70",
     icon: "text-[#B91C1C]",
@@ -113,19 +109,10 @@ export function EmptyState({
         className,
       )}
     >
-      <div className="relative flex items-center justify-center">
-        <span
-          aria-hidden
-          className={cn(
-            "absolute size-[4.5rem] rounded-full blur-[1px]",
-            sizing.iconWrap.includes("size-24") && "size-[7.5rem]",
-            sizing.iconWrap.includes("size-14") && "size-[3.75rem]",
-            tones.halo,
-          )}
-        />
+      <div className="flex items-center justify-center">
         <span
           className={cn(
-            "relative flex items-center justify-center",
+            "flex items-center justify-center",
             sizing.iconWrap,
             tones.iconWrap,
           )}

@@ -154,3 +154,56 @@
   scrollbar-width: thin;
   scrollbar-color: rgba(180, 68, 35, 0.35) transparent;
 }
+
+/*
+ * Phone input with country-code picker (react-phone-input-2) — sized and coloured like the
+ * shared form <Input> so it sits naturally next to the other fields.
+ */
+.phone-input-field.react-tel-input {
+  width: 100%;
+  font-family: inherit;
+}
+
+.phone-input-field .phone-input-field__input {
+  width: 100% !important;
+  height: 2.75rem !important;
+  padding-left: 3.4rem !important;
+  border: 1px solid #d7dae1 !important;
+  border-radius: 0.375rem !important;
+  background: #fff !important;
+  font-family: inherit;
+  font-size: 15px;
+  color: #25314d;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.05);
+  transition: border-color 0.15s, box-shadow 0.15s;
+}
+
+.phone-input-field .phone-input-field__input:focus {
+  border-color: var(--primary) !important;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--primary) 15%, transparent);
+}
+
+.phone-input-field .phone-input-field__button {
+  border: none !important;
+  border-radius: 0.375rem 0 0 0.375rem !important;
+  background: transparent !important;
+}
+
+.phone-input-field .flag-dropdown.open .selected-flag {
+  border-radius: 0.375rem 0 0 0;
+}
+
+.phone-input-field .country-list {
+  border-radius: 0.5rem;
+  font-family: inherit;
+}
+
+.phone-input-field--error .phone-input-field__input {
+  border-color: #e04444 !important;
+  box-shadow: 0 0 0 3px rgba(224, 68, 68, 0.15);
+}
+
+.phone-input-field .phone-input-field__input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}

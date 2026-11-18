@@ -13,6 +13,7 @@ import {
 
 import { Typography } from "@/components/common/Typography";
 import { Button } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 import { queryKeys } from "@/api/query-keys";
 import { confirmBooking } from "@/api/services/payments";
 import {
@@ -34,8 +35,22 @@ import {
   loadPendingRegistrationPayment,
 } from "@/utils/pending-registration-payment";
 import { formatRallyAmount } from "@/utils/rally-pricing";
+import { rememberPaidFromConfirm } from "@/utils/paid-overlay";
+
+/** Backend webhook can take a while after payment: poll confirm-booking every 5s for up to 2 minutes. */
+const CONFIRM_POLL_MS = 5000;
+const CONFIRM_WINDOW_MS = 120000;
+
+/** Status hints shown while waiting for the webhook. */
+const PROCESSING_STEPS = [
+  "Payment received",
+  "Verifying with your bank",
+  "Creating your registration",
+  "Sending your confirmation",
+];
 
 type CallbackState =
+  | { kind: "thanks"; message: string }
   | { kind: "loading"; message: string }
   | { kind: "success"; message: string }
   | { kind: "failure"; message: string }
@@ -61,12 +76,16 @@ function pickRegistration(data: unknown): DriverRegistration | null {
       : null;
   const root = asRecord(data);
   if (!root) return null;
+  // Real shape (seen 2026-11-16): `data` is the central booking document and the Jeep Rally
+  // registration itself is `data.metaInfo` (its `_id` === `data.id`). Prefer it over `data`,
+  // whose own status/payment fields describe the central booking, not the registration.
   const candidates = [
-    root,
+    asRecord(root.metaInfo),
     asRecord(root.registration),
     asRecord(root.booking),
     asRecord(root.data),
     asRecord(root.result),
+    root,
   ];
   for (const c of candidates) {
     if (!c) continue;
@@ -114,6 +133,24 @@ export default function PaymentCallbackPage() {
     null,
   );
   const [retrying, setRetrying] = useState(false);
+  /** Set when we start waiting for the backend webhook; drives the steps + progress bar. */
+  const [confirmStartedAt, setConfirmStartedAt] = useState<number | null>(null);
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (confirmStartedAt == null || state.kind !== "loading") return;
+    const timer = setInterval(() => setNow(Date.now()), 500);
+    return () => clearInterval(timer);
+  }, [confirmStartedAt, state.kind]);
+
+  const confirmProgress =
+    confirmStartedAt == null
+      ? 0
+      : Math.min(1, Math.max(0, (now - confirmStartedAt) / CONFIRM_WINDOW_MS));
+  const activeStep = Math.min(
+    PROCESSING_STEPS.length - 1,
+    Math.floor(confirmProgress * PROCESSING_STEPS.length),
+  );
 
   useEffect(() => {
     if (handledRef.current) return;
@@ -173,44 +210,33 @@ export default function PaymentCallbackPage() {
           return;
         }
 
+        const startedAt = Date.now();
+        setConfirmStartedAt(startedAt);
         setState({
           kind: "loading",
-          message: "Payment received. Finalising your registration…",
+          message:
+            "Please keep this page open while we confirm your registration. This can take up to a couple of minutes.",
         });
 
         // The portal does NOT call POST /registrations. Central payments creates the
         // registration on the Jeep Rally backend (it was given the driver's token +
         // booking in create-session); we only ask it to confirm: confirm-booking.
-        // 200 = done, 202 = still processing (ask again), 409 = no captured payment.
+        // The backend webhook can take up to a couple of minutes, and the gateway redirects us before it's done,
+        // so 409 / 202 / a transient error right after paying just mean "not ready yet":
+        // ask again every 5s for up to 2 minutes and stop at the first 200.
         let confirmed = await confirmBooking({
           orderId: pending.orderId,
           source: "jeeprally",
         });
-        for (
-          let attempt = 1;
-          attempt < 10 &&
-          (confirmed.outcome === "processing" || confirmed.outcome === "error");
-          attempt += 1
+        while (
+          confirmed.outcome !== "success" &&
+          Date.now() - startedAt < CONFIRM_WINDOW_MS
         ) {
-          await new Promise((r) => setTimeout(r, 2000));
+          await new Promise((r) => setTimeout(r, CONFIRM_POLL_MS));
           confirmed = await confirmBooking({
             orderId: pending.orderId,
             source: "jeeprally",
           });
-        }
-
-        if (confirmed.outcome === "not_captured") {
-          // Nothing was charged for this order: safe to try again.
-          clearPendingRegistrationPayment();
-          toast.error("Payment not confirmed", {
-            description: confirmed.message || "No completed payment was found.",
-          });
-          setState({
-            kind: "failure",
-            message:
-              "We couldn't find a completed payment for this order, so your registration was not submitted. You can try again from registration.",
-          });
-          return;
         }
 
         // confirm-booking's `data` shape isn't documented: find a registration id in it,
@@ -227,11 +253,6 @@ export default function PaymentCallbackPage() {
             }
           }
         }
-        const lookupError: unknown =
-          confirmed.outcome === "error" && confirmed.message
-            ? new Error(confirmed.message)
-            : null;
-
         if (confirmed.outcome === "success" && !createdRegistration) {
           // Booking confirmed but no id to deep-link: show the list.
           clearPendingRegistrationPayment();
@@ -246,6 +267,8 @@ export default function PaymentCallbackPage() {
         }
 
         if (createdRegistration) {
+          // Keep the captured-payment details (transaction id, paid time) for the receipt.
+          rememberPaidFromConfirm(createdRegistration._id, confirmed.data);
           clearPendingRegistrationPayment();
           await queryClient.invalidateQueries({
             queryKey: queryKeys.registrations.all,
@@ -263,20 +286,16 @@ export default function PaymentCallbackPage() {
           return;
         }
 
-        // Paid, but the registration isn't visible yet: never ask them to pay again.
+        // No 200 within the window. The payment WAS taken, so never ask them to pay
+        // again: thank them — the backend finishes the booking and emails them.
         clearPendingRegistrationPayment();
         await queryClient.invalidateQueries({
           queryKey: queryKeys.registrations.all,
         });
-        toast.message("Payment received", {
-          description:
-            "Your registration is still being finalised. Check My entries shortly.",
-        });
         setState({
-          kind: "error",
+          kind: "thanks",
           message:
-            (lookupError ? getApiErrorMessage(lookupError) + " " : "") +
-            "Your payment was received, but your registration is still being finalised. Check My entries in a moment. If it doesn't appear, contact support with your order ID.",
+            "We've received your payment. Your registration is taking a little longer than usual to confirm — we'll finish it for you shortly and email you once it's done. You don't need to pay again.",
         });
         return;
       }
@@ -398,7 +417,7 @@ export default function PaymentCallbackPage() {
   const icon =
     state.kind === "loading" ? (
       <Loader2Icon className="size-10 animate-spin text-primary" />
-    ) : state.kind === "success" ? (
+    ) : state.kind === "success" || state.kind === "thanks" ? (
       <CheckCircle2Icon className="size-10 text-[#1F7A4D]" />
     ) : state.kind === "failure" ? (
       <XCircleIcon className="size-10 text-[#E04444]" />
@@ -406,7 +425,11 @@ export default function PaymentCallbackPage() {
       <AlertCircleIcon className="size-10 text-[#E04444]" />
     );
 
-  const showOrder = order && (state.kind === "failure" || state.kind === "error");
+  const showOrder =
+    order &&
+    (state.kind === "failure" ||
+      state.kind === "error" ||
+      state.kind === "thanks");
 
   return (
     <div className="flex min-h-0 flex-1 items-center justify-center px-4 py-10">
@@ -429,16 +452,55 @@ export default function PaymentCallbackPage() {
             className="text-[22px] font-semibold text-[#25314D]"
           >
             {state.kind === "loading"
-              ? "Processing payment"
+              ? confirmStartedAt != null
+                ? "Processing your payment"
+                : "Processing payment"
               : state.kind === "success"
                 ? "Payment successful"
-                : state.kind === "failure"
-                  ? "Payment failed"
-                  : "Something went wrong"}
+                : state.kind === "thanks"
+                  ? "Thank you!"
+                  : state.kind === "failure"
+                    ? "Payment failed"
+                    : "Something went wrong"}
           </Typography>
           <Typography variant="body-sm" className="text-[#6B7890]">
             {state.message}
           </Typography>
+          {state.kind === "loading" && confirmStartedAt != null ? (
+            <div className="space-y-3 pt-2 text-left">
+              <ul className="space-y-2">
+                {PROCESSING_STEPS.map((label, i) => {
+                  const done = i < activeStep;
+                  const active = i === activeStep;
+                  return (
+                    <li
+                      key={label}
+                      className={cn(
+                        "flex items-center gap-2 text-[14px]",
+                        done || active ? "text-[#25314D]" : "text-[#8A95B5]",
+                        active && "font-semibold",
+                      )}
+                    >
+                      {done ? (
+                        <CheckCircle2Icon className="size-4 text-[#1F7A4D]" />
+                      ) : active ? (
+                        <Loader2Icon className="size-4 animate-spin text-primary" />
+                      ) : (
+                        <span className="size-4 rounded-full border border-[#D5DAE8]" />
+                      )}
+                      {label}
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="h-1.5 overflow-hidden rounded-full bg-[#E8E8E8]">
+                <div
+                  className="h-full rounded-full bg-primary transition-[width] duration-500"
+                  style={{ width: `${Math.max(6, confirmProgress * 100)}%` }}
+                />
+              </div>
+            </div>
+          ) : null}
           {state.kind === "failure" ? (
             <span className="inline-flex rounded-full border border-[#F2D6D6] bg-[#FFF5F5] px-3 py-1 text-[12px] font-semibold tracking-wide text-[#B42323] uppercase">
               {registration ? "Unpaid · Payment pending" : "Unpaid · Not registered"}
@@ -460,6 +522,14 @@ export default function PaymentCallbackPage() {
               <OrderItem label="Entry" value={order.description} />
             </div>
           </dl>
+        ) : null}
+
+        {state.kind === "thanks" ? (
+          <div className="flex flex-col gap-3 border-t border-[#E8E8E8] px-6 py-5 sm:flex-row sm:justify-center sm:px-8">
+            <Button asChild size="lg" className="w-full sm:w-auto">
+              <Link to={ROUTES.MY_REGISTRATIONS}>View my entries</Link>
+            </Button>
+          </div>
         ) : null}
 
         {state.kind === "failure" || state.kind === "error" ? (

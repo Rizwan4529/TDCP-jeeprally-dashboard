@@ -13,7 +13,9 @@ import {
   Input,
   Select,
   Textarea,
+  PhoneInput,
 } from "../common/FormCommon";
+import { sanitizeCnic } from "@/utils/cnic";
 import { Typography } from "../common/Typography";
 import { TeamMemberPicker } from "../teams/TeamMemberPicker";
 import { Button } from "../ui/button";
@@ -284,15 +286,6 @@ export function CreateTeamRegistrationDialog({
                   options={genderSelectOptions}
                   className={fieldClassName}
                 />
-                <Input
-                  control={coDriverForm.control}
-                  name="age"
-                  label="Age"
-                  required
-                  inputMode="numeric"
-                  maxLength={3}
-                  className={fieldClassName}
-                />
                 {/* <Input
                   control={coDriverForm.control}
                   name="occupation"
@@ -300,19 +293,17 @@ export function CreateTeamRegistrationDialog({
                   required
                   className={fieldClassName}
                 /> */}
-                <Input
+                <PhoneInput
                   control={coDriverForm.control}
                   name="contact_number"
                   label="Contact number"
                   required
-                  inputMode="numeric"
-                  maxLength={11}
-                  className={fieldClassName}
                 />
                 <Input
                   control={coDriverForm.control}
                   name="cnic"
                   label="CNIC"
+                  sanitize={sanitizeCnic}
                   required
                   inputMode="numeric"
                   maxLength={13}

@@ -36,7 +36,9 @@ import {
   ImagePicker,
   Input,
   Select,
+  PhoneInput,
 } from "@/components/common/FormCommon";
+import { sanitizeCnic } from "@/utils/cnic";
 import { Typography } from "@/components/common/Typography";
 import {
   PAGE_SHELL,
@@ -609,18 +611,20 @@ function RosterSection({ token }: { token: boolean }) {
               required
               className={fieldClassName}
             />
-            <Input
+            <PhoneInput
               control={form.control}
               name="contact_number"
               label="Contact number"
               required
-              className={fieldClassName}
             />
             <Input
               control={form.control}
               name="cnic"
               label="CNIC"
               required
+              inputMode="numeric"
+              maxLength={13}
+              sanitize={sanitizeCnic}
               className={fieldClassName}
             />
             <DatePicker

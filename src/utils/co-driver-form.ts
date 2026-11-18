@@ -1,6 +1,9 @@
 import { z } from "zod";
 
 import type { CreateTeamPayload } from "../api/types/teams";
+import { calculateAge } from "./age";
+import { cnicSchema } from "./cnic";
+import { phoneRequiredSchema, toJeepRallyPhone } from "./phone";
 import { PROFILE_IMAGE_FIELDS } from "./profile-update";
 import type { TeamFormValues } from "./team-form";
 
@@ -61,21 +64,11 @@ export const coDriverFormSchema = z.object({
   name: requiredString("Enter full name"),
   email: z.string().trim().email("Enter a valid email address"),
   gender: requiredString("Select gender"),
-  age: z
-    .string()
-    .trim()
-    .regex(/^\d{1,3}$/, "Enter a valid age"),
   address: requiredString("Enter address"),
-  contact_number: z
-    .string()
-    .trim()
-    .regex(/^03\d{9}$/, "Enter a valid mobile number (e.g. 03001234567)"),
+  contact_number: phoneRequiredSchema(),
   license_number: requiredString("Enter license number"),
   license_expiry: licenseExpirySchema,
-  cnic: z
-    .string()
-    .trim()
-    .regex(/^\d{13}$/, "CNIC must be exactly 13 digits"),
+  cnic: cnicSchema,
   date_of_birth: dateOfBirthSchema,
   // occupation: requiredString("Enter occupation"),
   occupation: z.string().trim(),
@@ -92,7 +85,6 @@ export const emptyCoDriverFormValues: CoDriverFormValues = {
   name: "",
   email: "",
   gender: "",
-  age: "",
   address: "",
   contact_number: "",
   license_number: "",
@@ -125,10 +117,10 @@ function toCoDriverTextFields(values: CoDriverFormValues): CoDriverTextFields {
   return {
     name: values.name.trim(),
     email: values.email.trim().toLowerCase(),
-    contact_number: values.contact_number.trim(),
+    contact_number: toJeepRallyPhone(values.contact_number),
     cnic: values.cnic.trim(),
     gender: values.gender.trim(),
-    age: values.age.trim(),
+    age: calculateAge(values.date_of_birth),
     address: values.address.trim(),
     license_number: values.license_number.trim(),
     license_expiry: values.license_expiry.trim(),

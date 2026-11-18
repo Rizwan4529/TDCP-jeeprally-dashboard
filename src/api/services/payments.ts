@@ -24,10 +24,15 @@ export async function confirmBooking(args: {
   orderId: string;
   source: "jeeprally";
 }): Promise<ConfirmBookingResult> {
+  const payload = { orderId: args.orderId, source: args.source };
+  console.log(
+    "payments 🚀 POST /payments/confirm-booking payload:",
+    JSON.stringify(payload),
+  );
   try {
     const res = await paymentsClient.post(
       "/payments/confirm-booking",
-      { orderId: args.orderId, source: args.source },
+      payload,
       // Handle 202 / 409 here instead of letting axios throw on them.
       { validateStatus: (status) => status >= 200 && status < 500 },
     );
@@ -37,7 +42,10 @@ export async function confirmBooking(args: {
       data?: unknown;
       message?: string;
     };
-    console.log("payments confirm-booking", res.status, body);
+    console.log(
+      `payments ✅ confirm-booking response: HTTP ${res.status}`,
+      JSON.stringify(body, null, 2),
+    );
 
     if (res.status === 200 && body.status !== "error") {
       return {
@@ -66,6 +74,10 @@ export async function confirmBooking(args: {
       message: body.message || `Could not confirm booking (${res.status})`,
     };
   } catch (error) {
+    console.log(
+      "payments ❌ confirm-booking failed (no response):",
+      error instanceof Error ? error.message : error,
+    );
     return {
       outcome: "error",
       emailSent: false,

@@ -1,5 +1,8 @@
 import { z } from "zod"
 
+import { cnicSchema } from "@/utils/cnic"
+import { phoneRequiredSchema } from "@/utils/phone"
+
 const requiredString = (message = "This field is required") =>
   z.string().trim().min(1, message)
 
@@ -278,15 +281,10 @@ const signupLicenseExpirySchema = z
     return parsed >= startOfToday
   }, "License expiry must be today or a future date")
 
-const pkMobileSchema = z
-  .string()
-  .trim()
-  .regex(/^03\d{9}$/, "Enter a valid mobile number (e.g. 03001234567)")
+/** Any country's number, picked with the country-code selector (value is E.164). */
+const phoneSchema = phoneRequiredSchema()
 
-const cnicDigitsSchema = z
-  .string()
-  .trim()
-  .regex(/^\d{13}$/, "CNIC must be exactly 13 digits")
+const cnicDigitsSchema = cnicSchema
 
 const optionalProfileImage = z
   .union([z.instanceof(File), z.null()])
@@ -296,7 +294,7 @@ export const signupSchema = z
   .object({
     fullName: requiredString("Enter your full name"),
     email: z.string().trim().email("Enter a valid email address"),
-    contactNumber: pkMobileSchema,
+    contactNumber: phoneSchema,
     cnic: cnicDigitsSchema,
     password: z.string().min(6, "Password must be at least 6 characters"),
     confirmPassword: requiredString("Confirm your password"),
@@ -311,13 +309,9 @@ export type SignupValues = z.infer<typeof signupSchema>
 export const profileUpdateSchema = z.object({
   name: requiredString("Enter your full name"),
   gender: requiredString("Select gender"),
-  age: z
-    .string()
-    .trim()
-    .regex(/^\d{1,3}$/, "Enter a valid age"),
   address: requiredString("Enter your address"),
   location: z.string().trim(),
-  contact_number: pkMobileSchema,
+  contact_number: phoneSchema,
   license_number: requiredString("Enter license number"),
   license_expiry: signupLicenseExpirySchema,
   cnic: cnicDigitsSchema,

@@ -1,5 +1,7 @@
 import type { LoginUser, UpdateProfilePayload } from "@/api/types/auth";
+import { calculateAge } from "@/utils/age";
 import { toDateOnlyInputValue } from "@/utils/helpers";
+import { toJeepRallyPhone } from "@/utils/phone";
 import type { ProfileUpdateValues } from "@/utils/zodSchema";
 
 function normText(value: string | number | null | undefined): string {
@@ -52,10 +54,11 @@ export function buildUpdateProfilePayload(
   const next = {
     name: values.name.trim(),
     gender: values.gender.trim(),
-    age: values.age.trim(),
+    // No age input: the backend still stores it, so derive it from the date of birth.
+    age: calculateAge(values.date_of_birth),
     address: values.address.trim(),
     // location: values.location.trim(),
-    contact_number: values.contact_number.trim(),
+    contact_number: toJeepRallyPhone(values.contact_number),
     license_number: values.license_number.trim(),
     license_expiry: normDateForProfile(values.license_expiry),
     cnic: values.cnic.trim(),

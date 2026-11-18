@@ -10,7 +10,9 @@ import {
   Input,
   Select,
   Textarea,
+  PhoneInput,
 } from "../common/FormCommon";
+import { sanitizeCnic } from "@/utils/cnic";
 import { Typography } from "../common/Typography";
 import { Button } from "../ui/button";
 import { GENDER_OPTIONS } from "../../utils/constants";
@@ -119,15 +121,6 @@ export function AddCoDriverDialog({
             options={genderSelectOptions}
             className={fieldClassName}
           />
-          <Input
-            control={form.control}
-            name="age"
-            label="Age"
-            required
-            inputMode="numeric"
-            maxLength={3}
-            className={fieldClassName}
-          />
           {/* <Input
             control={form.control}
             name="occupation"
@@ -135,19 +128,17 @@ export function AddCoDriverDialog({
             required
             className={fieldClassName}
           /> */}
-          <Input
+          <PhoneInput
             control={form.control}
             name="contact_number"
             label="Contact number"
             required
-            inputMode="numeric"
-            maxLength={11}
-            className={fieldClassName}
           />
           <Input
             control={form.control}
             name="cnic"
             label="CNIC"
+            sanitize={sanitizeCnic}
             required
             inputMode="numeric"
             maxLength={13}

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Link, useLocation, useNavigate, useSearchParams } from "react-router-dom";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useForm, type SubmitHandler } from "react-hook-form";
+import { phoneRequiredSchema, toJeepRallyPhone } from "@/utils/phone";
 import { z } from "zod";
 import { toast } from "sonner";
 
@@ -11,6 +12,7 @@ import {
   ImagePicker,
   Input,
   Select,
+  PhoneInput,
 } from "@/components/common/FormCommon";
 import {
   DashboardPanelEmptyState,
@@ -169,10 +171,9 @@ const newRegistrationConsentSchema = consentSchema.extend({
     .string()
     .trim()
     .min(1, "Enter the emergency contact name"),
-  emergency_contact_number: z
-    .string()
-    .trim()
-    .regex(/^03\d{9}$/, "Enter a valid mobile number (e.g. 03001234567)"),
+  emergency_contact_number: phoneRequiredSchema(
+    "Enter the emergency contact number",
+  ),
   participation_remarks: z
     .string()
     .trim()
@@ -1002,7 +1003,9 @@ export default function RegistrationPage() {
         category_id: categoryRecord._id,
         vehicle_id: activeVehicleId,
         emergency_contact_person: consentValues.emergency_contact_person.trim(),
-        emergency_contact_number: consentValues.emergency_contact_number.trim(),
+        emergency_contact_number: toJeepRallyPhone(
+          consentValues.emergency_contact_number,
+        ),
         participation_remarks: consentValues.participation_remarks.trim(),
       };
       if (!isSoloCategory) payload.team_id = selectedRegistrationTeamId;
@@ -1870,15 +1873,11 @@ export default function RegistrationPage() {
                         required
                         className={fieldClassName}
                       />
-                      <Input
+                      <PhoneInput
                         control={consentForm.control}
                         name="emergency_contact_number"
                         label="Emergency contact no."
                         required
-                        inputMode="numeric"
-                        maxLength={11}
-                        placeholder="03001234567"
-                        className={fieldClassName}
                       />
                       <div className="md:col-span-2">
                         <Input

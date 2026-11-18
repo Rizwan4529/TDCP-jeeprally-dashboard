@@ -4,7 +4,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm, type SubmitHandler } from "react-hook-form";
 
-import { FormCommon, Input } from "@/components/common/FormCommon";
+import { FormCommon, Input, PhoneInput } from "@/components/common/FormCommon";
+import { sanitizeCnic } from "@/utils/cnic";
+import { toJeepRallyPhone } from "@/utils/phone";
 import { ButtonSpinner } from "@/components/common/LoadingStates";
 import { Typography } from "@/components/common/Typography";
 import AuthLayout from "@/components/layout/AuthLayout";
@@ -120,7 +122,7 @@ export default function SignupPage() {
         name: values.fullName,
         email: values.email,
         password: values.password,
-        contact_number: values.contactNumber,
+        contact_number: toJeepRallyPhone(values.contactNumber),
         cnic: values.cnic,
       },
       {
@@ -167,22 +169,17 @@ export default function SignupPage() {
           autoComplete="email"
           className={authInputClassName}
         />
-        <Input
+        <PhoneInput
           control={form.control}
           name="contactNumber"
           label="Phone number"
           required
-          type="tel"
-          inputMode="numeric"
-          placeholder="03001234567"
-          autoComplete="tel"
-          maxLength={11}
-          className={authInputClassName}
         />
         <Input
           control={form.control}
           name="cnic"
           label="CNIC"
+          sanitize={sanitizeCnic}
           required
           inputMode="numeric"
           placeholder="13-digit CNIC (no dashes)"

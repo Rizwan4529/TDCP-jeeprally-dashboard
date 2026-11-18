@@ -26,7 +26,6 @@ function hasUploadedFile(path: string | null | undefined): boolean {
 const PROFILE_FIELD_LABELS: { key: keyof LoginUser | "email"; label: string }[] = [
   { key: "name", label: "Full name" },
   { key: "gender", label: "Gender" },
-  { key: "age", label: "Age" },
   { key: "address", label: "Address" },
   { key: "contact_number", label: "Cell number" },
   { key: "license_number", label: "Driving license" },
@@ -44,8 +43,6 @@ export function getCompetitorProfileGaps(user: LoginUser): string[] {
   for (const { key, label } of PROFILE_FIELD_LABELS) {
     if (PROFILE_IMAGE_KEYS.has(key)) {
       if (!hasUploadedFile(user[key as ProfileImageField])) gaps.push(label);
-    } else if (key === "age") {
-      if (!hasText(user.age)) gaps.push(label);
     } else {
       const value = user[key as keyof LoginUser];
       if (typeof value === "string" && !hasText(value)) gaps.push(label);

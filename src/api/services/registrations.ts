@@ -10,6 +10,12 @@ import type {
   UpdateRegistrationPayload,
   UpdateRegistrationResponse,
 } from "@/api/types/registrations";
+import { withRememberedPayment } from "@/utils/paid-overlay";
+
+/** Lay remembered confirm-booking payment details over a single-registration response. */
+function overlayOne(res: GetRegistrationByIdResponse): GetRegistrationByIdResponse {
+  return res?.data ? { ...res, data: withRememberedPayment(res.data) } : res;
+}
 
 export async function createRegistration(
   payload: CreateRegistrationPayload,
@@ -27,7 +33,7 @@ export async function getRegistrationById(
   const { data } = await apiClient.get<GetRegistrationByIdResponse>(
     `/registrations/${encodeURIComponent(registrationId)}`,
   );
-  return data;
+  return overlayOne(data);
 }
 
 export async function updateRegistration(
@@ -46,7 +52,13 @@ export async function getMyRegistrations(): Promise<GetMyRegistrationsResponse> 
   const { data } = await apiClient.get<GetMyRegistrationsResponse>(
     "/registrations/my-registrations",
   );
-  return data;
+  console.log(
+    "registrations ✅ my-registrations response:",
+    JSON.stringify(data, null, 2),
+  );
+  return Array.isArray(data?.data)
+    ? { ...data, data: data.data.map(withRememberedPayment) }
+    : data;
 }
 
 /** @deprecated Prefer getMyRegistrations + client-side event filter. */
@@ -66,7 +78,7 @@ export async function getRegistrationByOrderId(
   const { data } = await apiClient.get<GetRegistrationByIdResponse>(
     `/registrations/by-order/${encodeURIComponent(orderId)}`,
   );
-  return data;
+  return overlayOne(data);
 }
 
 /** PATCH /registrations/:id/payment-order — start a new payment attempt for an unpaid entry. */

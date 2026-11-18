@@ -5,13 +5,19 @@ import type {
   TeamMember,
   UpdateTeamMemberPayload,
 } from "@/api/types/team-members";
+import { cnicSchema } from "@/utils/cnic";
 import { toDateOnlyInputValue } from "@/utils/helpers";
+import {
+  normalizeStoredPhone,
+  phoneRequiredSchema,
+  toJeepRallyPhone,
+} from "@/utils/phone";
 
 export const teamMemberFormSchema = z.object({
   name: z.string().trim().min(1, "Name is required"),
   email: z.string().trim().email("Valid email is required"),
-  contact_number: z.string().trim().min(1, "Contact number is required"),
-  cnic: z.string().trim().min(1, "CNIC is required"),
+  contact_number: phoneRequiredSchema("Contact number is required"),
+  cnic: cnicSchema,
   date_of_birth: z.string().trim().min(1, "Date of birth is required"),
   occupation: z.string().optional(),
   location: z.string().optional(),
@@ -35,7 +41,7 @@ export function teamMemberToFormValues(m: TeamMember): TeamMemberFormValues {
   return {
     name: m.name,
     email: m.email,
-    contact_number: m.contact_number,
+    contact_number: normalizeStoredPhone(m.contact_number) || m.contact_number,
     cnic: m.cnic,
     date_of_birth: toDateOnlyInputValue(m.date_of_birth) || m.date_of_birth || "",
     occupation: m.occupation ?? "",
@@ -55,7 +61,7 @@ export function buildCreateTeamMemberPayload(
   const payload: CreateTeamMemberPayload = {
     name: values.name.trim(),
     email: values.email.trim(),
-    contact_number: values.contact_number.trim(),
+    contact_number: toJeepRallyPhone(values.contact_number),
     cnic: values.cnic.trim(),
     date_of_birth: values.date_of_birth.trim(),
   };
@@ -75,7 +81,7 @@ export function buildUpdateTeamMemberPayload(
   const payload: UpdateTeamMemberPayload = {
     name: values.name.trim(),
     email: values.email.trim(),
-    contact_number: values.contact_number.trim(),
+    contact_number: toJeepRallyPhone(values.contact_number),
     cnic: values.cnic.trim(),
     date_of_birth: values.date_of_birth.trim(),
   };

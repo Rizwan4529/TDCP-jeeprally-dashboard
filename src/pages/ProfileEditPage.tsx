@@ -11,7 +11,10 @@ import {
   Input as FormInput,
   Select,
   Textarea,
+  PhoneInput,
 } from "@/components/common/FormCommon";
+import { sanitizeCnic } from "@/utils/cnic";
+import { normalizeStoredPhone } from "@/utils/phone";
 import { PageHeader } from "@/components/common/NavigationCommon";
 import { Typography } from "@/components/common/Typography";
 import {
@@ -48,7 +51,6 @@ const genderSelectOptions = GENDER_OPTIONS.map((o) => ({
 const profileFormDefaults: ProfileUpdateValues = {
   name: "",
   gender: "",
-  age: "",
   address: "",
   location: "",
   contact_number: "",
@@ -88,13 +90,9 @@ function ProfileEditScreen() {
       ? {
           name: driver.name,
           gender: driver.gender ?? "",
-          age:
-            driver.age != null && String(driver.age).trim() !== ""
-              ? String(driver.age)
-              : "",
           address: driver.address ?? "",
           location: driver.location ?? "",
-          contact_number: driver.contact_number,
+          contact_number: normalizeStoredPhone(driver.contact_number) || driver.contact_number || "",
           license_number: driver.license_number ?? "",
           license_expiry: toDateOnlyInputValue(driver.license_expiry),
           cnic: driver.cnic ?? "",
@@ -192,15 +190,6 @@ function ProfileEditScreen() {
                     options={genderSelectOptions}
                     className={profileFieldClassName}
                   />
-                  <FormInput
-                    control={driverForm.control}
-                    name="age"
-                    label="Age"
-                    required
-                    inputMode="numeric"
-                    maxLength={3}
-                    className={profileFieldClassName}
-                  />
                   {/* <FormInput
                     control={driverForm.control}
                     name="occupation"
@@ -225,14 +214,11 @@ function ProfileEditScreen() {
                   className={profileFieldClassName}
                 /> */}
                 <div className="grid gap-5 md:grid-cols-2">
-                  <FormInput
+                  <PhoneInput
                     control={driverForm.control}
                     name="contact_number"
                     label="Contact number"
                     required
-                    inputMode="numeric"
-                    maxLength={11}
-                    className={profileFieldClassName}
                   />
                   <FormInput
                     control={driverForm.control}
@@ -254,6 +240,7 @@ function ProfileEditScreen() {
                     control={driverForm.control}
                     name="cnic"
                     label="CNIC"
+                    sanitize={sanitizeCnic}
                     required
                     inputMode="numeric"
                     maxLength={13}

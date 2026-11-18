@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Link } from "react-router-dom";
 import { CameraIcon, DotIcon, ImageOffIcon, PencilIcon } from "lucide-react";
+import { toast } from "sonner";
 
 import {
   ImageLightbox,
@@ -323,11 +324,24 @@ function Field({ label, value }: { label: string; value: string }) {
       <Typography as="p" variant="caption" className="text-[#6B7890]">
         {label}
       </Typography>
-      <Input
-        value={value}
-        readOnly
-        className="h-11 rounded-md border-[#E8E8E8] bg-[#FBFBFD] text-[14px] text-[#1F1838] shadow-none"
-      />
+      {/* The input ignores pointer events so it can't be focused or selected;
+          the wrapper catches the tap and points the user to "Edit profile". */}
+      <div
+        className="cursor-not-allowed"
+        onClick={() =>
+          toast.info("Tap on the Edit profile button to edit your details.", {
+            id: "profile-field-readonly",
+          })
+        }
+      >
+        <Input
+          value={value}
+          readOnly
+          tabIndex={-1}
+          aria-readonly="true"
+          className="pointer-events-none h-11 select-none rounded-md border-[#E8E8E8] bg-[#FBFBFD] text-[14px] text-[#1F1838] shadow-none"
+        />
+      </div>
     </div>
   );
 }

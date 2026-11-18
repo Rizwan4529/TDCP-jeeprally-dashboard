@@ -21,7 +21,22 @@ import {
   XIcon,
 } from "lucide-react";
 
+import PhoneInputModule from "react-phone-input-2";
+import "react-phone-input-2/lib/style.css";
+
+/**
+ * react-phone-input-2 ships a CommonJS bundle (`exports.default = Component`). Depending on
+ * how Vite pre-bundles it, the default import is either the component or the whole exports
+ * object, and rendering the object crashes with "Element type is invalid ... got: object".
+ * Resolve the real component either way.
+ */
+const PhoneInputBase = (
+  (PhoneInputModule as unknown as { default?: typeof PhoneInputModule }).default ??
+  PhoneInputModule
+) as typeof PhoneInputModule;
+
 import { Typography } from "@/components/common/Typography";
+import { toPhoneInputDigits, toStoredPhone } from "@/utils/phone";
 import { Button } from "@/components/ui/button";
 import {
   Form,
@@ -93,7 +108,13 @@ type InputProps<TFieldValues extends FieldValues> =
       | "onChange"
       | "placeholder"
       | "value"
-    >;
+    > & {
+      /**
+       * Cleans the value as the user types (e.g. `sanitizeCnic`: digits only, max 13),
+       * so invalid characters are never shown and the field can't exceed its limit.
+       */
+      sanitize?: (value: string) => string;
+    };
 
 type TextareaProps<TFieldValues extends FieldValues> =
   SharedFieldProps<TFieldValues> &
@@ -524,6 +545,7 @@ function Input<TFieldValues extends FieldValues>({
   disabled,
   showMessage = true,
   type,
+  sanitize,
   ...props
 }: InputProps<TFieldValues>) {
   const isPassword = type === "password";
@@ -571,6 +593,11 @@ function Input<TFieldValues extends FieldValues>({
               <BaseInput
                 {...props}
                 {...field}
+                onChange={(event) =>
+                  field.onChange(
+                    sanitize ? sanitize(event.target.value) : event.target.value,
+                  )
+                }
                 type={type}
                 value={field.value ?? ""}
                 placeholder={placeholder}
@@ -579,6 +606,79 @@ function Input<TFieldValues extends FieldValues>({
               />
             )}
           </FormControl>
+          {description ? (
+            <FieldDescription>{description}</FieldDescription>
+          ) : null}
+          {showMessage ? <FormMessage /> : null}
+        </FormItem>
+      )}
+    />
+  );
+}
+
+type PhoneInputProps<TFieldValues extends FieldValues> = {
+  control: Control<TFieldValues>;
+  name: FieldPath<TFieldValues>;
+  label?: ReactNode;
+  required?: boolean;
+  description?: ReactNode;
+  disabled?: boolean;
+  itemClassName?: string;
+  showMessage?: boolean;
+  /** Lower-case ISO country shown first; Pakistan like the booking portal. */
+  defaultCountry?: string;
+};
+
+/**
+ * Phone number with a searchable country-code picker (react-phone-input-2, same library as
+ * the booking portal). The form value is E.164 ("+923001234567"); validate it with
+ * `phoneRequiredSchema` from "@/utils/phone" and convert with `toJeepRallyPhone` when
+ * building the API payload.
+ */
+function PhoneInput<TFieldValues extends FieldValues>({
+  control,
+  name,
+  label,
+  required,
+  description,
+  disabled,
+  itemClassName,
+  showMessage = true,
+  defaultCountry = "pk",
+}: PhoneInputProps<TFieldValues>) {
+  return (
+    <FormField
+      control={control}
+      name={name}
+      render={({ field, fieldState }) => (
+        <FormItem className={itemClassName}>
+          {label ? (
+            <FormLabel>
+              <FieldLabel required={required}>{label}</FieldLabel>
+            </FormLabel>
+          ) : null}
+          <PhoneInputBase
+            country={defaultCountry}
+            preferredCountries={[defaultCountry]}
+            value={toPhoneInputDigits(field.value as string | undefined)}
+            onChange={(digits) => field.onChange(toStoredPhone(digits))}
+            onBlur={field.onBlur}
+            countryCodeEditable={false}
+            enableSearch
+            searchPlaceholder="Search country or code"
+            disabled={disabled}
+            containerClass={cn(
+              "phone-input-field",
+              fieldState.error && "phone-input-field--error",
+            )}
+            inputClass="phone-input-field__input"
+            buttonClass="phone-input-field__button"
+            inputProps={{
+              name: String(name),
+              autoComplete: "tel",
+              "aria-invalid": fieldState.error ? true : undefined,
+            }}
+          />
           {description ? (
             <FieldDescription>{description}</FieldDescription>
           ) : null}
@@ -1250,6 +1350,7 @@ export {
   FormCommon,
   ImagePicker,
   Input,
+  PhoneInput,
   RadioGroup,
   Select,
   Textarea,
